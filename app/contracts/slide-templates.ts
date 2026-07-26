@@ -683,6 +683,14 @@ export const LESSON_PACKETS: LessonPacket[] = [
     templates: ["Formula, by Wolfram", "Wolfram walk-through", "Wolfram deep dive", "Wolfram, then answer"],
   },
   {
+    id: "anatomy-atlas-read",
+    name: "Anatomy atlas — just read",
+    description:
+      "Pure atlas reading, no evaluation on any slide: a labelled sketch of the structure, an atlas page of explanation, the organ with its data table, and the full image+table+graph spread. Flip through and understand — nothing is asked.",
+    purpose: "education",
+    templates: ["Anatomy sketch (read)", "Anatomy atlas page", "Organ & its data", "Full anatomy spread"],
+  },
+  {
     id: "anatomy-atlas-typed",
     name: "Anatomy atlas — describe it (typed)",
     description:
