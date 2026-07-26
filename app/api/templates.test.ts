@@ -27,7 +27,11 @@ describe("slide-template catalog", () => {
       // in which case it must carry real written prose. Commercial showcases
       // end on a contact/order close instead of a quiz.
       if (templatePurpose(t.tags) === "education" && !t.components.some((c) => isGradable(c))) {
-        expect(t.components.includes("prose"), t.name).toBe(true);
+        // read-throughs carry prose — or a Wolfram card, which IS an explanation
+        expect(
+          t.components.includes("prose") || t.components.includes("wolfram"),
+          t.name,
+        ).toBe(true);
       }
     }
   });

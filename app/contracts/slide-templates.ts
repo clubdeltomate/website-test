@@ -375,6 +375,7 @@ const STEM_TEMPLATES: SlideTemplate[] = [
   /* -- Wolfram|Alpha explanations (needs WOLFRAM_APP_ID/APP_ID on the server;
         the slide shows a live computed result for the AI's query). Mixed
         gradable and read-through (green-dot) variants across the bands. -- */
+  bi("Wolfram only", "A1", ["wolfram"], ["math", "science", "wolfram"]),
   bi("Wolfram explains it", "A1", ["prose", "wolfram"], ["math", "science", "wolfram"]),
   bi("Wolfram check", "A1", ["prose", "wolfram", "mcq2"], ["math", "science", "wolfram"]),
   bi("Formula, by Wolfram", "B1", ["latex", "wolfram", "prose"], ["math", "physics", "wolfram"]),

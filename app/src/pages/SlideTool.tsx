@@ -321,7 +321,7 @@ function ToolStudio({
   const [tone, setTone] = useState<Tone>(tool.defaultTone ?? 'neutral');
   // Advanced: solve slides use the freehand scratchpad (on) or a plain answer
   // box (off) as the way to submit a worked solution.
-  const [useScratchpad, setUseScratchpad] = useState(true);
+  const [useScratchpad, setUseScratchpad] = useState(false);
   // Advanced: pinned layout template per slide (name | null = auto). Index i → slide i+1.
   const [templatePlan, setTemplatePlan] = useState<(string | null)[]>([]);
   // Subject filter for the template catalog: Auto follows topic detection,

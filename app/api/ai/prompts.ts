@@ -604,6 +604,9 @@ export function ensureExplanatoryProse<T extends { slides?: LooseSlide[] }>(
 ): T {
   for (const slide of deck.slides ?? []) {
     if (slideHasProse(slide)) continue;
+    // A Wolfram|Alpha card IS the explanation — a wolfram-only slide (the
+    // "Wolfram only" template) must not get lesson filler injected on top.
+    if ((slide.components ?? []).some((c) => c?.type === "wolfram")) continue;
     if (!Array.isArray(slide.components)) slide.components = [];
     console.warn("[ai/prose] slide had no explanatory text — injecting a fallback paragraph:", slide.title);
     slide.components.unshift({ type: "prose", paragraphs: [slideFallbackParagraph(slide, purpose, topic)] });
