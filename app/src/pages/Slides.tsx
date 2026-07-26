@@ -565,7 +565,7 @@ export default function Slides() {
                       }
                     >
                       <div className="flex items-start justify-between">
-                        <span className="flex items-center gap-2">
+                        <span className="flex min-w-0 items-center gap-2">
                           <span
                             className={cn(
                               'flex h-11 w-11 items-center justify-center rounded-full border-2 border-ink text-ink',
@@ -576,10 +576,14 @@ export default function Slides() {
                             <TemplateIcon template={tool.template} className="h-5 w-5" />
                           </span>
                           {isDraft && (
-                            <span className="rounded-wobble-sm border-2 border-dashed border-green bg-green-soft px-2 py-0.5 text-xs font-bold text-ink">
-                              Draft · only you see this
+                            <span
+                              title="Only you (and admins) can see this draft"
+                              className="rounded-wobble-sm border-2 border-dashed border-green bg-green-soft px-2 py-0.5 text-xs font-bold text-ink"
+                            >
+                              Draft
                             </span>
                           )}
+                          <span className="micro truncate text-ink-faint">by {tool.ownerName}</span>
                         </span>
                         <span className="flex items-center gap-0.5">
                           {repo && (
