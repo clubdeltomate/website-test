@@ -84,7 +84,7 @@ function StarButton({
   );
 }
 
-export default function Slides() {
+export default function Slides({ mine = true }: { mine?: boolean }) {
   const navigate = useNavigate();
   const { isGuest, user, role } = useAuth();
   const utils = trpc.useUtils();
@@ -103,7 +103,7 @@ export default function Slides() {
   const [menuFor, setMenuFor] = useState<string | null>(null);
 
   const toolsQuery = trpc.slideTools.list.useQuery(
-    { q: search.trim() || undefined, limit: 100 },
+    { q: search.trim() || undefined, limit: 100, mine },
     { placeholderData: (prev) => prev },
   );
   // repo linkage heuristic: tools created by Lesson Path are named <repoSlug>-studio
@@ -334,7 +334,7 @@ export default function Slides() {
       {/* header */}
       <div className="flex items-end gap-3">
         <h1 className="font-display text-[32px] font-bold leading-none text-ink">
-          Slide tools
+          {mine ? 'My slide tools' : 'Community slides'}
         </h1>
         {!toolsQuery.isLoading && (
           <Chip kind="slide-tool">{tools.length} in the drawer</Chip>
@@ -344,7 +344,9 @@ export default function Slides() {
       {/* guest banner */}
       {isGuest && (
         <p className="mt-3 inline-block rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-2 px-3 py-1.5 text-sm text-ink-soft">
-          Browsing as guest — you can play any tool's demo deck.{' '}
+          {mine
+            ? 'This shelf shows only YOUR slide tools — browse everyone\u2019s work in the Gallery.'
+            : "Browsing the community gallery — you can play any tool's demo deck."}{' '}
           <Link to="/auth" className="squiggle font-bold">
             Sign in
           </Link>{' '}
@@ -519,7 +521,7 @@ export default function Slides() {
           ) : (
             <EmptyState
               image="/empty-slides.svg"
-              headline="No slide tools yet"
+              headline={mine ? "You haven't made any slide tools yet" : 'No slide tools yet'}
               explainer="Make one directly — or let the Lesson Path create a repo and its tool together."
               ctaLabel={isGuest ? 'Sign in to create' : 'New slide tool'}
               onCta={requireAuth(() => setCreateOpen(true))}

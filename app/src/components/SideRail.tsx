@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Link, NavLink, useLocation } from 'react-router';
 import {
+  Images,
   MessageCircle,
   Presentation,
   LibraryBig,
@@ -31,6 +32,7 @@ const ROLE_CHIP: Record<string, string> = {
 const NAV_ITEMS = [
   { to: '/', label: 'Slides', icon: Presentation, end: true },
   { to: '/repos', label: 'Repos', icon: LibraryBig },
+  { to: '/gallery', label: 'Gallery', icon: Images },
   { to: '/users', label: 'Users', icon: Users },
   { to: '/chat', label: 'Chat', icon: MessageCircle },
   { to: '/about', label: 'About', icon: Info },

@@ -44,7 +44,7 @@ const SORTS: { key: SortKey; label: string }[] = [
   { key: 'runs', label: 'Most runs' },
 ];
 
-export default function Repos() {
+export default function Repos({ mine = true }: { mine?: boolean }) {
   const navigate = useNavigate();
   const { isGuest, user, role } = useAuth();
   const utils = trpc.useUtils();
@@ -78,6 +78,7 @@ export default function Repos() {
       q: debouncedQ.trim() || undefined,
       template: template === 'all' ? undefined : template,
       limit: 100,
+      mine,
     },
     { placeholderData: (prev) => prev },
   );
@@ -266,7 +267,7 @@ export default function Repos() {
       {/* heading */}
       <div className="flex items-center gap-3">
         <h2 className="sr-only">Repositories</h2>
-        <p className="font-display text-3xl font-bold text-ink">Your notebook shelf</p>
+        <p className="font-display text-3xl font-bold text-ink">{mine ? 'Your notebook shelf' : 'Community shelf'}</p>
         {list.data && (
           <Chip kind="neutral" className="font-mono">
             {repos.length}
