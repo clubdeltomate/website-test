@@ -103,7 +103,7 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
   const [menuFor, setMenuFor] = useState<string | null>(null);
 
   const toolsQuery = trpc.slideTools.list.useQuery(
-    { q: search.trim() || undefined, limit: 100, mine },
+    { q: search.trim() || undefined, limit: 100, mine, excludeMine: !mine },
     { placeholderData: (prev) => prev },
   );
   // repo linkage heuristic: tools created by Lesson Path are named <repoSlug>-studio
