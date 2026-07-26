@@ -281,12 +281,15 @@ WALKTHROUGH MODE — this is an EXPLANATION the viewer is guided through, NOT an
 ${
   news
     ? `
-NEWS BRIEFING MODE — this is a slide-format NEWS BRIEFING about "${opts.subject ?? "the given topic"}", read like a newspaper section, NOT a lesson:${
+TIME TRAVEL NEWS MODE — this is a slide-format NEWS BRIEFING about "${opts.subject ?? "the given topic"}", read like a newspaper section from a chosen moment in time, NOT a lesson:${
       opts.newsPeriod
-        ? `\n- TIME PERIOD: report the news AS IT STOOD during "${opts.newsPeriod}". Every story must be from that moment in time — its headline, facts and framing reflect what was happening THEN, not now, and must not include later developments. If you lack specific facts for that period, report the general state of the beat at that time in careful, non-fabricated terms.`
+        ? `\n- TIME PERIOD — the reader has "traveled" to "${opts.newsPeriod}" and is reading that day's paper:
+  · PAST periods: report the news AS IT STOOD then. Every story's headline, facts and framing reflect what was happening THEN, not now, and must not include later developments. If you lack specific facts for that period, report the general, well-documented state of the beat at that time in careful, non-fabricated terms.
+  · FUTURE periods: there are no facts yet — write a plausible, internally-consistent speculative briefing of what the beat could look like at that time, extrapolated from real current trends and known science. Keep the straight newspaper voice (it reads as that era's paper, not as prediction), and never contradict established present-day facts about how we got there.
+  · ERA FIT — ADAPT THE TOPIC TO THE TIME: if the topic as named does not exist in that period (baseball in the year 1030, smartphones in the Jurassic), do NOT force an anachronism. Report that era's closest genuine equivalent instead (village games and contests instead of baseball; natural events instead of gadgets), acknowledging the requested angle in at most one clause. Likewise in the far future, if the topic has plausibly transformed or disappeared, report what took its place. The reader asked "what was the news about this topic THEN" — answer with what that time genuinely had.`
         : ""
     }
-- Report, don't teach or sell: each slide is ONE news item / story / development on the topic. Do NOT repeat the same story across slides.
+- Report, don't teach or sell: each slide is ONE news item / story / development on the topic, with its OWN fresh headline written for that era. Do NOT repeat the same story across slides.
 - EVERY slide is a newspaper clipping with THREE parts, always present together:
   (1) HEADLINE — the slide TITLE.
   (2) PHOTO — an image component with a specific, relevant news photo prompt${opts.imageStyle === "none" ? " (SKIP only because image style is 'none')" : " (REQUIRED on every slide)"}.
@@ -548,22 +551,32 @@ function proseFromQuiz(quiz: LooseQuiz | null | undefined): string | null {
  *  quiz (real, on-topic) when possible, else its title/visual. Shared by the
  *  repair salvage (so a slide is never dropped for shrinking the deck) and the
  *  final ensureExplanatoryProse net. */
-export function slideFallbackParagraph(slide: LooseSlide): string {
+export function slideFallbackParagraph(slide: LooseSlide, purpose?: string): string {
   const fromQuiz = proseFromQuiz(slide.quiz);
   if (fromQuiz) return fromQuiz;
   const visual = (slide.components ?? []).find((c) => c?.type && VISUAL_LABEL[c.type]);
   const title = (slide.title ?? "this idea").trim();
+  // A news slide must read like reporting, never like a lesson ("study what
+  // it shows"): keep the newspaper register even in the safety net.
+  if (purpose === "news") {
+    return visual
+      ? `${title} — a developing story on this beat. ${VISUAL_LABEL[visual.type as string][0].toUpperCase()}${VISUAL_LABEL[visual.type as string].slice(1)} below carries the key facts of the report: what happened, who is involved, and the figures that matter.`
+      : `${title} — a developing story on this beat; further details were still coming in at press time.`;
+  }
   return visual
     ? `Look closely at ${title}: ${VISUAL_LABEL[visual.type as string]} below illustrates it. Study what it shows and how the parts relate.`
     : `Let's work through ${title}.`;
 }
 
-export function ensureExplanatoryProse<T extends { slides?: LooseSlide[] }>(deck: T): T {
+export function ensureExplanatoryProse<T extends { slides?: LooseSlide[] }>(
+  deck: T,
+  purpose?: string,
+): T {
   for (const slide of deck.slides ?? []) {
     if (slideHasProse(slide)) continue;
     if (!Array.isArray(slide.components)) slide.components = [];
     console.warn("[ai/prose] slide had no explanatory text — injecting a fallback paragraph:", slide.title);
-    slide.components.unshift({ type: "prose", paragraphs: [slideFallbackParagraph(slide)] });
+    slide.components.unshift({ type: "prose", paragraphs: [slideFallbackParagraph(slide, purpose)] });
   }
   return deck;
 }

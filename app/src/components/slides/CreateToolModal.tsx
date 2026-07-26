@@ -17,7 +17,7 @@ export interface CreateToolModalProps {
 const CATEGORIES: { id: RepoTemplate; label: string; hint: string }[] = [
   { id: 'course', label: 'Lesson', hint: 'Teach a topic — quizzes allowed' },
   { id: 'walkthrough', label: 'Walkthrough', hint: 'Explain a topic — no quizzes' },
-  { id: 'news', label: 'News briefing', hint: 'Report the news — no quizzes' },
+  { id: 'news', label: 'Time Travel News', hint: 'News from any era — no quizzes' },
   { id: 'restaurant', label: 'Menu item', hint: 'Showcase a dish — no evaluations' },
   { id: 'service', label: 'Service', hint: 'Showcase a service — no evaluations' },
   { id: 'shop', label: 'Product', hint: 'Marketplace display — no evaluations' },

@@ -50,7 +50,7 @@ import { TemplateIcon } from '@/components/repo/shared';
 const CATEGORY_OPTS: { id: RepoTemplate; label: string; hint: string }[] = [
   { id: 'course', label: 'Lesson', hint: 'Teach a topic — quizzes & evaluations allowed' },
   { id: 'walkthrough', label: 'Walkthrough', hint: 'Explain a topic — no quizzes, just a guided walkthrough' },
-  { id: 'news', label: 'News briefing', hint: 'Report the news on a topic — headlines, factual, no quizzes' },
+  { id: 'news', label: 'Time Travel News', hint: 'News from any era — pick a topic and a moment in time, past or future' },
   { id: 'restaurant', label: 'Menu item', hint: 'Showcase a dish — no evaluations' },
   { id: 'service', label: 'Service', hint: 'Showcase a service — no evaluations' },
   { id: 'shop', label: 'Product', hint: 'Marketplace display — no evaluations' },
@@ -62,6 +62,39 @@ const STYLE_PRESETS: Exclude<ImageStyle, 'none'>[] = [
   'flat',
   'photo',
 ];
+
+/** Time Travel News: the era timeline the period scroller moves through —
+ *  chronological, capped at the Jurassic in the past and the year 3000 in the
+ *  future. Scrolling left of "This week" reads history; scrolling right asks
+ *  the AI to forecast that era. A custom free-text period is always available. */
+const NEWS_ERAS = [
+  'The Jurassic period (150 million years ago)',
+  'The Stone Age',
+  'The invention of the wheel (~3500 BC)',
+  'Ancient Egypt (1300 BC)',
+  'Classical Greece (450 BC)',
+  'The Roman Empire (100 AD)',
+  'The Viking Age (900 AD)',
+  'The Middle Ages (1030 AD)',
+  'The Renaissance (1500)',
+  'The Age of Exploration (1600s)',
+  'The Industrial Revolution (1850)',
+  'The Wild West (1875)',
+  'The Roaring Twenties (1925)',
+  'The World War II years (1943)',
+  'The Space Race (1965)',
+  'The 1980s',
+  'The 1990s',
+  'The early 2000s',
+  'The 2010s',
+  'This week',
+  'The year 2050',
+  'The year 2100',
+  'The year 2200',
+  'The year 2500',
+  'The year 3000',
+] as const;
+const ERA_TODAY_IDX = NEWS_ERAS.indexOf('This week');
 
 /** News beats offered when building an "AI time news" briefing — the AI picks
  *  the actual stories, so the author only chooses the beat + the moment in time. */
@@ -273,6 +306,10 @@ function ToolStudio({
   // News "time news" config: the AI picks the stories from the chosen beat + moment.
   const [newsType, setNewsType] = useState<string>('Top stories');
   const [newsPeriod, setNewsPeriod] = useState<string>('This week');
+  // Era scroller position (Time Travel News). "Custom" swaps the slider for a
+  // free-text period; the generated deck always uses `newsPeriod` either way.
+  const [eraIdx, setEraIdx] = useState<number>(ERA_TODAY_IDX);
+  const [customEra, setCustomEra] = useState(false);
   const [voiceURI, setVoiceURI] = useState<string | null>(null);
   const [includeQuiz, setIncludeQuiz] = useState(true);
   const [webSearch, setWebSearch] = useState(false);
@@ -695,7 +732,7 @@ function ToolStudio({
                 : purpose === 'walkthrough'
                   ? 'Walkthrough mode — the AI explains and guides only; no quizzes, ends on a "visit author / go back" step.'
                   : purpose === 'news'
-                    ? 'News briefing mode — the AI reports the news factually (headlines, dateline, images); no quizzes, ends on a "visit author / go back" step.'
+                    ? 'Time Travel News mode — pick a moment in time and the AI writes that era\'s paper: fresh headlines and stories per slide (headline, photo, report); no quizzes, ends on a "visit author / go back" step.'
                     : 'Lesson mode — evaluations and quizzes are available.'}
             </p>
           </motion.div>
@@ -752,19 +789,68 @@ function ToolStudio({
             variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}
           >
             <span className="micro mb-1 block text-ink-soft">
-              Time period — the moment in time to report from
+              Time period — scroll through the eras
             </span>
-            <input
-              className={cn(inputCls)}
-              value={newsPeriod}
-              maxLength={200}
-              onChange={(e) => setNewsPeriod(e.target.value)}
-              placeholder="e.g. This week · July 2020 · the 1990s"
-            />
-            <p className="mt-1 text-xs text-ink-faint">
-              The briefing reports the news as it stood at this time. Turn on “Search the web” for
-              better accuracy.
-            </p>
+            {!customEra ? (
+              <div className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-4 pb-3 pt-2.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="micro shrink-0 text-ink-faint">🦖 Jurassic</span>
+                  <span className="truncate text-center font-heading text-base font-semibold text-ink">
+                    {NEWS_ERAS[eraIdx]}
+                  </span>
+                  <span className="micro shrink-0 text-ink-faint">Year 3000 🚀</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={NEWS_ERAS.length - 1}
+                  step={1}
+                  value={eraIdx}
+                  onChange={(e) => {
+                    const i = Number(e.target.value);
+                    setEraIdx(i);
+                    setNewsPeriod(NEWS_ERAS[i]);
+                  }}
+                  aria-label="Era in time to report from"
+                  aria-valuetext={NEWS_ERAS[eraIdx]}
+                  className="mt-2 w-full accent-[var(--color-ink,#2b2b2b)]"
+                />
+                <div className="mt-0.5 flex justify-between">
+                  <span className="micro text-ink-faint">← further back in time</span>
+                  <span className="micro text-ink-faint">into the future →</span>
+                </div>
+              </div>
+            ) : (
+              <input
+                className={cn(inputCls)}
+                value={newsPeriod}
+                maxLength={200}
+                onChange={(e) => setNewsPeriod(e.target.value)}
+                placeholder="e.g. July 2020 · the week the Titanic sank · the year 2777"
+                autoFocus
+              />
+            )}
+            <div className="mt-1.5 flex items-start justify-between gap-3">
+              <p className="text-xs text-ink-faint">
+                Past eras report the news as it stood then; future eras are the AI's forecast of
+                that time. If the topic didn't exist yet, the stories adapt to what that era had.
+                Turn on “Search the web” for better accuracy on recent periods.
+              </p>
+              <button
+                type="button"
+                className="shrink-0 text-xs font-bold text-blue hover:underline"
+                onClick={() => {
+                  if (customEra) {
+                    setCustomEra(false);
+                    setNewsPeriod(NEWS_ERAS[eraIdx]);
+                  } else {
+                    setCustomEra(true);
+                  }
+                }}
+              >
+                {customEra ? '← Back to the era scroller' : 'Type a custom period…'}
+              </button>
+            </div>
           </motion.div>
         )}
 
