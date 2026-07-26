@@ -30,10 +30,25 @@ export interface CompletionResult {
   text: string;
   provider: AiProvider;
   source: "byok" | "platform" | "env";
+  /** Stable identity of the exact key/endpoint that answered — lets callers
+   *  rotate through providers without repeats (see completeText.excludeKeyIds). */
+  keyId?: string;
+}
+
+/** Stable identity for one resolved key (provider + endpoint + model). */
+export function resolvedKeyId(k: ResolvedKey): string {
+  return `${k.provider}|${k.baseUrl ?? "-"}|${k.model ?? "-"}`;
 }
 
 /** Providers with a chat/completion API (ElevenLabs is speech-only). */
 type TextProvider = Exclude<AiProvider, "elevenlabs">;
+
+/** The ids of every text key currently available to this user — the size of
+ *  the rotation pool for provider-cycling callers. */
+export async function textKeyIdPool(userId: number | undefined): Promise<string[]> {
+  const candidates = await resolveKeyCandidates(userId, "text");
+  return candidates.map(resolvedKeyId);
+}
 
 const DEFAULT_MODELS: Record<TextProvider, string> = {
   openai: "gpt-4o-mini",
@@ -303,9 +318,27 @@ export async function completeText(opts: {
   maxTokens?: number;
   timeoutMs?: number;
   maxCandidates?: number;
+  /** Shuffle the provider order (Fisher-Yates) so no single provider always
+   *  answers first — the caller's own fallback (e.g. Wolfram) stays last
+   *  because it only runs when every AI candidate has failed. */
+  shuffleProviders?: boolean;
+  /** Skip these resolvedKeyId()s — used to rotate providers without repeats. */
+  excludeKeyIds?: string[];
 }): Promise<CompletionResult | null> {
   const capability = opts.capability ?? "text";
-  const candidates = await resolveKeyCandidates(opts.userId, capability);
+  let candidates = await resolveKeyCandidates(opts.userId, capability);
+  if (opts.excludeKeyIds?.length) {
+    const skip = new Set(opts.excludeKeyIds);
+    const kept = candidates.filter((k) => !skip.has(resolvedKeyId(k)));
+    // if everything is excluded, the rotation has completed — start over
+    if (kept.length > 0) candidates = kept;
+  }
+  if (opts.shuffleProviders) {
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+  }
   if (candidates.length === 0) {
     console.warn(`[ai/text] no ${capability} key configured (BYOK, platform, or .env)`);
     return null;
@@ -330,7 +363,7 @@ export async function completeText(opts: {
         default:
           continue; // e.g. an elevenlabs (tts-only) key can't do text
       }
-      return { text, provider: key.provider, source: key.source };
+      return { text, provider: key.provider, source: key.source, keyId: resolvedKeyId(key) };
     } catch (err) {
       // Bad key, quota, timeout, unreachable host — log and try the next key.
       console.warn(
@@ -607,7 +640,7 @@ export async function completeVision(opts: {
         default:
           continue; // an elevenlabs (tts-only) key can't do vision
       }
-      return { text, provider: key.provider, source: key.source };
+      return { text, provider: key.provider, source: key.source, keyId: resolvedKeyId(key) };
     } catch (err) {
       console.warn(
         `[ai/vision] ${key.provider} (${key.source}) failed, trying next:`,
