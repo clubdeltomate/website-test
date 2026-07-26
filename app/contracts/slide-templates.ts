@@ -30,6 +30,7 @@ export const TEMPLATE_COMPONENT_TYPES = [
   "stickynote",
   "image",
   "code",
+  "wolfram",
   "quiz",
   "mcq2",
   "fillblank",
@@ -61,6 +62,7 @@ export const TEMPLATE_COMPONENT_LABELS: Record<TemplateComponentType, string> = 
   stickynote: "Sticky note",
   image: "Image",
   code: "Code",
+  wolfram: "Wolfram Alpha explanation",
   quiz: "Multiple choice",
   mcq2: "2-option",
   fillblank: "Fill blank",
@@ -79,6 +81,7 @@ export const TEMPLATE_COMPONENT_SHORT: Record<TemplateComponentType, string> = {
   stickynote: "Note",
   image: "Image",
   code: "Code",
+  wolfram: "Wolfram",
   quiz: "MCQ",
   mcq2: "2-opt",
   fillblank: "Fill-in",
@@ -183,7 +186,7 @@ export function isMathTemplate(tags: string[]): boolean {
  * Colours live in the UI; here we keep the symbol, label, and the tags that
  * trigger each flavour.
  */
-export type TemplateFlavor = "math" | "medicine" | "finance" | "philosophy";
+export type TemplateFlavor = "math" | "medicine" | "finance" | "philosophy" | "wolfram" | "code";
 
 export interface FlavorMeta {
   id: TemplateFlavor;
@@ -202,6 +205,20 @@ export const TEMPLATE_FLAVORS: FlavorMeta[] = [
     label: "Math & physics",
     hint: "Worked problems, formulas, and solve-it-yourself exercises.",
     tags: MATH_TAGS,
+  },
+  {
+    id: "wolfram",
+    symbol: "W⍺",
+    label: "Wolfram Alpha",
+    hint: "A live Wolfram|Alpha computed explanation rendered on the slide.",
+    tags: ["wolfram"],
+  },
+  {
+    id: "code",
+    symbol: "</>",
+    label: "Code & programming",
+    hint: "Snippets, walkthroughs and exercises for programming and hardware.",
+    tags: ["programming", "cs", "code", "hardware"],
   },
   {
     id: "medicine",
@@ -329,6 +346,56 @@ const STEM_TEMPLATES: SlideTemplate[] = [
   bi("Model & solve on a graph", "C1", ["prose", "chart", "prose", "solve"], ["math", "physics", "problem-solving"]),
   bi("Analyze the diagram & solve", "C1", ["prose", "svg", "prose", "solve"], ["physics", "engineering", "problem-solving"]),
   bi("Interpret the figure & solve", "C1", ["prose", "image", "prose", "solve"], ["math", "physics", "problem-solving"]),
+
+  // graded worksheet built around a formula: text sets it up, the formula is
+  // stated, and the learner works the problem on the scratchpad
+  bi("Solve with the formula", "B1", ["prose", "latex", "solve"], ["math", "physics", "problem-solving"]),
+  bi("Derive, then solve", "C1", ["prose", "latex", "prose", "solve"], ["math", "physics", "problem-solving"]),
+
+  /* -- evaluation-free math reads (no quiz, no solve — display only; the
+        picker marks these with a green dot). One per core element (graph,
+        formula, image, table) per band, text scaled to the level. -- */
+  // beginner: one short text + the visual
+  bi("Math read: graph", "A1", ["prose", "chart"], ["math", "science"]),
+  bi("Math read: formula", "A1", ["prose", "latex"], ["math", "physics"]),
+  bi("Math read: picture", "A1", ["prose", "image"], ["math", "science"]),
+  bi("Math read: table", "A1", ["prose", "table"], ["math", "science"]),
+  // intermediate: explanation around the visual
+  bi("Graph explained", "B1", ["prose", "chart", "prose"], ["math", "science"]),
+  bi("Formula explained", "B1", ["prose", "latex", "prose"], ["math", "physics"]),
+  bi("Figure explained", "B1", ["prose", "image", "prose"], ["math", "science"]),
+  bi("Table explained", "B1", ["prose", "table", "prose"], ["math", "science"]),
+  // advanced: full development — e.g. a derivative or integral worked out
+  // step by step across the page, formula then its graph, no evaluation
+  bi("Worked derivation (read-through)", "C1", ["prose", "latex", "prose", "chart", "prose"], ["math", "physics"]),
+  bi("Graph deep read", "C1", ["prose", "chart", "prose", "prose"], ["math", "science"]),
+  bi("Figure deep read", "C1", ["prose", "image", "prose", "prose"], ["math", "science"]),
+  bi("Table deep read", "C1", ["prose", "table", "prose", "prose"], ["math", "science"]),
+
+  /* -- Wolfram|Alpha explanations (needs WOLFRAM_APP_ID/APP_ID on the server;
+        the slide shows a live computed result for the AI's query). Mixed
+        gradable and read-through (green-dot) variants across the bands. -- */
+  bi("Wolfram only", "A1", ["wolfram"], ["math", "science", "wolfram"]),
+  bi("Wolfram explains it", "A1", ["prose", "wolfram"], ["math", "science", "wolfram"]),
+  bi("Wolfram check", "A1", ["prose", "wolfram", "mcq2"], ["math", "science", "wolfram"]),
+  bi("Formula, by Wolfram", "B1", ["latex", "wolfram", "prose"], ["math", "physics", "wolfram"]),
+  bi("Wolfram walk-through", "B1", ["prose", "latex", "wolfram", "prose"], ["math", "physics", "wolfram"]),
+  bi("Wolfram, then answer", "B1", ["prose", "latex", "wolfram", "quiz"], ["math", "physics", "wolfram"]),
+  bi("Wolfram deep dive", "C1", ["prose", "latex", "wolfram", "prose", "prose"], ["math", "physics", "wolfram"]),
+  bi("Wolfram worked solve", "C1", ["prose", "latex", "wolfram", "prose", "solve"], ["math", "physics", "wolfram", "problem-solving"]),
+
+  /* -- code & programming: explanation-led snippets, data tables, hardware
+        imagery — mixed read-throughs (green dot) and graded exercises. The
+        deck's CEFR level doubles as exercise difficulty. -- */
+  bi("Code read", "A1", ["prose", "code"], ["programming", "cs"]),
+  bi("Code check", "A1", ["prose", "code", "mcq2"], ["programming", "cs"]),
+  bi("Code explained", "B1", ["prose", "code", "prose"], ["programming", "cs"]),
+  bi("Code + data table", "B1", ["prose", "code", "table", "prose"], ["programming", "cs", "data"]),
+  bi("Hardware illustrated", "B1", ["prose", "image", "prose"], ["cs", "engineering", "hardware"]),
+  bi("Predict the output", "B1", ["prose", "code", "quiz"], ["programming", "cs"]),
+  bi("Code deep dive", "C1", ["prose", "code", "prose", "prose"], ["programming", "cs"]),
+  bi("Architecture walk-through", "C1", ["prose", "image", "code", "prose"], ["cs", "engineering", "hardware"]),
+  bi("Fix the bug", "C1", ["prose", "code", "prose", "shortanswer"], ["programming", "cs"]),
 ];
 
 /* ---------------- Humanities: 10 per level ---------------- */
@@ -438,8 +505,9 @@ export interface LessonPacket {
   id: string;
   name: string;
   description: string;
-  /** who this packet is for — only shown for repos of that purpose */
-  purpose: "education" | "commercial";
+  /** who this packet is for — only shown for tools/repos of that purpose.
+   *  Only education packets carry evaluations; the rest are display-only. */
+  purpose: "education" | "commercial" | "walkthrough" | "news";
   /** built-in template NAMES, in order, pinned onto slides 1..N */
   templates: string[];
 }
@@ -550,6 +618,22 @@ export const LESSON_PACKETS: LessonPacket[] = [
       "Interpret a source",
     ],
   },
+  {
+    id: "wolfram-only",
+    name: "Wolfram only ×4",
+    description:
+      "Every slide is a single live Wolfram|Alpha computed explanation — one query per slide, no extra text, no quizzes. The purest calculator-led read-through.",
+    purpose: "education",
+    templates: ["Wolfram only", "Wolfram only", "Wolfram only", "Wolfram only"],
+  },
+  {
+    id: "wolfram-lesson",
+    name: "Wolfram Alpha lesson",
+    description:
+      "Teach with live computed math: a formula introduced by Wolfram|Alpha, a full walk-through, then two graded steps — answer a question about the result and solve one yourself.",
+    purpose: "education",
+    templates: ["Formula, by Wolfram", "Wolfram walk-through", "Wolfram, then answer", "Wolfram worked solve"],
+  },
   /* ---- commercial (menu / service / shop) ---- */
   {
     id: "menu-item",
@@ -575,10 +659,86 @@ export const LESSON_PACKETS: LessonPacket[] = [
     purpose: "commercial",
     templates: ["Hero shot", "Show & tell", "The details", "Why choose this"],
   },
+  {
+    id: "photo-menu",
+    name: "Photo feast",
+    description:
+      "Image-first selling: four photo-led slides so the viewer SEES the dish or item from every angle before they decide. Copy stays short and appetizing.",
+    purpose: "commercial",
+    templates: ["Hero shot", "Snapshot", "Show & tell", "Why choose this"],
+  },
+  {
+    id: "catalog-page",
+    name: "Catalog page",
+    description:
+      "The full listing: hero photo, complete showcase, specs/ingredients table, and the closing pitch — a rich page for a flagship item.",
+    purpose: "commercial",
+    templates: ["Hero shot", "Full showcase", "The details", "Why choose this"],
+  },
+  /* ---- walkthrough (explain, never test) ---- */
+  {
+    id: "data-walkthrough",
+    name: "Data-driven walkthrough",
+    description:
+      "Explain with numbers: graphs and tables carry the argument, prose interprets each one. No questions asked — evaluation steps are skipped in walkthrough mode.",
+    purpose: "walkthrough",
+    templates: ["Interpret the graph", "What's included", "Historical trends", "Full showcase"],
+  },
+  {
+    id: "science-walkthrough",
+    name: "Science walkthrough",
+    description:
+      "Guide through a system or process: labelled visuals, diagrams and clear prose that build a mental model step by step — no quizzes.",
+    purpose: "walkthrough",
+    templates: ["Anatomy illustrated", "Show & tell", "Interpret the graph", "The story behind it"],
+  },
+  {
+    id: "humanities-walkthrough",
+    name: "Humanities walkthrough",
+    description:
+      "A guided read: narrative with images, comparisons in tables, and a closing synthesis — for history, culture, arts and ideas, with no evaluations.",
+    purpose: "walkthrough",
+    templates: ["Story moment", "Narrative + image", "Compare & contrast", "The story behind it"],
+  },
+  {
+    id: "wolfram-walkthrough",
+    name: "Wolfram Alpha walkthrough",
+    description:
+      "Read-through math with live computed results: Wolfram|Alpha introduces, explains and develops the idea across four slides — no questions asked.",
+    purpose: "walkthrough",
+    templates: ["Wolfram explains it", "Formula, by Wolfram", "Wolfram walk-through", "Wolfram deep dive"],
+  },
+  /* ---- time travel news (report, never test) ---- */
+  {
+    id: "front-page",
+    name: "Front page",
+    description:
+      "A classic paper: photo-led stories, each slide its own headline, photo and report — the reader flips through the era's front page.",
+    purpose: "news",
+    templates: ["Hero shot", "Show & tell", "Snapshot", "The story behind it"],
+  },
+  {
+    id: "data-desk",
+    name: "Data desk",
+    description:
+      "The numbers section: stories told through figures — standings, prices, counts — each chart or table explained in plain reporting prose.",
+    purpose: "news",
+    templates: ["Interpret the graph", "What's included", "Historical trends", "The details"],
+  },
+  {
+    id: "feature-spread",
+    name: "Feature spread",
+    description:
+      "A long-form feature: a big opening image, an in-depth report, supporting details in a table, and a closing human-interest angle.",
+    purpose: "news",
+    templates: ["Hero shot", "Full showcase", "The details", "Narrative + image"],
+  },
 ];
 
 /** Packets that fit a repo's purpose (education vs commercial). */
-export function packetsForPurpose(purpose: "education" | "commercial"): LessonPacket[] {
+export function packetsForPurpose(
+  purpose: "education" | "commercial" | "walkthrough" | "news",
+): LessonPacket[] {
   return LESSON_PACKETS.filter((p) => p.purpose === purpose);
 }
 

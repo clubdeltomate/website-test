@@ -21,7 +21,7 @@ import { toast } from 'sonner';
 import { trpc } from '@/providers/trpc';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
-import type { SlideToolSummary } from '@contracts/types';
+import type { RepoTemplate, SlideToolSummary } from '@contracts/types';
 import SketchButton from '@/components/sketch/SketchButton';
 import Chip from '@/components/sketch/Chip';
 import SketchCard from '@/components/sketch/SketchCard';
@@ -30,12 +30,13 @@ import EmptyState from '@/components/sketch/EmptyState';
 import AuthWall from '@/components/AuthWall';
 import { Toaster } from '@/components/ui/sonner';
 import CreateToolModal from '@/components/slides/CreateToolModal';
-import { SourceBadge } from '@/components/repo/shared';
+import { SourceBadge, TemplateIcon, TEMPLATE_CIRCLE_BG, TEMPLATE_META } from '@/components/repo/shared';
 
 type SortKey = 'recent' | 'name' | 'plays';
 type ViewMode = 'cards' | 'table';
 
 const PAGE_SIZE = 12;
+
 
 function relTime(d: Date): string {
   const diff = Date.now() - new Date(d).getTime();
@@ -47,17 +48,6 @@ function relTime(d: Date): string {
   const days = Math.floor(hrs / 24);
   if (days < 30) return `${days}d ago`;
   return new Date(d).toLocaleDateString();
-}
-
-/** Film-strip doodle for the card top row (slides-gallery.md §2) */
-function FilmStripDoodle({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 24" className={cn('h-6 w-8', className)} fill="none" aria-hidden="true">
-      <rect x="2" y="3" width="28" height="18" rx="3" stroke="currentColor" strokeWidth="2.2" />
-      <path d="M12 3v18M22 3v18" stroke="currentColor" strokeWidth="2" />
-      <path d="M4.5 7h4M4.5 12h4M4.5 17h4M14.5 7h4M14.5 12h4M24.5 7h3M24.5 17h3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
 }
 
 function StarButton({
@@ -104,6 +94,7 @@ export default function Slides() {
 
   const [search, setSearch] = useState('');
   const [favOnly, setFavOnly] = useState(false);
+  const [template, setTemplate] = useState<RepoTemplate | 'all'>('all');
   const [sort, setSort] = useState<SortKey>('recent');
   const [view, setView] = useState<ViewMode>('cards');
   const [page, setPage] = useState(0);
@@ -152,6 +143,7 @@ export default function Slides() {
   const tools = useMemo(() => {
     let list = [...(toolsQuery.data ?? [])];
     if (favOnly) list = list.filter((t) => t.favorite);
+    if (template !== 'all') list = list.filter((t) => t.template === template);
     switch (sort) {
       case 'name':
         list.sort((a, b) => a.name.localeCompare(b.name));
@@ -165,7 +157,7 @@ export default function Slides() {
         );
     }
     return list;
-  }, [toolsQuery.data, favOnly, sort]);
+  }, [toolsQuery.data, favOnly, template, sort]);
 
   const pageCount = Math.max(1, Math.ceil(tools.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount - 1);
@@ -360,15 +352,16 @@ export default function Slides() {
         </p>
       )}
 
-      {/* toolbar */}
+      {/* toolbar — same layout & design language as the Repos gallery */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="mt-5 flex flex-wrap items-center gap-2.5"
+        className="mt-5 flex flex-wrap items-center gap-2.5 rounded-wobble-sm border-2 border-ink bg-paper-3 p-3 shadow-offset"
       >
-        <label className="relative min-w-[220px] flex-1 sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+        {/* search */}
+        <label className="flex min-w-[220px] flex-1 items-center gap-2 rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 focus-within:border-blue focus-within:shadow-[4px_4px_0_#DDE9FB]">
+          <Search className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={2} />
           <input
             value={search}
             onChange={(e) => {
@@ -376,77 +369,120 @@ export default function Slides() {
               setPage(0);
             }}
             placeholder="Search slide tools…"
-            className="w-full rounded-wobble-sm border-2 border-ink bg-paper-3 py-2 pl-9 pr-3 text-sm placeholder:text-ink-faint focus:border-blue focus:outline-none"
             aria-label="Search slide tools"
+            className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
           />
         </label>
 
-        <button
-          onClick={requireAuth(() => setFavOnly((f) => !f))}
+        {/* favorites toggle */}
+        <motion.button
+          type="button"
+          whileTap={{ scale: 1.25 }}
+          onClick={requireAuth(() => {
+            setFavOnly((f) => !f);
+            setPage(0);
+          })}
           aria-pressed={favOnly}
+          title="Favorites only"
           className={cn(
-            'flex items-center gap-1.5 rounded-wobble-sm border-2 px-3 py-2 text-sm font-bold transition-all',
+            'flex items-center gap-1.5 rounded-wobble-sm border-2 px-3 py-2 text-sm font-bold transition-colors',
             favOnly
               ? 'border-ink bg-yellow text-ink shadow-offset'
-              : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+              : 'border-pencil text-ink-faint hover:border-ink hover:text-ink',
           )}
         >
-          <Star className={cn('h-4 w-4', favOnly && 'fill-ink')} /> Favorites
-        </button>
+          <Star className={cn('h-4 w-4', favOnly && 'fill-ink')} strokeWidth={2} />
+          Favorites
+        </motion.button>
 
-        <div className="flex items-center gap-1 rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1.5 text-sm">
-          {(['recent', 'name', 'plays'] as SortKey[]).map((k) => (
-            <button
-              key={k}
-              onClick={() => setSort(k)}
-              className={cn(
-                'rounded-wobble-sm px-2 py-0.5 font-bold capitalize transition-colors',
-                sort === k ? 'bg-yellow-soft text-ink' : 'text-ink-faint hover:text-ink',
-              )}
-            >
-              {k === 'plays' ? 'Most played' : k}
-            </button>
-          ))}
-        </div>
+        {/* sort */}
+        <label className="flex items-center gap-1.5 text-sm text-ink-soft">
+          <span className="micro hidden text-[0.6rem] sm:inline">Sort</span>
+          <select
+            value={sort}
+            onChange={(e) => {
+              setSort(e.target.value as SortKey);
+              setPage(0);
+            }}
+            aria-label="Sort slide tools"
+            className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-2.5 py-1.5 text-sm font-bold text-ink outline-none"
+          >
+            <option value="recent">Recent</option>
+            <option value="name">Name</option>
+            <option value="plays">Most played</option>
+          </select>
+        </label>
 
-        <div className="flex items-center rounded-wobble-sm border-2 border-ink bg-paper-3 p-0.5 shadow-offset">
+        {/* view toggle */}
+        <div className="flex overflow-hidden rounded-wobble-sm border-2 border-ink" role="group" aria-label="View">
           {(
             [
-              { v: 'cards', icon: LayoutGrid, label: 'Cards' },
-              { v: 'table', icon: Rows3, label: 'Table' },
+              { key: 'cards', icon: LayoutGrid, label: 'Cards' },
+              { key: 'table', icon: Rows3, label: 'Table' },
             ] as const
-          ).map(({ v, icon: Icon, label }) => (
+          ).map((v) => (
             <button
-              key={v}
-              onClick={() => setView(v)}
-              aria-pressed={view === v}
-              title={label}
+              key={v.key}
+              type="button"
+              onClick={() => setView(v.key)}
+              aria-pressed={view === v.key}
               className={cn(
-                'rounded-wobble-sm p-1.5 transition-colors',
-                view === v ? 'bg-ink text-paper-3' : 'text-ink-soft hover:text-ink',
+                'flex items-center gap-1.5 px-3 py-2 text-sm font-bold transition-colors',
+                view === v.key ? 'marker-highlight-yellow bg-paper-3 text-ink' : 'bg-paper-2 text-ink-faint hover:text-ink',
               )}
             >
-              <Icon className="h-4 w-4" />
+              <v.icon className="h-4 w-4" strokeWidth={2} />
+              {v.label}
             </button>
           ))}
         </div>
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        {/* new presentation — by hand or AI slide tool */}
+        <div className="ml-auto flex items-center gap-2">
           <SketchButton
             variant="secondary"
+            size="sm"
             onClick={requireAuth(() => navigate('/slides/build'))}
             title="Build a presentation by hand — no AI"
           >
             <PencilRuler className="h-4 w-4" strokeWidth={2.5} />
-            New manual presentation
+            By hand
           </SketchButton>
           <SketchButton
             variant="accent"
+            size="sm"
             onClick={requireAuth(() => setCreateOpen(true))}
           >
             <Plus className="h-4 w-4" strokeWidth={2.5} />
             New slide tool
           </SketchButton>
+        </div>
+
+        {/* template filter chips */}
+        <div className="flex w-full flex-wrap items-center gap-1.5 border-t-2 border-dashed border-pencil pt-2.5">
+          {(['all', 'course', 'restaurant', 'service', 'shop', 'walkthrough', 'news'] as const).map((t) => {
+            const active = template === t;
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => {
+                  setTemplate(t);
+                  setPage(0);
+                }}
+                aria-pressed={active}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-wobble-sm border-2 px-2.5 py-1 text-xs font-bold transition-all',
+                  active
+                    ? 'border-ink bg-yellow/70 text-ink shadow-offset'
+                    : 'border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                )}
+              >
+                {t !== 'all' && <TemplateIcon template={t} className="h-3.5 w-3.5" />}
+                {t === 'all' ? 'All' : TEMPLATE_META[t].label}
+              </button>
+            );
+          })}
         </div>
       </motion.div>
 
@@ -467,17 +503,19 @@ export default function Slides() {
             </p>
           </div>
         ) : tools.length === 0 ? (
-          search.trim() || favOnly ? (
+          search.trim() || favOnly || template !== 'all' ? (
             <EmptyState
               image="/empty-slides.svg"
-              headline={`No tools match '${search.trim() || 'favorites'}'`}
+              headline={`No tools match '${search.trim() || (template !== 'all' ? TEMPLATE_META[template].label : 'favorites')}'`}
               explainer="Try a different search, or clear the filters."
-              ctaLabel="Clear search"
+              ctaLabel="Clear filters"
               onCta={() => {
                 setSearch('');
                 setFavOnly(false);
+                setTemplate('all');
               }}
             />
+
           ) : (
             <EmptyState
               image="/empty-slides.svg"
@@ -505,6 +543,7 @@ export default function Slides() {
             >
               {pageTools.map((tool, i) => {
                 const repo = repoLinkByTool.get(tool.slug);
+                const isDraft = !tool.hasDeck && tool.runCount === 0;
                 return (
                   <motion.div
                     key={tool.slug}
@@ -516,15 +555,35 @@ export default function Slides() {
                     <SketchCard
                       index={i}
                       hover
-                      className="relative flex h-full flex-col gap-3 p-5"
+                      className={cn(
+                        'relative flex h-full flex-col gap-3 p-5',
+                        isDraft && 'border-dashed !border-green',
+                      )}
                       onMouseEnter={() => prefetch(tool.slug)}
                       onClick={() =>
                         navigate(tool.hasDeck ? `/slides/show/${tool.slug}` : `/slides/${tool.slug}`)
                       }
                     >
                       <div className="flex items-start justify-between">
-                        <span className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-ink bg-blue-soft text-ink">
-                          <FilmStripDoodle className="h-6 w-6" />
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span
+                            className={cn(
+                              'flex h-11 w-11 items-center justify-center rounded-full border-2 border-ink text-ink',
+                              TEMPLATE_CIRCLE_BG[tool.template] ?? 'bg-blue-soft',
+                            )}
+                            title={tool.template}
+                          >
+                            <TemplateIcon template={tool.template} className="h-5 w-5" />
+                          </span>
+                          {isDraft && (
+                            <span
+                              title="Only you (and admins) can see this draft"
+                              className="rounded-wobble-sm border-2 border-dashed border-green bg-green-soft px-2 py-0.5 text-xs font-bold text-ink"
+                            >
+                              Draft
+                            </span>
+                          )}
+                          <span className="micro truncate text-ink-faint">by {tool.ownerName}</span>
                         </span>
                         <span className="flex items-center gap-0.5">
                           {repo && (

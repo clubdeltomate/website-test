@@ -77,6 +77,11 @@ export const slideComponentSchema = z.discriminatedUnion("type", [
     code: z.string().min(1),
     caption: z.string().optional(),
   }),
+  z.object({
+    type: z.literal("wolfram"),
+    query: z.string().min(2).max(200),
+    caption: z.string().max(300).optional(),
+  }),
 ]);
 
 export const quizKindSchema = z.enum(["mcq", "mcq2", "fillblank", "typed", "solve"]);
@@ -191,7 +196,7 @@ export function buildSlidesSystemPrompt(opts: {
   tone?: string;
   purpose?: "education" | "commercial" | "walkthrough" | "news";
   /** how much explanatory text each slide carries — biases the paragraph floor */
-  textDensity?: "brief" | "standard" | "detailed";
+  textDensity?: "minimal" | "brief" | "standard" | "detailed";
   /** news decks only: the moment in time the briefing reports from */
   newsPeriod?: string;
   /** the exact topic/item this deck is about (e.g. a product name) */
@@ -223,14 +228,19 @@ export function buildSlidesSystemPrompt(opts: {
   // Author-chosen text amount shifts the floor up or down (same idea, more/less
   // words). "detailed" adds substantially; "brief" trims to essentials.
   const density = opts.textDensity ?? "standard";
-  const densityDelta = density === "brief" ? -1 : density === "detailed" ? 2 : 0;
+  const densityDelta =
+    density === "minimal" ? -99 : density === "brief" ? -1 : density === "detailed" ? 2 : 0;
   const paraFloor = Math.max(1, purposeFloor + densityDelta);
+  // Concrete word targets per tier so the knob visibly changes the output —
+  // brief/standard/detailed aim ~25% above what models naturally produce.
   const textAmountDirective =
-    density === "brief"
-      ? "TEXT AMOUNT — BRIEF: keep every explanation concise. Convey the idea in as few words as it needs, cut filler and tangents, but never drop the explanation entirely."
-      : density === "detailed"
-        ? "TEXT AMOUNT — DETAILED: write fuller explanations. Go into more depth with examples and consequences; when there is nothing genuinely new to add, reinforce the SAME point from a fresh angle or a closely-related supporting idea, so each slide carries substantial reading."
-        : "TEXT AMOUNT — STANDARD: a balanced amount of explanatory text per slide.";
+    density === "minimal"
+      ? "TEXT AMOUNT — MINIMAL: HARD CAP of TWO sentences of written prose per slide, total. Make those two sentences count — specific and vivid — but never write a third. Visuals carry the rest."
+      : density === "brief"
+        ? "TEXT AMOUNT — BRIEF: concise but real — each slide carries roughly 60-90 words of written prose (about 3-5 sentences). Cut filler and tangents, never the substance."
+        : density === "detailed"
+          ? "TEXT AMOUNT — DETAILED: write fuller explanations — each slide carries roughly 280-380 words of written prose across its paragraphs. Go into depth with examples and consequences; when there is nothing genuinely new to add, reinforce the SAME point from a fresh angle or a closely-related supporting idea, so each slide carries substantial reading."
+          : "TEXT AMOUNT — STANDARD: a solid, satisfying amount of reading — each slide carries roughly 140-190 words of written prose (two to three meaty paragraphs, not one short blurb).";
 
   const memory = opts.previouslyTaught
     ? `
@@ -247,7 +257,8 @@ ${opts.previouslyTaught}
       ? `
 SLIDE LAYOUT TEMPLATES — this is the ONLY set of slide configurations you may use. Build each slide as one of these layouts, following its component types IN ORDER and including ALL of its steps; pick the layout that best fits the concept and vary layouts across the deck. A layout with several "Text" steps means that many DISTINCT paragraphs (never repeat one). The evaluation step names map to the quiz "kind" (see rule 6): "Multiple choice"→mcq, "2-option"→mcq2, "Fill blank"→fillblank, "Typed answer"→typed, "Solve (worksheet)"→solve. Emit the quiz with EXACTLY that kind and its required fields — do not substitute one kind for another. These layouts are already chosen for this deck's difficulty level, so honor the text density they imply.
 ${opts.layoutTemplates.map((t) => `- ${t.name}${t.tags.length ? ` [${t.tags.join(", ")}]` : ""}: ${t.components.join(" -> ")}`).join("\n")}
-When a layout calls for a Table, emit a valid table component with real rows, e.g. {"type":"table","columns":["Rule","Example"],"rows":[["Add -ed for past tense","walk -> walked"],["Double the consonant","stop -> stopped"]]}. When it calls for a Graph, emit a chart component, e.g. {"type":"chart","chartType":"bar","title":"...","labels":["A","B","C"],"series":[{"name":"...","data":[3,5,2]}]}. A malformed table/chart is dropped, which breaks the layout — always give columns+rows / labels+series.
+TEMPLATE LABELS: each layout's [tags] mark its flavour — math/physics/calculus (formula work), wolfram (a live Wolfram|Alpha computed explanation), programming/cs/hardware (code slides), medicine/health/biology, finance/economics/data, humanities/history/literature/language. HONOR EXPLICIT REQUESTS: if the user's INSTRUCTIONS or topic ask for specific kinds of slides ("only code templates", "use Wolfram explanations", "lots of tables", "image-heavy"), choose layouts whose tags or component steps match that request — exclusively when they say "only", predominantly otherwise.
+When a layout calls for a Wolfram Alpha explanation, emit exactly {"type":"wolfram","query":"<a precise computable input, e.g. derivative of x^3 sin(x)>","caption":"<one line on what the result shows>"} — never substitute a latex or prose component for it. When a layout calls for a Table, emit a valid table component with real rows, e.g. {"type":"table","columns":["Rule","Example"],"rows":[["Add -ed for past tense","walk -> walked"],["Double the consonant","stop -> stopped"]]}. When it calls for a Graph, emit a chart component, e.g. {"type":"chart","chartType":"bar","title":"...","labels":["A","B","C"],"series":[{"name":"...","data":[3,5,2]}]}. A malformed table/chart is dropped, which breaks the layout — always give columns+rows / labels+series.
 MATH & PHYSICS: a template tagged [worked-example] is an EXPLAINER — its text must fully WORK THROUGH a sample problem step by step (state it, show each step with the formula/latex, explain the move), and its Multiple-choice question must probe ONE step of that solution ("Which step introduces...?", "What is the value after step 2?"). A [problem-solving] template ("Solve...") is the opposite: give a fresh problem for the student to solve themselves. When you have freedom to sequence math slides, teach first — show a worked example (explainer) BEFORE asking the student to solve one themselves.
 VISUAL STUDY: a template tagged [anatomy] (text · image · text · evaluation) is for studying an item VISUALLY. Make the image the centrepiece — a clear, labelled depiction of the specific structure/specimen/object. The text before it introduces what the learner is looking at; the text after it describes and explains it (parts, function, what to notice); the evaluation checks that they can identify or reason about what they saw. Match the evaluation to the template's step (mcq / typed / fillblank / 2-option).
 `
@@ -281,12 +292,15 @@ WALKTHROUGH MODE — this is an EXPLANATION the viewer is guided through, NOT an
 ${
   news
     ? `
-NEWS BRIEFING MODE — this is a slide-format NEWS BRIEFING about "${opts.subject ?? "the given topic"}", read like a newspaper section, NOT a lesson:${
+TIME TRAVEL NEWS MODE — this is a slide-format NEWS BRIEFING about "${opts.subject ?? "the given topic"}", read like a newspaper section from a chosen moment in time, NOT a lesson:${
       opts.newsPeriod
-        ? `\n- TIME PERIOD: report the news AS IT STOOD during "${opts.newsPeriod}". Every story must be from that moment in time — its headline, facts and framing reflect what was happening THEN, not now, and must not include later developments. If you lack specific facts for that period, report the general state of the beat at that time in careful, non-fabricated terms.`
+        ? `\n- TIME PERIOD — the reader has "traveled" to "${opts.newsPeriod}" and is reading that day's paper:
+  · PAST periods: report the news AS IT STOOD then. Every story's headline, facts and framing reflect what was happening THEN, not now, and must not include later developments. If you lack specific facts for that period, report the general, well-documented state of the beat at that time in careful, non-fabricated terms.
+  · FUTURE periods: there are no facts yet — write a plausible, internally-consistent speculative briefing of what the beat could look like at that time, extrapolated from real current trends and known science. Keep the straight newspaper voice (it reads as that era's paper, not as prediction), and never contradict established present-day facts about how we got there.
+  · ERA FIT — ADAPT THE TOPIC TO THE TIME: if the topic as named does not exist in that period (baseball in the year 1030, smartphones in the Jurassic), do NOT force an anachronism. Report that era's closest genuine equivalent instead (village games and contests instead of baseball; natural events instead of gadgets), acknowledging the requested angle in at most one clause. Likewise in the far future, if the topic has plausibly transformed or disappeared, report what took its place. The reader asked "what was the news about this topic THEN" — answer with what that time genuinely had.`
         : ""
     }
-- Report, don't teach or sell: each slide is ONE news item / story / development on the topic. Do NOT repeat the same story across slides.
+- Report, don't teach or sell: each slide is ONE news item / story / development on the topic, with its OWN fresh headline written for that era. Do NOT repeat the same story across slides.
 - EVERY slide is a newspaper clipping with THREE parts, always present together:
   (1) HEADLINE — the slide TITLE.
   (2) PHOTO — an image component with a specific, relevant news photo prompt${opts.imageStyle === "none" ? " (SKIP only because image style is 'none')" : " (REQUIRED on every slide)"}.
@@ -300,11 +314,12 @@ NEWS BRIEFING MODE — this is a slide-format NEWS BRIEFING about "${opts.subjec
     : ""
 }
 ${textAmountDirective}
+SPECIFICITY (non-negotiable): every paragraph you write must be SPECIFIC to "${opts.subject ?? "the given topic"}" and the user's instructions — concrete names, ingredients, flavors, facts, numbers, sensory details. NEVER write placeholder prose that could fit any topic ("look closely at…", "study what it shows", "this illustrates the concept"). A paragraph that would still make sense with the topic swapped out is a failed paragraph — rewrite it with real substance about THIS topic. EVERY slide must carry at least one such written paragraph; never rely on a title + visual alone.
 ${commercial ? "SHOWCASE" : news ? "BRIEFING" : "TEACHING"} RULES (non-negotiable):
 1. NO greeting/welcome/outline slide — start teaching immediately on slide 1.
 2. EVERY slide MUST be built from ONE of the SLIDE LAYOUT TEMPLATES listed below — use that template's exact component configuration (its component types, in the given order). Do NOT invent a slide shape that is not in the catalog, and do NOT drop any of a template's steps. Because every template pairs its visual/data steps with explanatory text, this means a slide is never just an image (or just a chart/table/diagram/formula/code) next to a question — the text step explains, in words, what the visual shows, what to notice in it, and what it means, and the quiz tests that explanation. Slides build introduce -> develop -> apply; never restate an earlier point; the deck reads as ONE continuous piece of teaching, with at most a one-clause stitch between slides.
-3. Choose components deliberately per concept from this palette: prose, chart (bar/line/pie/area with real plausible data), latex, svg (a diagram description the app sketches), table (compact, few columns), stickynote (max ONE per deck, for a mnemonic or key warning), image (a vivid visual with an alt text and a generation prompt), code (short snippet).
-4. SUBJECT GATING: latex and code ONLY for math/STEM/technical topics. Humanities, languages, business, food, history -> prose + images + tables + diagrams + sticky notes.
+3. Choose components deliberately per concept from this palette: prose, chart (bar/line/pie/area with real plausible data), latex, svg (a diagram description the app sketches), table (compact, few columns), stickynote (max ONE per deck, for a mnemonic or key warning), image (a vivid visual with an alt text and a generation prompt), code (short snippet), wolfram (a LIVE Wolfram|Alpha computed explanation rendered on the slide — set "query" to a precise computable input like "derivative of x^3 sin(x)" or "integrate 1/(1+x^2)"; perfect for showing a solved derivative/integral/equation step by step, with your own text before/after interpreting the result).
+4. SUBJECT GATING: latex, code and wolfram ONLY for math/STEM/technical topics. Humanities, languages, business, food, history -> prose + images + tables + diagrams + sticky notes.
 5. HARD max ONE latex formula per slide. When a formula or graph is present, order components: (1) the formula, (2) its graph/diagram, (3) a short "why it is here" text.
 6. EVALUATION ("quiz"): each slide's evaluation MUST match the evaluation step its layout template lists, using the "kind" field — answerable ONLY from that slide's content plus everyday knowledge, difficulty matched to level "${opts.level}":
    - "Multiple choice" -> {"kind":"mcq","question":"...","options":["a","b","c","d"],"correctIndex":0,"explanation":"..."} — EXACTLY 4 options, ONE objectively correct.
@@ -517,6 +532,7 @@ const VISUAL_LABEL: Record<string, string> = {
   image: "the image",
   chart: "the chart",
   svg: "the diagram",
+  wolfram: "the Wolfram|Alpha explanation",
   table: "the table",
   latex: "the formula",
   code: "the code",
@@ -548,22 +564,52 @@ function proseFromQuiz(quiz: LooseQuiz | null | undefined): string | null {
  *  quiz (real, on-topic) when possible, else its title/visual. Shared by the
  *  repair salvage (so a slide is never dropped for shrinking the deck) and the
  *  final ensureExplanatoryProse net. */
-export function slideFallbackParagraph(slide: LooseSlide): string {
+export function slideFallbackParagraph(slide: LooseSlide, purpose?: string, topic?: string): string {
   const fromQuiz = proseFromQuiz(slide.quiz);
   if (fromQuiz) return fromQuiz;
   const visual = (slide.components ?? []).find((c) => c?.type && VISUAL_LABEL[c.type]);
   const title = (slide.title ?? "this idea").trim();
+  const about = topic?.trim();
+  // Tailor the net to the deck's own prompt and register — a menu slide must
+  // read like menu copy about ITS dish, never like a classroom instruction.
+  if (purpose === "commercial") {
+    return about
+      ? `${title} is one of the touches that makes ${about} worth choosing — prepared and presented with real care. ${visual ? `The ${VISUAL_LABEL[visual.type as string].replace(/^the /, "")} below shows it up close: the textures, colors and details tell you how it will taste before the first bite.` : `Ask for it by name — it is a highlight of ${about}.`}`
+      : `${title} — prepared and presented with care${visual ? `; ${VISUAL_LABEL[visual.type as string]} below shows it up close` : ""}.`;
+  }
+  if (purpose === "walkthrough" && about) {
+    return `${title} is a key step in understanding ${about}. ${visual ? `${VISUAL_LABEL[visual.type as string][0].toUpperCase()}${VISUAL_LABEL[visual.type as string].slice(1)} below shows how this piece fits into ${about} as a whole.` : `It connects directly to the rest of ${about}.`}`;
+  }
+  if (about && purpose !== "news") {
+    return visual
+      ? `${title} is a core part of ${about}: ${VISUAL_LABEL[visual.type as string]} below illustrates how it works within ${about} — the parts it shows are the ones this lesson builds on.`
+      : `${title} — the next building block of ${about}.`;
+  }
+  // A news slide must read like reporting, never like a lesson ("study what
+  // it shows"): keep the newspaper register even in the safety net.
+  if (purpose === "news") {
+    return visual
+      ? `${title} — a developing story on this beat. ${VISUAL_LABEL[visual.type as string][0].toUpperCase()}${VISUAL_LABEL[visual.type as string].slice(1)} below carries the key facts of the report: what happened, who is involved, and the figures that matter.`
+      : `${title} — a developing story on this beat; further details were still coming in at press time.`;
+  }
   return visual
     ? `Look closely at ${title}: ${VISUAL_LABEL[visual.type as string]} below illustrates it. Study what it shows and how the parts relate.`
     : `Let's work through ${title}.`;
 }
 
-export function ensureExplanatoryProse<T extends { slides?: LooseSlide[] }>(deck: T): T {
+export function ensureExplanatoryProse<T extends { slides?: LooseSlide[] }>(
+  deck: T,
+  purpose?: string,
+  topic?: string,
+): T {
   for (const slide of deck.slides ?? []) {
     if (slideHasProse(slide)) continue;
+    // A Wolfram|Alpha card IS the explanation — a wolfram-only slide (the
+    // "Wolfram only" template) must not get lesson filler injected on top.
+    if ((slide.components ?? []).some((c) => c?.type === "wolfram")) continue;
     if (!Array.isArray(slide.components)) slide.components = [];
     console.warn("[ai/prose] slide had no explanatory text — injecting a fallback paragraph:", slide.title);
-    slide.components.unshift({ type: "prose", paragraphs: [slideFallbackParagraph(slide)] });
+    slide.components.unshift({ type: "prose", paragraphs: [slideFallbackParagraph(slide, purpose, topic)] });
   }
   return deck;
 }

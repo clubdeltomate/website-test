@@ -37,12 +37,13 @@ import {
   bestMatchingTemplate,
   GRADABLE_TYPES,
   TEMPLATE_COMPONENT_LABELS,
+  LESSON_PACKETS,
 } from "../../contracts/slide-templates.js";
 import { isStemTopic } from "../../contracts/stem.js";
 import { typedOverlapCorrect } from "../../contracts/grade.js";
 import { repoPurpose, templateFilterPurpose, type CoachReply, type SlideDeck } from "../../contracts/types.js";
 
-const GUEST_MAX_SLIDES = 6;
+export const GUEST_MAX_SLIDES = 6;
 const MAX_SLIDES = 15;
 /** Token fee for one AI vision review of a handwritten worked solution. */
 const VISION_GRADE_COST = 6;
@@ -348,7 +349,10 @@ export const generateRouter = createRouter({
         // a product/menu/service showcase (no evaluations).
         purpose: z.enum(["education", "commercial", "walkthrough", "news"]).optional(),
         // How much explanatory text each slide carries (advanced setting).
-        textDensity: z.enum(["brief", "standard", "detailed"]).default("standard"),
+        textDensity: z.enum(["minimal", "brief", "standard", "detailed"]).default("standard"),
+        // Subject override for template filtering: "auto" detects from the
+        // topic; "stem"/"humanities" force the catalog the author chose.
+        subject: z.enum(["auto", "stem", "humanities"]).default("auto"),
         // News decks only: the moment in time the briefing reports from.
         newsPeriod: z.string().max(200).optional(),
         // Search the web for current facts about the topic first (accuracy for
@@ -380,6 +384,7 @@ export const generateRouter = createRouter({
       slidePlan: import("../../contracts/types.js").SlidePlanInfo[];
       commercial: import("../../contracts/types.js").CommercialInfo | null;
       walkthrough: import("../../contracts/types.js").WalkthroughInfo | null;
+      author: { ownerId: number | null; name: string } | null;
     }> => {
       const db = getDb();
       const tool = await db.query.slideTools.findFirst({
@@ -387,9 +392,12 @@ export const generateRouter = createRouter({
       });
       if (!tool) throw new TRPCError({ code: "NOT_FOUND", message: "Slide tool not found" });
 
-      const isGuest = !ctx.user;
-      if (isGuest) rateLimit(clientKey(ctx.req), 10, 60_000);
-      const slideCount = isGuest ? Math.min(input.slideCount, GUEST_MAX_SLIDES) : input.slideCount;
+      // No anonymous AI: every generation belongs to a signed-in user and is
+      // paid for from that user's balance (or a gifted ticket) below.
+      if (!ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in to generate slides — every generation is charged to your account." });
+      }
+      const slideCount = input.slideCount;
 
       // Resolve topic/instructions: explicit input > lesson objective (seed) > tool defaults
       // Fall back to the tool's NAME when there's no explicit topic, so a tool
@@ -533,9 +541,13 @@ export const generateRouter = createRouter({
       // conforms to an approved configuration (so text is guaranteed because
       // every template pairs its visuals with a text step).
       const catalog = await loadTemplateCatalog();
+      // The author's explicit subject choice beats detection — a derivatives
+      // lesson misread as humanities must still get the STEM catalog.
+      const stemActive =
+        input.subject === "stem" ? true : input.subject === "humanities" ? false : isStemTopic(topic);
       let allowedTemplates = templatesForContext(catalog, {
         purpose: templateFilterPurpose(purpose),
-        stem: isStemTopic(topic),
+        stem: stemActive,
         level: input.level,
       });
       // A news briefing reads like a newspaper: give it the image-forward
@@ -545,7 +557,7 @@ export const generateRouter = createRouter({
       if (purpose === "news") {
         const imageForward = templatesForContext(catalog, {
           purpose: "commercial",
-          stem: isStemTopic(topic),
+          stem: stemActive,
           level: input.level,
         });
         const seen = new Set(allowedTemplates.map((t) => t.name));
@@ -566,7 +578,7 @@ export const generateRouter = createRouter({
       const purposeParaFloor = purpose === "walkthrough" ? Math.max(2, baseParaFloor) : baseParaFloor;
       // The advanced "text amount" setting shifts the floor up or down.
       const densityDelta =
-        input.textDensity === "brief" ? -1 : input.textDensity === "detailed" ? 2 : 0;
+        input.textDensity === "minimal" ? -99 : input.textDensity === "brief" ? -1 : input.textDensity === "detailed" ? 2 : 0;
       const paraFloor = Math.max(1, purposeParaFloor + densityDelta);
       // News summaries stay concise unless "detailed" is chosen.
       const newsMinParas = input.textDensity === "detailed" ? 2 : 1;
@@ -790,10 +802,36 @@ export const generateRouter = createRouter({
         deck = { ...deck, slides: deck.slides.map((s) => ({ ...s, quiz: undefined })) };
       }
       // Guarantee every slide has explanatory text — no image-only slides ship
-      deck = ensureExplanatoryProse(deck);
+      deck = ensureExplanatoryProse(deck, purpose, topic);
       // Randomize each quiz's correct-answer position (models almost always
       // put the answer first, so otherwise every question is "A").
       deck = shuffleQuizAnswers(deck);
+
+      // AI naming: a tool created without a name stays "Untitled …" until its
+      // first successful generation, then takes its identity from the AI's own
+      // deck — the opening slide's title (a headline, for news) becomes the
+      // name and the first written paragraph becomes the description. A
+      // custom name/description typed in the tool's settings is never touched.
+      if (/^untitled\b/i.test(tool.name.trim())) {
+        const firstParagraph = deck.slides
+          .flatMap((s) => s.components)
+          .map((c) => (c.type === "prose" ? c.paragraphs?.[0] : null))
+          .find((p): p is string => !!p?.trim());
+        const autoName = (
+          purpose === "news" && input.newsPeriod?.trim()
+            ? `${(input.topic?.trim() || topic).replace(/\s+news$/i, "")} News — ${input.newsPeriod.trim()}`
+            : deck.slides[0]?.title?.trim() || topic
+        ).slice(0, 255);
+        const set: { name: string; description?: string } = { name: autoName };
+        if (!tool.description?.trim() && firstParagraph) {
+          set.description = firstParagraph.slice(0, 500);
+        }
+        try {
+          await db.update(slideTools).set(set).where(eq(slideTools.id, tool.id));
+        } catch (err) {
+          console.warn("[generate.slides] auto-naming failed (deck unaffected):", err instanceof Error ? err.message : err);
+        }
+      }
 
       // Eagerly generate ONLY the first slide's image inline so slide 1 opens
       // with its picture already in place (no visible wait on the opening
@@ -865,7 +903,21 @@ export const generateRouter = createRouter({
         const fresh = await db.query.users.findFirst({ where: eq(users.id, ctx.user.id) });
         balance = fresh?.tokenBalance ?? null;
       }
-      return { deck, usedMock, cost, balance, previouslyTaught, slidePlan, commercial, walkthrough };
+      // Every ending shows who made the deck: resolve the author for lesson
+      // decks too (commercial/walkthrough/news already carry their owner).
+      let author: { ownerId: number | null; name: string } | null = null;
+      if (walkthrough) {
+        author = { ownerId: walkthrough.ownerId, name: walkthrough.ownerName };
+      } else if (commercial) {
+        author = { ownerId: commercial.owner.ownerId ?? null, name: commercial.owner.name };
+      } else {
+        const authorId = seedRepo?.ownerId ?? (!input.seed ? tool.ownerId : null);
+        const owner = authorId
+          ? await db.query.users.findFirst({ where: eq(users.id, authorId) })
+          : null;
+        if (owner) author = { ownerId: owner.id, name: owner.name };
+      }
+      return { deck, usedMock, cost, balance, previouslyTaught, slidePlan, commercial, walkthrough, author };
     }),
 
   /**
@@ -1215,6 +1267,83 @@ RULES:
       }
     }),
 
+  /**
+   * Auto-tune: read the author's prompt and recommend every generation
+   * setting — level, slide count, image style, text density, and a full
+   * per-slide template plan chosen from the real catalog (packets are 4
+   * slides; for longer decks the AI fills every slide). Falls back to a
+   * sensible heuristic when no AI provider answers, so the button always
+   * does something useful.
+   */
+  tuneSettings: publicQuery
+    .input(
+      z.object({
+        topic: z.string().min(3).max(2000),
+        purpose: z.enum(["education", "commercial", "walkthrough", "news"]).default("education"),
+        newsPeriod: z.string().max(200).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      rateLimit(clientKey(ctx.req), 10, 60_000);
+      if (!ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in to auto-tune settings." });
+      }
+      const catalog = await loadTemplateCatalog();
+      const evalFree = input.purpose !== "education";
+      // Only offer layouts that fit the purpose (news/walkthrough/commercial
+      // never pin an evaluation-bearing layout the mode would then skip).
+      const allowed = catalog.filter((t) =>
+        evalFree ? t.tags.includes("commercial") || !t.components.some((c) => GRADABLE_TYPES.includes(c)) : true,
+      );
+      const names = allowed.map((t) => t.name);
+      const recSchema = z.object({
+        level: z.enum(["A0", "A1", "A2", "B1", "B2", "C1", "C2"]),
+        slideCount: z.number().int().min(3).max(15),
+        imageStyle: z.enum(["sketch", "watercolor", "flat", "photo", "none"]),
+        textDensity: z.enum(["minimal", "brief", "standard", "detailed"]),
+        templatePlan: z.array(z.string()).min(3).max(15),
+      });
+      const system = `You configure a slide-presentation generator. Reply with ONLY JSON: {"level":"A0..C2","slideCount":3-15,"imageStyle":"sketch|watercolor|flat|photo|none","textDensity":"minimal|brief|standard|detailed","templatePlan":[exactly slideCount layout names]}. Purpose of this deck: ${input.purpose}${input.newsPeriod ? ` (news from "${input.newsPeriod}")` : ""}. Choose settings that BEST fit the user's prompt: reading level from the implied audience, slide count from the scope, photo style for food/products, more images for menus/shops, denser text for scholarly topics. Every templatePlan entry MUST be exactly one of: ${names.join(" · ")}. Vary layouts; order them to open strong (image-led) and close with synthesis.`;
+      try {
+        const result = await completeText({
+          userId: ctx.user?.id,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: `PROMPT: ${input.topic}` },
+          ],
+          maxTokens: 600,
+          timeoutMs: 12_000,
+          maxCandidates: 2,
+        });
+        if (result) {
+          const rec = recSchema.parse(JSON.parse(extractJson(result.text)));
+          const valid = new Set(names);
+          const templatePlan = rec.templatePlan
+            .slice(0, rec.slideCount)
+            .map((n) => (valid.has(n) ? n : null));
+          while (templatePlan.length < rec.slideCount) templatePlan.push(null);
+          return { ...rec, templatePlan, source: "ai" as const };
+        }
+      } catch (err) {
+        console.warn("[tuneSettings] AI recommendation failed, using heuristic:", err instanceof Error ? err.message : err);
+      }
+      // Heuristic fallback: purpose-shaped defaults + the first fitting packet.
+      const packet = LESSON_PACKETS.find((p) => p.purpose === input.purpose);
+      const slideCount = input.purpose === "commercial" ? 4 : 6;
+      const plan: (string | null)[] = Array.from({ length: slideCount }, (_, i) => {
+        const name = packet?.templates[i % (packet.templates.length || 1)] ?? null;
+        return name && names.includes(name) ? name : null;
+      });
+      return {
+        level: "B1" as const,
+        slideCount,
+        imageStyle: (input.purpose === "commercial" ? "photo" : "sketch") as "photo" | "sketch",
+        textDensity: (input.purpose === "commercial" ? "brief" : "standard") as "brief" | "standard",
+        templatePlan: plan,
+        source: "heuristic" as const,
+      };
+    }),
+
 })
 
 /* ---------------- coach chat --------------------------------- */
@@ -1234,6 +1363,14 @@ export const coachChatProcedure = publicQuery
     )
     .mutation(async ({ ctx, input }): Promise<CoachReply> => {
       rateLimit(clientKey(ctx.req), 20, 60_000);
+      // Chat is a paid, signed-in feature: 1 🪙 per message, charged up front.
+      if (!ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in to chat with the Coach." });
+      }
+      if (ctx.user.tokenBalance < 1) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "INSUFFICIENT_TOKENS: a Coach message costs 1 🪙 — top up to keep chatting." });
+      }
+      await applyTokenDelta(ctx.user.id, -1, "coach chat message");
       const lastUser = [...input.messages].reverse().find((m) => m.role === "user");
       const history = input.messages.slice(-12).map((m) => ({
         role: (m.role === "coach" ? "assistant" : "user") as "assistant" | "user",

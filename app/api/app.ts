@@ -144,6 +144,33 @@ app.get("/api/health", async (c) => {
   return c.json(report, ok ? 200 : 503);
 });
 
+/**
+ * Wolfram|Alpha proxy for the "wolfram" slide component. The AI emits a
+ * computable query; the player loads it as an image through this route so the
+ * App ID (WOLFRAM_APP_ID, falling back to the legacy APP_ID slot) never
+ * reaches the client. Uses Wolfram's Simple API, themed to the paper palette.
+ */
+app.get("/api/wolfram", async (c) => {
+  const query = c.req.query("i")?.trim();
+  const appId = process.env.WOLFRAM_APP_ID?.trim() || process.env.APP_ID?.trim();
+  if (!query || query.length > 300) return c.json({ error: "bad_query" }, 400);
+  if (!appId) return c.json({ error: "wolfram_not_configured" }, 404);
+  try {
+    const upstream = await fetch(
+      `https://api.wolframalpha.com/v1/simple?appid=${encodeURIComponent(appId)}&i=${encodeURIComponent(query)}&background=F8F3E7&foreground=2B2B2B&width=760&units=metric`,
+      { signal: AbortSignal.timeout(15_000) },
+    );
+    if (!upstream.ok) return c.json({ error: `wolfram_${upstream.status}` }, 502);
+    const body = await upstream.arrayBuffer();
+    return c.body(body, 200, {
+      "content-type": upstream.headers.get("content-type") ?? "image/png",
+      "cache-control": "public, max-age=86400",
+    });
+  } catch {
+    return c.json({ error: "wolfram_unreachable" }, 502);
+  }
+});
+
 app.use("/api/trpc/*", async (c) => {
   return fetchRequestHandler({
     endpoint: "/api/trpc",

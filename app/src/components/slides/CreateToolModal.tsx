@@ -17,7 +17,7 @@ export interface CreateToolModalProps {
 const CATEGORIES: { id: RepoTemplate; label: string; hint: string }[] = [
   { id: 'course', label: 'Lesson', hint: 'Teach a topic — quizzes allowed' },
   { id: 'walkthrough', label: 'Walkthrough', hint: 'Explain a topic — no quizzes' },
-  { id: 'news', label: 'News briefing', hint: 'Report the news — no quizzes' },
+  { id: 'news', label: 'Time Travel News', hint: 'News from any era — no quizzes' },
   { id: 'restaurant', label: 'Menu item', hint: 'Showcase a dish — no evaluations' },
   { id: 'service', label: 'Service', hint: 'Showcase a service — no evaluations' },
   { id: 'shop', label: 'Product', hint: 'Marketplace display — no evaluations' },
@@ -31,7 +31,6 @@ const CATEGORIES: { id: RepoTemplate; label: string; hint: string }[] = [
 export default function CreateToolModal({ open, onClose }: CreateToolModalProps) {
   const navigate = useNavigate();
   const utils = trpc.useUtils();
-  const [name, setName] = useState('');
   const [template, setTemplate] = useState<RepoTemplate>('course');
 
   const create = trpc.slideTools.create.useMutation({
@@ -44,11 +43,11 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
   });
 
   const submit = () => {
-    if (name.trim().length < 3) {
-      toast.error('Give your tool a name (3+ characters).');
-      return;
-    }
-    create.mutate({ name: name.trim(), template });
+    // No name asked here — the tool starts as "Untitled …" and takes its real
+    // name (and description) from the AI's first generated deck; a custom
+    // name/description can be set any time in the tool's settings.
+    const label = CATEGORIES.find((c) => c.id === template)?.label ?? 'presentation';
+    create.mutate({ name: `Untitled ${label}`, template });
   };
 
   return (
@@ -76,24 +75,11 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
 
             <h2 className="font-display text-4xl font-bold text-ink">New slide tool</h2>
             <p className="mt-1 text-sm text-ink-soft">
-              Name it and pick what it's for — you'll set the prompt and everything else on the next
-              page.
+              Just pick what it's for — the AI names and describes it from your first generation.
+              (You can set a custom name in the tool's settings any time.)
             </p>
 
             <div className="mt-5 flex flex-col gap-4">
-              <label className="block">
-                <span className="micro mb-1 block text-ink-soft">Name</span>
-                <input
-                  className="w-full rounded-wobble-sm border-2 border-ink bg-paper-3 px-3.5 py-2.5 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue focus:shadow-[4px_4px_0_#DDE9FB]"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && submit()}
-                  placeholder="e.g. Aura Ring"
-                  maxLength={120}
-                  autoFocus
-                />
-              </label>
-
               <div>
                 <span className="micro mb-1.5 block text-ink-soft">What is it?</span>
                 <div className="grid grid-cols-2 gap-2">

@@ -50,7 +50,7 @@ import { TemplateIcon } from '@/components/repo/shared';
 const CATEGORY_OPTS: { id: RepoTemplate; label: string; hint: string }[] = [
   { id: 'course', label: 'Lesson', hint: 'Teach a topic — quizzes & evaluations allowed' },
   { id: 'walkthrough', label: 'Walkthrough', hint: 'Explain a topic — no quizzes, just a guided walkthrough' },
-  { id: 'news', label: 'News briefing', hint: 'Report the news on a topic — headlines, factual, no quizzes' },
+  { id: 'news', label: 'Time Travel News', hint: 'News from any era — pick a topic and a moment in time, past or future' },
   { id: 'restaurant', label: 'Menu item', hint: 'Showcase a dish — no evaluations' },
   { id: 'service', label: 'Service', hint: 'Showcase a service — no evaluations' },
   { id: 'shop', label: 'Product', hint: 'Marketplace display — no evaluations' },
@@ -62,6 +62,39 @@ const STYLE_PRESETS: Exclude<ImageStyle, 'none'>[] = [
   'flat',
   'photo',
 ];
+
+/** Time Travel News: the era timeline the period scroller moves through —
+ *  chronological, capped at the Jurassic in the past and the year 3000 in the
+ *  future. Scrolling left of "This week" reads history; scrolling right asks
+ *  the AI to forecast that era. A custom free-text period is always available. */
+const NEWS_ERAS = [
+  'The Jurassic period (150 million years ago)',
+  'The Stone Age',
+  'The invention of the wheel (~3500 BC)',
+  'Ancient Egypt (1300 BC)',
+  'Classical Greece (450 BC)',
+  'The Roman Empire (100 AD)',
+  'The Viking Age (900 AD)',
+  'The Middle Ages (1030 AD)',
+  'The Renaissance (1500)',
+  'The Age of Exploration (1600s)',
+  'The Industrial Revolution (1850)',
+  'The Wild West (1875)',
+  'The Roaring Twenties (1925)',
+  'The World War II years (1943)',
+  'The Space Race (1965)',
+  'The 1980s',
+  'The 1990s',
+  'The early 2000s',
+  'The 2010s',
+  'This week',
+  'The year 2050',
+  'The year 2100',
+  'The year 2200',
+  'The year 2500',
+  'The year 3000',
+] as const;
+const ERA_TODAY_IDX = NEWS_ERAS.indexOf('This week');
 
 /** News beats offered when building an "AI time news" briefing — the AI picks
  *  the actual stories, so the author only chooses the beat + the moment in time. */
@@ -258,6 +291,8 @@ function ToolStudio({
     }
   };
 
+  const [descDraft, setDescDraft] = useState(tool.description ?? '');
+
   const [mode, setMode] = useState<'config' | 'theater' | 'player'>('config');
   const [topic, setTopic] = useState(seed?.lessonTitle || tool.topic);
   const [instructions, setInstructions] = useState(tool.instructions);
@@ -273,6 +308,10 @@ function ToolStudio({
   // News "time news" config: the AI picks the stories from the chosen beat + moment.
   const [newsType, setNewsType] = useState<string>('Top stories');
   const [newsPeriod, setNewsPeriod] = useState<string>('This week');
+  // Era scroller position (Time Travel News). "Custom" swaps the slider for a
+  // free-text period; the generated deck always uses `newsPeriod` either way.
+  const [eraIdx, setEraIdx] = useState<number>(ERA_TODAY_IDX);
+  const [customEra, setCustomEra] = useState(false);
   const [voiceURI, setVoiceURI] = useState<string | null>(null);
   const [includeQuiz, setIncludeQuiz] = useState(true);
   const [webSearch, setWebSearch] = useState(false);
@@ -282,9 +321,12 @@ function ToolStudio({
   const [tone, setTone] = useState<Tone>(tool.defaultTone ?? 'neutral');
   // Advanced: solve slides use the freehand scratchpad (on) or a plain answer
   // box (off) as the way to submit a worked solution.
-  const [useScratchpad, setUseScratchpad] = useState(true);
+  const [useScratchpad, setUseScratchpad] = useState(false);
   // Advanced: pinned layout template per slide (name | null = auto). Index i → slide i+1.
   const [templatePlan, setTemplatePlan] = useState<(string | null)[]>([]);
+  // Subject filter for the template catalog: Auto follows topic detection,
+  // STEM/Humanities force the choice (detection can misread e.g. derivatives).
+  const [subjectMode, setSubjectMode] = useState<'auto' | 'stem' | 'humanities'>('auto');
   // Apply a lesson packet: pour its templates into the NEXT OPEN (Auto) slots,
   // in order, up to the chosen slide count. Overflow beyond the slide count is
   // discarded, so stacking packets fills the deck sequentially — packet 1 fills
@@ -309,6 +351,7 @@ function ToolStudio({
     slidePlan: SlidePlanInfo[];
     commercial: CommercialInfo | null;
     walkthrough: WalkthroughInfo | null;
+    author?: { ownerId: number | null; name: string } | null;
   } | null>(null);
   const canceledRef = useRef(false);
   // Captured when the owner presses "Generate & set preset" so the completion
@@ -340,12 +383,14 @@ function ToolStudio({
     () =>
       templatesForContext(templatesQuery.data ?? [], {
         purpose: templateFilterPurpose(purpose),
-        stem: isStemTopic(topic),
+        stem: subjectMode === 'auto' ? isStemTopic(topic) : subjectMode === 'stem',
         level,
       }),
-    [templatesQuery.data, purpose, topic, level],
+    [templatesQuery.data, purpose, topic, level, subjectMode],
   );
-  const packets = useMemo(() => packetsForPurpose(templateFilterPurpose(purpose)), [purpose]);
+  // Packets match the tool's real purpose: only education packets carry
+  // evaluations; news/walkthrough/commercial get display-only packet shapes.
+  const packets = useMemo(() => packetsForPurpose(purpose), [purpose]);
   // Resolve a pinned template by name against the FULL catalog (not just the
   // filtered pickable set) so a packet-pinned template from another level
   // still shows its badges, sequence and bar.
@@ -388,6 +433,38 @@ function ToolStudio({
 
   const generate = trpc.generate.slides.useMutation();
 
+  // AI auto-tune: read the prompt and set level/slides/style/density plus a
+  // full per-slide template plan (packets are 4 slides; longer decks get
+  // every slide filled with what the AI thinks fits best).
+  const tune = trpc.generate.tuneSettings.useMutation({
+    onSuccess: (rec) => {
+      setLevel(rec.level);
+      setSlideCount(rec.slideCount);
+      setImageStyle(rec.imageStyle);
+      setTextDensity(rec.textDensity);
+      setTemplatePlan(rec.templatePlan);
+      setAdvancedOpen(true);
+      toast.success(
+        rec.source === 'ai'
+          ? 'Settings tuned to your prompt — review them below.'
+          : 'Settings preset for this category — no AI reply, used smart defaults.',
+      );
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const runTune = () => {
+    const t = (purpose === 'news' && !seed ? `${newsType} news` : topic).trim();
+    if (t.length < 3) {
+      toast.error('Write your prompt first — then I can tune the settings to it.');
+      return;
+    }
+    tune.mutate({
+      topic: t,
+      purpose,
+      newsPeriod: purpose === 'news' ? newsPeriod.trim() || undefined : undefined,
+    });
+  };
+
   const runGenerate = () => {
     canceledRef.current = false;
     // Remember this user's choices so they become the defaults next time.
@@ -411,6 +488,7 @@ function ToolStudio({
         tone,
         purpose: seed ? undefined : purpose,
         textDensity,
+        subject: subjectMode,
         newsPeriod: purpose === 'news' ? newsPeriod.trim() || undefined : undefined,
         webSearch,
         templatePlan: templatePlan.some(Boolean)
@@ -428,6 +506,7 @@ function ToolStudio({
             slidePlan: res.slidePlan,
             commercial: res.commercial,
             walkthrough: res.walkthrough,
+            author: res.author,
           });
           setTheaterDone(true);
           if (!isGuest) void utils.auth.me.invalidate();
@@ -565,6 +644,7 @@ function ToolStudio({
         scratchpadEnabled={useScratchpad}
         commercial={result.commercial}
         walkthrough={result.walkthrough}
+        author={result.author ?? null}
         onSavePreset={canPublishPreset ? handleSavePreset : undefined}
         savingPreset={setPreset.isPending}
         presetSaved={presetSaved}
@@ -661,6 +741,52 @@ function ToolStudio({
         <WashiTape rotate={-3} />
         <WashiTape color="blue" rotate={2} className="left-auto right-8" />
 
+        {/* optional custom name & description — collapsed by default so it
+            reads as optional: left alone, the AI titles and describes the
+            tool from its first generated deck. */}
+        {canEditTool && (
+          <motion.details
+            variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}
+            className="mb-5 rounded-wobble-sm border-2 border-dashed border-pencil px-3.5 py-2.5"
+          >
+            <summary className="micro cursor-pointer select-none text-ink-soft">
+              Name &amp; description — optional · leave it and the AI writes them from your prompt
+            </summary>
+            <div className="mt-3 flex flex-col gap-3">
+              <label className="block">
+                <span className="micro mb-1 block text-ink-soft">Custom name</span>
+                <input
+                  className={cn(inputCls)}
+                  value={title}
+                  maxLength={120}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onBlur={commitTitle}
+                  placeholder="Leave as Untitled — the AI names it on first generation"
+                />
+              </label>
+              <label className="block">
+                <span className="micro mb-1 block text-ink-soft">Custom description</span>
+                <textarea
+                  className={cn(inputCls, 'min-h-[56px] resize-y')}
+                  value={descDraft}
+                  maxLength={2000}
+                  onChange={(e) => setDescDraft(e.target.value)}
+                  onBlur={() => {
+                    const next = descDraft.trim();
+                    if (next !== (tool.description ?? '')) {
+                      updateTool.mutate(
+                        { slug: tool.slug, description: next },
+                        { onSuccess: () => void utils.slideTools.getBySlug.invalidate({ slug: tool.slug }) },
+                      );
+                    }
+                  }}
+                  placeholder="Leave empty — the AI describes it from the generated deck"
+                />
+              </label>
+            </div>
+          </motion.details>
+        )}
+
         {/* what kind of presentation — drives templates & whether evaluations
             are offered. Standalone tools only (a seeded lesson inherits the
             repo's category). */}
@@ -695,7 +821,7 @@ function ToolStudio({
                 : purpose === 'walkthrough'
                   ? 'Walkthrough mode — the AI explains and guides only; no quizzes, ends on a "visit author / go back" step.'
                   : purpose === 'news'
-                    ? 'News briefing mode — the AI reports the news factually (headlines, dateline, images); no quizzes, ends on a "visit author / go back" step.'
+                    ? 'Time Travel News mode — pick a moment in time and the AI writes that era\'s paper: fresh headlines and stories per slide (headline, photo, report); no quizzes, ends on a "visit author / go back" step.'
                     : 'Lesson mode — evaluations and quizzes are available.'}
             </p>
           </motion.div>
@@ -733,7 +859,22 @@ function ToolStudio({
         ) : (
           <motion.div variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}>
             <span className="micro mb-1 flex items-center justify-between text-ink-soft">
-              Topic / prompt
+              <span className="flex items-center gap-2">
+                Topic / prompt
+                <button
+                  type="button"
+                  onClick={runTune}
+                  disabled={tune.isPending}
+                  title="Tune all settings to this prompt — the AI picks level, slides, style, text amount and a layout for every slide"
+                  aria-label="Auto-tune settings from prompt"
+                  className={cn(
+                    'flex h-6 w-6 items-center justify-center rounded-full border-2 border-ink bg-yellow text-ink shadow-offset transition-transform hover:-translate-y-0.5',
+                    tune.isPending && 'animate-pulse cursor-wait',
+                  )}
+                >
+                  <Sparkles className="h-3.5 w-3.5" strokeWidth={2.5} />
+                </button>
+              </span>
               <span className="font-mono normal-case tracking-normal">{topic.length}/2000</span>
             </span>
             <textarea
@@ -752,19 +893,68 @@ function ToolStudio({
             variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}
           >
             <span className="micro mb-1 block text-ink-soft">
-              Time period — the moment in time to report from
+              Time period — scroll through the eras
             </span>
-            <input
-              className={cn(inputCls)}
-              value={newsPeriod}
-              maxLength={200}
-              onChange={(e) => setNewsPeriod(e.target.value)}
-              placeholder="e.g. This week · July 2020 · the 1990s"
-            />
-            <p className="mt-1 text-xs text-ink-faint">
-              The briefing reports the news as it stood at this time. Turn on “Search the web” for
-              better accuracy.
-            </p>
+            {!customEra ? (
+              <div className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-4 pb-3 pt-2.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="micro shrink-0 text-ink-faint">🦖 Jurassic</span>
+                  <span className="truncate text-center font-heading text-base font-semibold text-ink">
+                    {NEWS_ERAS[eraIdx]}
+                  </span>
+                  <span className="micro shrink-0 text-ink-faint">Year 3000 🚀</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={NEWS_ERAS.length - 1}
+                  step={1}
+                  value={eraIdx}
+                  onChange={(e) => {
+                    const i = Number(e.target.value);
+                    setEraIdx(i);
+                    setNewsPeriod(NEWS_ERAS[i]);
+                  }}
+                  aria-label="Era in time to report from"
+                  aria-valuetext={NEWS_ERAS[eraIdx]}
+                  className="mt-2 w-full accent-[var(--color-ink,#2b2b2b)]"
+                />
+                <div className="mt-0.5 flex justify-between">
+                  <span className="micro text-ink-faint">← further back in time</span>
+                  <span className="micro text-ink-faint">into the future →</span>
+                </div>
+              </div>
+            ) : (
+              <input
+                className={cn(inputCls)}
+                value={newsPeriod}
+                maxLength={200}
+                onChange={(e) => setNewsPeriod(e.target.value)}
+                placeholder="e.g. July 2020 · the week the Titanic sank · the year 2777"
+                autoFocus
+              />
+            )}
+            <div className="mt-1.5 flex items-start justify-between gap-3">
+              <p className="text-xs text-ink-faint">
+                Past eras report the news as it stood then; future eras are the AI's forecast of
+                that time. If the topic didn't exist yet, the stories adapt to what that era had.
+                Turn on “Search the web” for better accuracy on recent periods.
+              </p>
+              <button
+                type="button"
+                className="shrink-0 text-xs font-bold text-blue hover:underline"
+                onClick={() => {
+                  if (customEra) {
+                    setCustomEra(false);
+                    setNewsPeriod(NEWS_ERAS[eraIdx]);
+                  } else {
+                    setCustomEra(true);
+                  }
+                }}
+              >
+                {customEra ? '← Back to the era scroller' : 'Type a custom period…'}
+              </button>
+            </div>
           </motion.div>
         )}
 
@@ -984,10 +1174,31 @@ function ToolStudio({
           </button>
 
           {topic.trim() && (
-            <Chip kind="neutral" className="border-purple bg-purple-soft">
+            <span className="flex items-center gap-1.5" role="group" aria-label="Template subject filter">
               <DoodleSparkle className="h-3.5 w-3.5 text-purple" />
-              Detected: {stem ? 'STEM — formulas on' : 'Humanities — formulas off'} ✦
-            </Chip>
+              {(
+                [
+                  { id: 'auto', label: `Auto (detected: ${stem ? 'STEM' : 'Humanities'})` },
+                  { id: 'stem', label: 'STEM — formulas on' },
+                  { id: 'humanities', label: 'Humanities — formulas off' },
+                ] as const
+              ).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setSubjectMode(m.id)}
+                  aria-pressed={subjectMode === m.id}
+                  className={cn(
+                    'rounded-wobble-sm border-2 px-2 py-0.5 text-xs font-bold transition-all',
+                    subjectMode === m.id
+                      ? 'border-purple bg-purple-soft text-ink shadow-offset'
+                      : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </span>
           )}
         </motion.div>
       </motion.div>
@@ -1063,6 +1274,7 @@ function ToolStudio({
                   <div className="flex flex-wrap gap-2">
                     {(
                       [
+                        { id: 'minimal', label: 'Minimal', hint: 'Two sentences max per slide' },
                         { id: 'brief', label: 'Brief', hint: 'Fewer words, same idea' },
                         { id: 'standard', label: 'Standard', hint: 'A balanced amount (default)' },
                         { id: 'detailed', label: 'Detailed', hint: 'Fuller explanations, more detail' },

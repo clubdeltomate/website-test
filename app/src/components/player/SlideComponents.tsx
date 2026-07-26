@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import katex from 'katex';
-import { PenLine, Image as ImageIcon } from 'lucide-react';
+import { PenLine, Image as ImageIcon, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SlideComponent } from '@contracts/types';
 import StickyNote from '../sketch/StickyNote';
@@ -64,6 +64,69 @@ function ProseView({
           <SpeakerButton speakKey={`prose:${ci}:${pi}`} text={p} />
         </p>
       ))}
+    </div>
+  );
+}
+
+/** A live Wolfram|Alpha computed explanation, loaded through the server
+ *  proxy (/api/wolfram) so the App ID stays server-side. Falls back to the
+ *  raw query text if the service is unconfigured or unreachable. */
+function WolframView({
+  query,
+  caption,
+  ci,
+  current,
+}: {
+  query: string;
+  caption?: string;
+  ci: number;
+  current: string | null;
+}) {
+  const [failed, setFailed] = useState(false);
+  // bumping the attempt counter changes the img URL, forcing a fresh request
+  const [attempt, setAttempt] = useState(0);
+  return (
+    <div className="rounded-wobble-2 border-2 border-ink bg-paper-3 px-4 py-4 shadow-offset">
+      <p className="micro mb-2 flex items-center gap-1.5 text-ink-faint">
+        <span className="inline-flex h-5 items-center rounded-full border border-ink bg-red-soft px-1.5 font-mono text-[0.65rem] font-bold text-ink">
+          W⍺
+        </span>
+        Wolfram|Alpha · <span className="font-mono normal-case">{query}</span>
+      </p>
+      {failed ? (
+        <div className="flex flex-col items-start gap-2.5">
+          <p className="text-sm text-ink-soft">
+            The computed explanation isn't available right now — it can be retried, or run the
+            query yourself: <span className="font-mono">{query}</span>
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setFailed(false);
+              setAttempt((a) => a + 1);
+            }}
+            className="flex items-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-yellow px-3 py-1.5 text-sm font-bold text-ink shadow-offset transition-transform hover:-translate-y-0.5"
+          >
+            <RotateCcw className="h-3.5 w-3.5" strokeWidth={2.5} />
+            Get the explanation again
+          </button>
+        </div>
+      ) : (
+        <img
+          src={`/api/wolfram?i=${encodeURIComponent(query)}${attempt ? `&r=${attempt}` : ''}`}
+          alt={`Wolfram|Alpha computed result for: ${query}`}
+          className="mx-auto w-auto max-w-full rounded-wobble-sm border border-pencil"
+          loading="lazy"
+          onError={() => setFailed(true)}
+        />
+      )}
+      {caption && (
+        <p className="mt-2 border-t-2 border-dashed border-pencil pt-2 text-sm italic text-ink-soft">
+          <Kara k={`wolframcap:${ci}`} current={current}>
+            {caption}
+          </Kara>
+        </p>
+      )}
     </div>
   );
 }
@@ -394,6 +457,15 @@ export default function SlideComponentView({
           <ImageView component={component} ci={ci} current={current} showcase={showcase} />
           <SourceTag provider={imageProvider} kind="image" />
         </div>
+      );
+    case 'wolfram':
+      return (
+        <WolframView
+          query={component.query}
+          caption={component.caption}
+          ci={ci}
+          current={current}
+        />
       );
     case 'code':
       return <CodeView component={component} ci={ci} current={current} />;

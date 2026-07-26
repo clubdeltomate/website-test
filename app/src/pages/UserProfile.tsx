@@ -23,7 +23,7 @@ import RepoCard from '@/components/repo/RepoCard';
 import { TemplateIcon } from '@/components/repo/shared';
 import type { RepoSummary, RepoTemplate, SlideToolSummary, UserProfile as Profile } from '@contracts/types';
 
-const CATEGORIES = ['all', 'course', 'restaurant', 'service', 'shop'] as const;
+const CATEGORIES = ['all', 'course', 'restaurant', 'service', 'shop', 'walkthrough', 'news'] as const;
 const PAGE = 6;
 
 /** A user's public profile: repos + slide tools, filters, contact + requests. */

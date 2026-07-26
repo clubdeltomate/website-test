@@ -23,7 +23,6 @@ import { DoodleSparkle } from '@/components/sketch/DoodleIcons';
 import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 import type { CoachAction } from '@contracts/types';
-const GUEST_FREE_MESSAGES = 3;
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -318,8 +317,8 @@ function Hero({ onSuggestion }: { onSuggestion: (text: string) => void }) {
             animate={{ opacity: 1 }}
             transition={{ delay: 1.1 }}
           >
-            Guests can try {GUEST_FREE_MESSAGES} messages —{' '}
-            <Link to="/auth" className="squiggle">sign in</Link> to keep everything.
+            The Coach is for members —{' '}
+            <Link to="/auth" className="squiggle">sign in</Link> to chat (1 🪙 per message).
           </motion.p>
         )}
       </div>
@@ -414,7 +413,6 @@ export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const [guestUsed, setGuestUsed] = useState(0);
   const [authWallOpen, setAuthWallOpen] = useState(false);
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const [recentOpen, setRecentOpen] = useState(false);
@@ -502,14 +500,14 @@ export default function Home() {
     (raw: string) => {
       const text = raw.trim();
       if (!text || sending) return;
-      if (isGuest && guestUsed >= GUEST_FREE_MESSAGES) {
+      // No guest chat: every Coach message is charged to a signed-in account.
+      if (isGuest) {
         setAuthWallOpen(true);
         return;
       }
       setMessages((m) => [...m, { id: nextId(), role: 'user', text, ts: Date.now() }]);
       setInput('');
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
-      setGuestUsed((n) => n + 1);
       setSending(true);
 
       // real Coach endpoint — reply is fake-streamed word-by-word on arrival
@@ -536,7 +534,7 @@ export default function Home() {
           ]);
         });
     },
-    [sending, guestUsed, isGuest, messages, coachChat, streamCoachReply],
+    [sending, isGuest, messages, coachChat, streamCoachReply],
   );
 
   /** Retry the last user message after an error bubble */
@@ -572,7 +570,6 @@ export default function Home() {
     }
   };
 
-  const remaining = GUEST_FREE_MESSAGES - guestUsed;
 
   return (
     <div className="relative flex h-[calc(100dvh-4rem)]">
@@ -732,7 +729,7 @@ export default function Home() {
             </div>
             {isGuest && (
               <p className="mt-1.5 text-center font-mono text-xs text-ink-faint">
-                {remaining} of {GUEST_FREE_MESSAGES} free messages left
+                Sign in to chat — each Coach message costs 1 🪙
               </p>
             )}
           </div>

@@ -66,7 +66,9 @@ export default function LessonPath() {
   const prefill = useMemo(() => {
     const t = searchParams.get('template');
     const template =
-      t && ['course', 'restaurant', 'service', 'shop'].includes(t) ? (t as RepoTemplate) : null;
+      t && ['course', 'restaurant', 'service', 'shop', 'walkthrough', 'news'].includes(t)
+        ? (t as RepoTemplate)
+        : null;
     const subject = searchParams.get('subject') ?? searchParams.get('description') ?? '';
     return { template, subject, any: !!template || !!subject };
   }, [searchParams]);

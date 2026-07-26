@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import { trpc } from '@/providers/trpc';
 import { authToken } from '@/lib/auth';
 import type { Role, SessionUser } from '@contracts/types';
@@ -21,7 +21,9 @@ export interface UseAuth {
  */
 export function useAuth(): UseAuth {
   const utils = trpc.useUtils();
-  const [token, setToken] = useState<string | null>(() => authToken.get());
+  // Shared token store — every useAuth() instance sees the same value, so the
+  // header/sidebar flip to "signed in" the moment login() succeeds anywhere.
+  const token = useSyncExternalStore(authToken.subscribe, authToken.get);
 
   const me = trpc.auth.me.useQuery(undefined, {
     enabled: !!token,
@@ -35,7 +37,6 @@ export function useAuth(): UseAuth {
     async (email: string, password: string) => {
       const res = await utils.client.auth.login.mutate({ email, password });
       authToken.set(res.token);
-      setToken(res.token);
       await utils.invalidate();
       return res.user;
     },
@@ -46,7 +47,6 @@ export function useAuth(): UseAuth {
     async (name: string, email: string, password: string) => {
       const res = await utils.client.auth.register.mutate({ name, email, password });
       authToken.set(res.token);
-      setToken(res.token);
       await utils.invalidate();
       return res.user;
     },
@@ -60,7 +60,6 @@ export function useAuth(): UseAuth {
       /* stateless JWT — client-side clear is authoritative */
     }
     authToken.clear();
-    setToken(null);
     await utils.invalidate();
   }, [utils]);
 

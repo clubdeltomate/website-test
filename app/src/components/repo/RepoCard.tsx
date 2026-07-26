@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import Chip from '@/components/sketch/Chip';
 import { trpc } from '@/providers/trpc';
 import type { RepoSummary } from '@contracts/types';
-import { ProgressStrip, SourceBadge, TemplateIcon, relTime } from './shared';
+import { ProgressStrip, SourceBadge, TemplateIcon, TEMPLATE_CIRCLE_BG, relTime } from './shared';
 
 export interface RepoCardProps {
   repo: RepoSummary;
@@ -50,7 +50,12 @@ function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete }: R
       >
         {/* top row: category doodle + favorite star */}
         <div className="flex items-start justify-between">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-ink bg-yellow-soft text-ink">
+          <span
+            className={cn(
+              'flex h-11 w-11 items-center justify-center rounded-full border-2 border-ink text-ink',
+              TEMPLATE_CIRCLE_BG[repo.template] ?? 'bg-yellow-soft',
+            )}
+          >
             <TemplateIcon template={repo.template} className="h-5 w-5" />
           </span>
           <span className="flex items-center gap-0.5">

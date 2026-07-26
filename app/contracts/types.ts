@@ -138,7 +138,9 @@ export type SlideComponent =
       /** real generated image (base64 data URI) — falls back to the style thumbnail when absent */
       imageUrl?: string;
     }
-  | { type: "code"; language: string; code: string; caption?: string };
+  | { type: "code"; language: string; code: string; caption?: string }
+  /** a live Wolfram|Alpha computed explanation — the server proxies the query */
+  | { type: "wolfram"; query: string; caption?: string };
 
 /** Evaluation kinds a slide can use. mcq = 4-option, mcq2 = 2-option,
  *  fillblank = type the missing word(s), typed = free typed answer. */
