@@ -191,7 +191,7 @@ export function buildSlidesSystemPrompt(opts: {
   tone?: string;
   purpose?: "education" | "commercial" | "walkthrough" | "news";
   /** how much explanatory text each slide carries — biases the paragraph floor */
-  textDensity?: "brief" | "standard" | "detailed";
+  textDensity?: "minimal" | "brief" | "standard" | "detailed";
   /** news decks only: the moment in time the briefing reports from */
   newsPeriod?: string;
   /** the exact topic/item this deck is about (e.g. a product name) */
@@ -223,14 +223,19 @@ export function buildSlidesSystemPrompt(opts: {
   // Author-chosen text amount shifts the floor up or down (same idea, more/less
   // words). "detailed" adds substantially; "brief" trims to essentials.
   const density = opts.textDensity ?? "standard";
-  const densityDelta = density === "brief" ? -1 : density === "detailed" ? 2 : 0;
+  const densityDelta =
+    density === "minimal" ? -99 : density === "brief" ? -1 : density === "detailed" ? 2 : 0;
   const paraFloor = Math.max(1, purposeFloor + densityDelta);
+  // Concrete word targets per tier so the knob visibly changes the output —
+  // brief/standard/detailed aim ~25% above what models naturally produce.
   const textAmountDirective =
-    density === "brief"
-      ? "TEXT AMOUNT — BRIEF: keep every explanation concise. Convey the idea in as few words as it needs, cut filler and tangents, but never drop the explanation entirely."
-      : density === "detailed"
-        ? "TEXT AMOUNT — DETAILED: write fuller explanations. Go into more depth with examples and consequences; when there is nothing genuinely new to add, reinforce the SAME point from a fresh angle or a closely-related supporting idea, so each slide carries substantial reading."
-        : "TEXT AMOUNT — STANDARD: a balanced amount of explanatory text per slide.";
+    density === "minimal"
+      ? "TEXT AMOUNT — MINIMAL: HARD CAP of TWO sentences of written prose per slide, total. Make those two sentences count — specific and vivid — but never write a third. Visuals carry the rest."
+      : density === "brief"
+        ? "TEXT AMOUNT — BRIEF: concise but real — each slide carries roughly 60-90 words of written prose (about 3-5 sentences). Cut filler and tangents, never the substance."
+        : density === "detailed"
+          ? "TEXT AMOUNT — DETAILED: write fuller explanations — each slide carries roughly 280-380 words of written prose across its paragraphs. Go into depth with examples and consequences; when there is nothing genuinely new to add, reinforce the SAME point from a fresh angle or a closely-related supporting idea, so each slide carries substantial reading."
+          : "TEXT AMOUNT — STANDARD: a solid, satisfying amount of reading — each slide carries roughly 140-190 words of written prose (two to three meaty paragraphs, not one short blurb).";
 
   const memory = opts.previouslyTaught
     ? `

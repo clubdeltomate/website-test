@@ -348,7 +348,7 @@ export const generateRouter = createRouter({
         // a product/menu/service showcase (no evaluations).
         purpose: z.enum(["education", "commercial", "walkthrough", "news"]).optional(),
         // How much explanatory text each slide carries (advanced setting).
-        textDensity: z.enum(["brief", "standard", "detailed"]).default("standard"),
+        textDensity: z.enum(["minimal", "brief", "standard", "detailed"]).default("standard"),
         // News decks only: the moment in time the briefing reports from.
         newsPeriod: z.string().max(200).optional(),
         // Search the web for current facts about the topic first (accuracy for
@@ -566,7 +566,7 @@ export const generateRouter = createRouter({
       const purposeParaFloor = purpose === "walkthrough" ? Math.max(2, baseParaFloor) : baseParaFloor;
       // The advanced "text amount" setting shifts the floor up or down.
       const densityDelta =
-        input.textDensity === "brief" ? -1 : input.textDensity === "detailed" ? 2 : 0;
+        input.textDensity === "minimal" ? -99 : input.textDensity === "brief" ? -1 : input.textDensity === "detailed" ? 2 : 0;
       const paraFloor = Math.max(1, purposeParaFloor + densityDelta);
       // News summaries stay concise unless "detailed" is chosen.
       const newsMinParas = input.textDensity === "detailed" ? 2 : 1;

@@ -1197,6 +1197,7 @@ function ToolStudio({
                   <div className="flex flex-wrap gap-2">
                     {(
                       [
+                        { id: 'minimal', label: 'Minimal', hint: 'Two sentences max per slide' },
                         { id: 'brief', label: 'Brief', hint: 'Fewer words, same idea' },
                         { id: 'standard', label: 'Standard', hint: 'A balanced amount (default)' },
                         { id: 'detailed', label: 'Detailed', hint: 'Fuller explanations, more detail' },

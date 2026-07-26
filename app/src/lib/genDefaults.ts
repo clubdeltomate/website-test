@@ -9,7 +9,7 @@ import type { ImageStyle, Level } from '@contracts/types';
  * Base defaults when a user has no history yet: 4 slides, A1 (the simplest
  * level — right for walkthroughs, news briefings and showcases), sketch style.
  */
-export type TextDensity = 'brief' | 'standard' | 'detailed';
+export type TextDensity = 'minimal' | 'brief' | 'standard' | 'detailed';
 
 export interface GenDefaults {
   slideCount: number;
