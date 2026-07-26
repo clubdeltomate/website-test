@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router';
+import { Link } from 'react-router';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Menu, Plus, LibraryBig, Presentation, Route, ChevronDown, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { DoodleSparkle } from './sketch/DoodleIcons';
 import { useAuth } from '@/hooks/useAuth';
 
 const ROLE_CHIP: Record<string, string> = {
@@ -11,23 +10,6 @@ const ROLE_CHIP: Record<string, string> = {
   moderator: 'bg-purple-soft text-ink',
   admin: 'bg-purple text-paper-3',
 };
-
-const TITLES: [RegExp, string][] = [
-  [/^\/$/, 'Slide tools'],
-  [/^\/lesson-path/, 'Lesson Path'],
-  [/^\/repos\/.+/, 'Repository'],
-  [/^\/repos/, 'Repositories'],
-  [/^\/slides\/.+/, 'Slide tool'],
-  [/^\/slides/, 'Slide tools'],
-  [/^\/runs/, 'Presentation runs'],
-  [/^\/about/, 'About'],
-  [/^\/settings/, 'Settings'],
-  [/^\/auth/, 'Sign in'],
-  [/^\/admin\/users/, 'Users'],
-  [/^\/admin\/moderators/, 'Moderators'],
-  [/^\/admin\/settings/, 'Admin settings'],
-  [/^\/admin/, 'Dashboard'],
-];
 
 const NEW_MENU = [
   { to: '/lesson-path', label: 'Repository', icon: LibraryBig, hint: 'a course, menu, catalog…' },
@@ -49,21 +31,16 @@ function useDismiss(onDismiss: () => void) {
 
 export interface TopBarProps {
   onMenuClick: () => void;
-  /** Optional override; defaults to a title derived from the current route */
-  title?: string;
 }
 
-/** Top bar (design.md §7.1): page title, token pill, + New menu, avatar dropdown */
-export default function TopBar({ onMenuClick, title }: TopBarProps) {
-  const location = useLocation();
+/** Top bar (design.md §7.1): token pill, + New menu, avatar dropdown — pages
+ *  carry their own headings, so the bar shows no page title. */
+export default function TopBar({ onMenuClick }: TopBarProps) {
   const [newOpen, setNewOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const newRef = useDismiss(() => setNewOpen(false));
   const avatarRef = useDismiss(() => setAvatarOpen(false));
   const { user, logout } = useAuth();
-
-  const derived =
-    title ?? TITLES.find(([re]) => re.test(location.pathname))?.[1] ?? 'SketchLearn';
 
   return (
     <header className="sticky top-0 z-30 border-b-2 border-dashed border-pencil bg-paper/90 backdrop-blur-sm">
@@ -77,15 +54,8 @@ export default function TopBar({ onMenuClick, title }: TopBarProps) {
           <Menu className="h-5 w-5" strokeWidth={2} />
         </button>
 
-        {/* page title slot */}
-        <div className="flex min-w-0 items-center gap-1.5">
-          <h1 className="truncate font-display text-[32px] font-bold leading-none text-ink">
-            {derived}
-          </h1>
-          {location.pathname === '/' && (
-            <DoodleSparkle className="h-5 w-5 shrink-0 text-purple" />
-          )}
-        </div>
+        {/* No page title here — every page carries its own heading; the bar
+            keeps only navigation and account controls. */}
 
         <div className="ml-auto flex items-center gap-2">
           {/* token pill — live balance when signed in */}
