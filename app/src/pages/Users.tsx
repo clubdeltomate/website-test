@@ -116,7 +116,7 @@ export default function Users() {
         </div>
         {/* topic (category) chips */}
         <div className="flex flex-wrap gap-2 border-t-2 border-dashed border-pencil pt-2.5">
-          {(['all', 'course', 'restaurant', 'service', 'shop'] as const).map((t) => (
+          {(['all', 'course', 'restaurant', 'service', 'shop', 'walkthrough', 'news'] as const).map((t) => (
             <button
               key={t}
               type="button"

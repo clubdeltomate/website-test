@@ -370,7 +370,7 @@ export default function Repos() {
 
         {/* template filter chips */}
         <div className="flex w-full flex-wrap items-center gap-1.5 border-t-2 border-dashed border-pencil pt-2.5">
-          {(['all', 'course', 'restaurant', 'service', 'shop'] as const).map((t) => {
+          {(['all', 'course', 'restaurant', 'service', 'shop', 'walkthrough', 'news'] as const).map((t) => {
             const active = template === t;
             return (
               <button
