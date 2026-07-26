@@ -115,6 +115,16 @@ async function uniqueSlug(table: "repos" | "slideTools", base: string): Promise<
   }
 }
 
+/** Solved step-by-step results, keyed by normalized query — replays and other
+ *  viewers of the same slide hit the cache instead of a fresh AI call. */
+type MathStepsResult = {
+  title: string;
+  pages: { title: string; steps: { text: string; latex?: string }[] }[];
+  answer: { text?: string; latex?: string };
+  provider: import("../../contracts/types.js").AiProvider;
+};
+const MATH_STEPS_CACHE = new Map<string, MathStepsResult>();
+
 export const generateRouter = createRouter({
   /* ---------------- cost estimate (design §8) ---------------- */
   estimate: publicQuery
@@ -1342,6 +1352,78 @@ RULES:
         templatePlan: plan,
         source: "heuristic" as const,
       };
+    }),
+
+  /**
+   * AI step-by-step solver — the Wolfram|Alpha replacement. Produces a
+   * paginated, KaTeX-ready worked solution (calculus, algebra, matrices,
+   * chemistry balancing via mhchem, thermodynamics, physics) through the
+   * normal provider cascade (Gemini → Anthropic → OpenAI → Grok → DeepSeek →
+   * OpenRouter → Kimi). Results are cached by query so replays are free; a
+   * null return tells the player to fall back to the Wolfram image card.
+   */
+  mathSteps: publicQuery
+    .input(z.object({ query: z.string().min(2).max(300) }))
+    .query(async ({ ctx, input }) => {
+      const key = input.query.trim().toLowerCase();
+      const hit = MATH_STEPS_CACHE.get(key);
+      if (hit) return hit;
+      rateLimit(clientKey(ctx.req), 20, 60_000);
+      const stepsSchema = z.object({
+        title: z.string().max(200),
+        pages: z
+          .array(
+            z.object({
+              title: z.string().max(200),
+              steps: z
+                .array(
+                  z.object({
+                    text: z.string().max(700),
+                    latex: z.string().max(600).optional(),
+                  }),
+                )
+                .min(1)
+                .max(8),
+            }),
+          )
+          .min(1)
+          .max(14),
+        answer: z.object({
+          text: z.string().max(400).optional(),
+          latex: z.string().max(600).optional(),
+        }),
+      });
+      const system = `You are a rigorous step-by-step solver (like Wolfram|Alpha Pro's "show steps"). Solve the given problem COMPLETELY and show every step of the working. Output ONLY JSON, exactly this shape:
+{"title": string, "pages": [{"title": string, "steps": [{"text": string, "latex"?: string}]}], "answer": {"text"?: string, "latex"?: string}}
+RULES:
+- Domains: calculus (derivatives, integrals, limits, series), algebra, linear algebra (matrices, determinants, systems), chemistry (balancing equations, stoichiometry), thermodynamics, physics. If the input is not a solvable problem, treat it as "explain and compute the key quantity of" that topic.
+- PAGES: split the working into logical pages, each a coherent phase ("Set up", "Apply the quotient rule", "Simplify", "Check"). 2-6 steps per page; use as many pages as the problem genuinely needs (a long integral may need 5+; a short one 2).
+- Each STEP: "text" is ONE plain-language sentence saying what is done and why; "latex" is the resulting expression/equation for that step.
+- LATEX must be KaTeX-compatible, RAW (no $ or \\[ delimiters): \\dfrac, \\int, \\lim_{x \\to a}, \\sum; matrices with \\begin{pmatrix}...\\end{pmatrix}; multi-line derivations with \\begin{aligned}...\\end{aligned}; chemistry with \\ce{2H2 + O2 -> 2H2O} (mhchem). NEVER use \\begin{align}, \\text with special chars unescaped, or packages beyond core KaTeX + mhchem.
+- The final page ends with the result; also put it in "answer" (latex preferred).
+- Be mathematically correct — verify the final answer by a quick independent check before writing it.`;
+      try {
+        const result = await completeText({
+          userId: ctx.user?.id,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: `PROBLEM: ${input.query}` },
+          ],
+          maxTokens: 3500,
+          timeoutMs: 60_000,
+          maxCandidates: 3,
+        });
+        if (result) {
+          const parsed = stepsSchema.parse(JSON.parse(extractJson(result.text)));
+          const out = { ...parsed, provider: result.provider };
+          if (MATH_STEPS_CACHE.size > 400) MATH_STEPS_CACHE.clear();
+          MATH_STEPS_CACHE.set(key, out);
+          return out;
+        }
+      } catch (err) {
+        console.warn("[mathSteps] solver failed, player will fall back to Wolfram:", err instanceof Error ? err.message : err);
+      }
+      return null;
     }),
 
 })
