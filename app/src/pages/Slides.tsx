@@ -662,12 +662,14 @@ export default function Slides() {
                                 Play
                               </SketchButton>
                             </Link>
-                            <Link to={`/slides/build/${tool.slug}`}>
-                              <SketchButton variant="ghost" size="sm">
-                                <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
-                                Edit
-                              </SketchButton>
-                            </Link>
+                            {canDeleteTool(tool) && (
+                              <Link to={`/slides/build/${tool.slug}`}>
+                                <SketchButton variant="ghost" size="sm">
+                                  <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                                  Edit
+                                </SketchButton>
+                              </Link>
+                            )}
                           </>
                         ) : tool.runCount === 0 ? (
                           // Configured but never generated — a green call-to-action.
