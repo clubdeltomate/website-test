@@ -790,7 +790,7 @@ export const generateRouter = createRouter({
         deck = { ...deck, slides: deck.slides.map((s) => ({ ...s, quiz: undefined })) };
       }
       // Guarantee every slide has explanatory text — no image-only slides ship
-      deck = ensureExplanatoryProse(deck, purpose);
+      deck = ensureExplanatoryProse(deck, purpose, topic);
       // Randomize each quiz's correct-answer position (models almost always
       // put the answer first, so otherwise every question is "A").
       deck = shuffleQuizAnswers(deck);

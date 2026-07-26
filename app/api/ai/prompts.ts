@@ -303,6 +303,7 @@ TIME TRAVEL NEWS MODE — this is a slide-format NEWS BRIEFING about "${opts.sub
     : ""
 }
 ${textAmountDirective}
+SPECIFICITY (non-negotiable): every paragraph you write must be SPECIFIC to "${opts.subject ?? "the given topic"}" and the user's instructions — concrete names, ingredients, flavors, facts, numbers, sensory details. NEVER write placeholder prose that could fit any topic ("look closely at…", "study what it shows", "this illustrates the concept"). A paragraph that would still make sense with the topic swapped out is a failed paragraph — rewrite it with real substance about THIS topic. EVERY slide must carry at least one such written paragraph; never rely on a title + visual alone.
 ${commercial ? "SHOWCASE" : news ? "BRIEFING" : "TEACHING"} RULES (non-negotiable):
 1. NO greeting/welcome/outline slide — start teaching immediately on slide 1.
 2. EVERY slide MUST be built from ONE of the SLIDE LAYOUT TEMPLATES listed below — use that template's exact component configuration (its component types, in the given order). Do NOT invent a slide shape that is not in the catalog, and do NOT drop any of a template's steps. Because every template pairs its visual/data steps with explanatory text, this means a slide is never just an image (or just a chart/table/diagram/formula/code) next to a question — the text step explains, in words, what the visual shows, what to notice in it, and what it means, and the quiz tests that explanation. Slides build introduce -> develop -> apply; never restate an earlier point; the deck reads as ONE continuous piece of teaching, with at most a one-clause stitch between slides.
@@ -551,11 +552,27 @@ function proseFromQuiz(quiz: LooseQuiz | null | undefined): string | null {
  *  quiz (real, on-topic) when possible, else its title/visual. Shared by the
  *  repair salvage (so a slide is never dropped for shrinking the deck) and the
  *  final ensureExplanatoryProse net. */
-export function slideFallbackParagraph(slide: LooseSlide, purpose?: string): string {
+export function slideFallbackParagraph(slide: LooseSlide, purpose?: string, topic?: string): string {
   const fromQuiz = proseFromQuiz(slide.quiz);
   if (fromQuiz) return fromQuiz;
   const visual = (slide.components ?? []).find((c) => c?.type && VISUAL_LABEL[c.type]);
   const title = (slide.title ?? "this idea").trim();
+  const about = topic?.trim();
+  // Tailor the net to the deck's own prompt and register — a menu slide must
+  // read like menu copy about ITS dish, never like a classroom instruction.
+  if (purpose === "commercial") {
+    return about
+      ? `${title} is one of the touches that makes ${about} worth choosing — prepared and presented with real care. ${visual ? `The ${VISUAL_LABEL[visual.type as string].replace(/^the /, "")} below shows it up close: the textures, colors and details tell you how it will taste before the first bite.` : `Ask for it by name — it is a highlight of ${about}.`}`
+      : `${title} — prepared and presented with care${visual ? `; ${VISUAL_LABEL[visual.type as string]} below shows it up close` : ""}.`;
+  }
+  if (purpose === "walkthrough" && about) {
+    return `${title} is a key step in understanding ${about}. ${visual ? `${VISUAL_LABEL[visual.type as string][0].toUpperCase()}${VISUAL_LABEL[visual.type as string].slice(1)} below shows how this piece fits into ${about} as a whole.` : `It connects directly to the rest of ${about}.`}`;
+  }
+  if (about && purpose !== "news") {
+    return visual
+      ? `${title} is a core part of ${about}: ${VISUAL_LABEL[visual.type as string]} below illustrates how it works within ${about} — the parts it shows are the ones this lesson builds on.`
+      : `${title} — the next building block of ${about}.`;
+  }
   // A news slide must read like reporting, never like a lesson ("study what
   // it shows"): keep the newspaper register even in the safety net.
   if (purpose === "news") {
@@ -571,12 +588,13 @@ export function slideFallbackParagraph(slide: LooseSlide, purpose?: string): str
 export function ensureExplanatoryProse<T extends { slides?: LooseSlide[] }>(
   deck: T,
   purpose?: string,
+  topic?: string,
 ): T {
   for (const slide of deck.slides ?? []) {
     if (slideHasProse(slide)) continue;
     if (!Array.isArray(slide.components)) slide.components = [];
     console.warn("[ai/prose] slide had no explanatory text — injecting a fallback paragraph:", slide.title);
-    slide.components.unshift({ type: "prose", paragraphs: [slideFallbackParagraph(slide, purpose)] });
+    slide.components.unshift({ type: "prose", paragraphs: [slideFallbackParagraph(slide, purpose, topic)] });
   }
   return deck;
 }
