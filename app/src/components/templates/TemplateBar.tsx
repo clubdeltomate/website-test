@@ -30,6 +30,7 @@ const ICONS: Record<TemplateComponentType, typeof AlignLeft> = {
   stickynote: StickyNote,
   image: ImageIcon,
   code: Code2,
+  wolfram: Sigma,
   quiz: CheckSquare,
   mcq2: ToggleLeft,
   fillblank: TextCursorInput,
@@ -40,6 +41,7 @@ const ICONS: Record<TemplateComponentType, typeof AlignLeft> = {
 const TINT: Record<TemplateComponentType, string> = {
   prose: 'text-ink',
   latex: 'text-purple',
+  wolfram: 'text-red',
   chart: 'text-blue',
   svg: 'text-green',
   table: 'text-ink',

@@ -30,6 +30,7 @@ export const TEMPLATE_COMPONENT_TYPES = [
   "stickynote",
   "image",
   "code",
+  "wolfram",
   "quiz",
   "mcq2",
   "fillblank",
@@ -61,6 +62,7 @@ export const TEMPLATE_COMPONENT_LABELS: Record<TemplateComponentType, string> = 
   stickynote: "Sticky note",
   image: "Image",
   code: "Code",
+  wolfram: "Wolfram Alpha explanation",
   quiz: "Multiple choice",
   mcq2: "2-option",
   fillblank: "Fill blank",
@@ -79,6 +81,7 @@ export const TEMPLATE_COMPONENT_SHORT: Record<TemplateComponentType, string> = {
   stickynote: "Note",
   image: "Image",
   code: "Code",
+  wolfram: "Wolfram",
   quiz: "MCQ",
   mcq2: "2-opt",
   fillblank: "Fill-in",
@@ -183,7 +186,7 @@ export function isMathTemplate(tags: string[]): boolean {
  * Colours live in the UI; here we keep the symbol, label, and the tags that
  * trigger each flavour.
  */
-export type TemplateFlavor = "math" | "medicine" | "finance" | "philosophy";
+export type TemplateFlavor = "math" | "medicine" | "finance" | "philosophy" | "wolfram";
 
 export interface FlavorMeta {
   id: TemplateFlavor;
@@ -202,6 +205,13 @@ export const TEMPLATE_FLAVORS: FlavorMeta[] = [
     label: "Math & physics",
     hint: "Worked problems, formulas, and solve-it-yourself exercises.",
     tags: MATH_TAGS,
+  },
+  {
+    id: "wolfram",
+    symbol: "W⍺",
+    label: "Wolfram Alpha",
+    hint: "A live Wolfram|Alpha computed explanation rendered on the slide.",
+    tags: ["wolfram"],
   },
   {
     id: "medicine",
@@ -354,6 +364,17 @@ const STEM_TEMPLATES: SlideTemplate[] = [
   bi("Graph deep read", "C1", ["prose", "chart", "prose", "prose"], ["math", "science"]),
   bi("Figure deep read", "C1", ["prose", "image", "prose", "prose"], ["math", "science"]),
   bi("Table deep read", "C1", ["prose", "table", "prose", "prose"], ["math", "science"]),
+
+  /* -- Wolfram|Alpha explanations (needs WOLFRAM_APP_ID/APP_ID on the server;
+        the slide shows a live computed result for the AI's query). Mixed
+        gradable and read-through (green-dot) variants across the bands. -- */
+  bi("Wolfram explains it", "A1", ["prose", "wolfram"], ["math", "science", "wolfram"]),
+  bi("Wolfram check", "A1", ["prose", "wolfram", "mcq2"], ["math", "science", "wolfram"]),
+  bi("Formula, by Wolfram", "B1", ["latex", "wolfram", "prose"], ["math", "physics", "wolfram"]),
+  bi("Wolfram walk-through", "B1", ["prose", "latex", "wolfram", "prose"], ["math", "physics", "wolfram"]),
+  bi("Wolfram, then answer", "B1", ["prose", "latex", "wolfram", "quiz"], ["math", "physics", "wolfram"]),
+  bi("Wolfram deep dive", "C1", ["prose", "latex", "wolfram", "prose", "prose"], ["math", "physics", "wolfram"]),
+  bi("Wolfram worked solve", "C1", ["prose", "latex", "wolfram", "prose", "solve"], ["math", "physics", "wolfram", "problem-solving"]),
 ];
 
 /* ---------------- Humanities: 10 per level ---------------- */

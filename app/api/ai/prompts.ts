@@ -77,6 +77,11 @@ export const slideComponentSchema = z.discriminatedUnion("type", [
     code: z.string().min(1),
     caption: z.string().optional(),
   }),
+  z.object({
+    type: z.literal("wolfram"),
+    query: z.string().min(2).max(200),
+    caption: z.string().max(300).optional(),
+  }),
 ]);
 
 export const quizKindSchema = z.enum(["mcq", "mcq2", "fillblank", "typed", "solve"]);
@@ -312,8 +317,8 @@ SPECIFICITY (non-negotiable): every paragraph you write must be SPECIFIC to "${o
 ${commercial ? "SHOWCASE" : news ? "BRIEFING" : "TEACHING"} RULES (non-negotiable):
 1. NO greeting/welcome/outline slide — start teaching immediately on slide 1.
 2. EVERY slide MUST be built from ONE of the SLIDE LAYOUT TEMPLATES listed below — use that template's exact component configuration (its component types, in the given order). Do NOT invent a slide shape that is not in the catalog, and do NOT drop any of a template's steps. Because every template pairs its visual/data steps with explanatory text, this means a slide is never just an image (or just a chart/table/diagram/formula/code) next to a question — the text step explains, in words, what the visual shows, what to notice in it, and what it means, and the quiz tests that explanation. Slides build introduce -> develop -> apply; never restate an earlier point; the deck reads as ONE continuous piece of teaching, with at most a one-clause stitch between slides.
-3. Choose components deliberately per concept from this palette: prose, chart (bar/line/pie/area with real plausible data), latex, svg (a diagram description the app sketches), table (compact, few columns), stickynote (max ONE per deck, for a mnemonic or key warning), image (a vivid visual with an alt text and a generation prompt), code (short snippet).
-4. SUBJECT GATING: latex and code ONLY for math/STEM/technical topics. Humanities, languages, business, food, history -> prose + images + tables + diagrams + sticky notes.
+3. Choose components deliberately per concept from this palette: prose, chart (bar/line/pie/area with real plausible data), latex, svg (a diagram description the app sketches), table (compact, few columns), stickynote (max ONE per deck, for a mnemonic or key warning), image (a vivid visual with an alt text and a generation prompt), code (short snippet), wolfram (a LIVE Wolfram|Alpha computed explanation rendered on the slide — set "query" to a precise computable input like "derivative of x^3 sin(x)" or "integrate 1/(1+x^2)"; perfect for showing a solved derivative/integral/equation step by step, with your own text before/after interpreting the result).
+4. SUBJECT GATING: latex, code and wolfram ONLY for math/STEM/technical topics. Humanities, languages, business, food, history -> prose + images + tables + diagrams + sticky notes.
 5. HARD max ONE latex formula per slide. When a formula or graph is present, order components: (1) the formula, (2) its graph/diagram, (3) a short "why it is here" text.
 6. EVALUATION ("quiz"): each slide's evaluation MUST match the evaluation step its layout template lists, using the "kind" field — answerable ONLY from that slide's content plus everyday knowledge, difficulty matched to level "${opts.level}":
    - "Multiple choice" -> {"kind":"mcq","question":"...","options":["a","b","c","d"],"correctIndex":0,"explanation":"..."} — EXACTLY 4 options, ONE objectively correct.
@@ -526,6 +531,7 @@ const VISUAL_LABEL: Record<string, string> = {
   image: "the image",
   chart: "the chart",
   svg: "the diagram",
+  wolfram: "the Wolfram|Alpha explanation",
   table: "the table",
   latex: "the formula",
   code: "the code",
