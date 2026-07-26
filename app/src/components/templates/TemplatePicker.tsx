@@ -37,6 +37,7 @@ function SequenceLabel({ components }: { components: TemplateComponentType[] }) 
 export const FLAVOR_STYLE: Record<TemplateFlavor, string> = {
   math: 'border-red bg-red-soft text-red',
   wolfram: 'border-red bg-paper-2 text-red',
+  code: 'border-blue bg-blue-soft text-blue',
   medicine: 'border-green bg-green-soft text-green',
   finance: 'border-orange bg-yellow-soft text-orange',
   philosophy: 'border-purple bg-purple-soft text-purple',

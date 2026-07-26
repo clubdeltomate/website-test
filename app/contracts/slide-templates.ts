@@ -186,7 +186,7 @@ export function isMathTemplate(tags: string[]): boolean {
  * Colours live in the UI; here we keep the symbol, label, and the tags that
  * trigger each flavour.
  */
-export type TemplateFlavor = "math" | "medicine" | "finance" | "philosophy" | "wolfram";
+export type TemplateFlavor = "math" | "medicine" | "finance" | "philosophy" | "wolfram" | "code";
 
 export interface FlavorMeta {
   id: TemplateFlavor;
@@ -212,6 +212,13 @@ export const TEMPLATE_FLAVORS: FlavorMeta[] = [
     label: "Wolfram Alpha",
     hint: "A live Wolfram|Alpha computed explanation rendered on the slide.",
     tags: ["wolfram"],
+  },
+  {
+    id: "code",
+    symbol: "</>",
+    label: "Code & programming",
+    hint: "Snippets, walkthroughs and exercises for programming and hardware.",
+    tags: ["programming", "cs", "code", "hardware"],
   },
   {
     id: "medicine",
@@ -375,6 +382,19 @@ const STEM_TEMPLATES: SlideTemplate[] = [
   bi("Wolfram, then answer", "B1", ["prose", "latex", "wolfram", "quiz"], ["math", "physics", "wolfram"]),
   bi("Wolfram deep dive", "C1", ["prose", "latex", "wolfram", "prose", "prose"], ["math", "physics", "wolfram"]),
   bi("Wolfram worked solve", "C1", ["prose", "latex", "wolfram", "prose", "solve"], ["math", "physics", "wolfram", "problem-solving"]),
+
+  /* -- code & programming: explanation-led snippets, data tables, hardware
+        imagery — mixed read-throughs (green dot) and graded exercises. The
+        deck's CEFR level doubles as exercise difficulty. -- */
+  bi("Code read", "A1", ["prose", "code"], ["programming", "cs"]),
+  bi("Code check", "A1", ["prose", "code", "mcq2"], ["programming", "cs"]),
+  bi("Code explained", "B1", ["prose", "code", "prose"], ["programming", "cs"]),
+  bi("Code + data table", "B1", ["prose", "code", "table", "prose"], ["programming", "cs", "data"]),
+  bi("Hardware illustrated", "B1", ["prose", "image", "prose"], ["cs", "engineering", "hardware"]),
+  bi("Predict the output", "B1", ["prose", "code", "quiz"], ["programming", "cs"]),
+  bi("Code deep dive", "C1", ["prose", "code", "prose", "prose"], ["programming", "cs"]),
+  bi("Architecture walk-through", "C1", ["prose", "image", "code", "prose"], ["cs", "engineering", "hardware"]),
+  bi("Fix the bug", "C1", ["prose", "code", "prose", "shortanswer"], ["programming", "cs"]),
 ];
 
 /* ---------------- Humanities: 10 per level ---------------- */
