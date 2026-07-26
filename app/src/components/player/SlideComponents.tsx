@@ -89,6 +89,20 @@ function KatexLine({ latex }: { latex: string }) {
   );
 }
 
+/** Friendly name of the exact model that answered, derived from the solver's
+ *  provider identity (provider|baseUrl|model). */
+function solverName(providerId: string, provider: string): string {
+  const [, base = '', model = ''] = providerId.split('|');
+  if (base.includes('x.ai')) return `Grok${model !== '-' ? ` (${model})` : ''}`;
+  if (base.includes('deepseek')) return 'DeepSeek';
+  if (base.includes('openrouter')) return `OpenRouter${model !== '-' ? ` (${model})` : ''}`;
+  if (base.includes('moonshot')) return 'Kimi';
+  if (provider === 'gemini') return 'Gemini';
+  if (provider === 'anthropic') return 'Claude';
+  if (provider === 'openai') return 'OpenAI';
+  return provider;
+}
+
 /** Step-by-step solver card. The site's own AI works the problem out fully
  *  (calculus, matrices, chemistry, thermodynamics …) as paginated pages of
  *  numbered steps with KaTeX notation. When no AI provider answers, it falls
@@ -129,10 +143,12 @@ function WolframView({
         Step-by-step · <span className="font-mono normal-case">{query}</span>
         {d && (
           <>
-            <span className="ml-auto normal-case">solved by {d.provider}</span>
+            <span className="ml-auto whitespace-nowrap normal-case font-bold text-ink-soft">
+              solved by {solverName(d.providerId, d.provider)}
+            </span>
             <button
               type="button"
-              title="Solve again with a different AI (rotates through all providers)"
+              title="Solve again with a DIFFERENT AI — rotates through every configured model before repeating"
               onClick={() => {
                 setPage(0);
                 setUsedProviders((used) => {
@@ -141,9 +157,10 @@ function WolframView({
                   return next.length >= d.providerPool ? [] : next;
                 });
               }}
-              className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-ink bg-paper-3 text-ink shadow-offset transition-transform hover:-translate-y-0.5"
+              className="flex shrink-0 items-center gap-1 rounded-wobble-sm border-2 border-ink bg-yellow px-2 py-0.5 text-[0.65rem] font-bold normal-case text-ink shadow-offset transition-transform hover:-translate-y-0.5"
             >
               <RotateCcw className="h-3 w-3" strokeWidth={2.5} />
+              Different AI
             </button>
           </>
         )}
@@ -236,14 +253,32 @@ function WolframView({
           </button>
         </div>
       ) : (
-        /* fallback: the Wolfram|Alpha computed card */
-        <img
-          src={`/api/wolfram?i=${encodeURIComponent(query)}${attempt ? `&r=${attempt}` : ''}`}
-          alt={`Wolfram|Alpha computed result for: ${query}`}
-          className="mx-auto w-auto max-w-full rounded-wobble-sm border border-pencil"
-          loading="lazy"
-          onError={() => setImgFailed(true)}
-        />
+        /* fallback: the Wolfram|Alpha computed card — with a way back into
+           the AI rotation, and honest attribution */
+        <div>
+          <img
+            src={`/api/wolfram?i=${encodeURIComponent(query)}${attempt ? `&r=${attempt}` : ''}`}
+            alt={`Wolfram|Alpha computed result for: ${query}`}
+            className="mx-auto w-auto max-w-full rounded-wobble-sm border border-pencil"
+            loading="lazy"
+            onError={() => setImgFailed(true)}
+          />
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span className="micro text-ink-faint">solved by Wolfram|Alpha (AI solver unavailable)</span>
+            <button
+              type="button"
+              title="Retry the AI step-by-step solver"
+              onClick={() => {
+                setPage(0);
+                void steps.refetch();
+              }}
+              className="flex shrink-0 items-center gap-1 rounded-wobble-sm border-2 border-ink bg-yellow px-2 py-0.5 text-[0.65rem] font-bold text-ink shadow-offset transition-transform hover:-translate-y-0.5"
+            >
+              <RotateCcw className="h-3 w-3" strokeWidth={2.5} />
+              Try the AI solver
+            </button>
+          </div>
+        </div>
       )}
 
       {caption && (
