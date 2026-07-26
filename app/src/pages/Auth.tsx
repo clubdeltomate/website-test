@@ -32,7 +32,9 @@ function normalizeAuthErrorMessage(err: unknown): string {
     lowered.includes('an error occurred with your deployment') ||
     lowered.includes('timed out')
   ) {
-    return 'Sign-in service timed out. Please try again in a few seconds.';
+    // Keep the friendly headline but preserve the underlying cause — hiding
+    // it made server-side problems (unreachable DB, locks) undiagnosable.
+    return `Sign-in service timed out. Please try again in a few seconds. — ${cleaned}`;
   }
   return cleaned;
 }
