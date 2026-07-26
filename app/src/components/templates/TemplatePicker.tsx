@@ -104,7 +104,13 @@ function OptionLabel({ t, withSequence }: { t: SlideTemplate; withSequence: bool
           className="mx-1 inline-block h-2 w-2 rounded-full border border-ink bg-green align-middle"
         />
       )}{' '}
-      · <SectionTag t={t} /> ({t.level})
+      · <SectionTag t={t} />
+      {t.tags.includes('wolfram') && (
+        <>
+          {' '}· <span className="font-bold text-red">W⍺ Wolfram</span>
+        </>
+      )}{' '}
+      ({t.level})
       {withSequence && <SequenceLabel components={t.components} />}
     </>
   );

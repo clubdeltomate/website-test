@@ -617,6 +617,14 @@ export const LESSON_PACKETS: LessonPacket[] = [
       "Interpret a source",
     ],
   },
+  {
+    id: "wolfram-lesson",
+    name: "Wolfram Alpha lesson",
+    description:
+      "Teach with live computed math: a formula introduced by Wolfram|Alpha, a full walk-through, then two graded steps — answer a question about the result and solve one yourself.",
+    purpose: "education",
+    templates: ["Formula, by Wolfram", "Wolfram walk-through", "Wolfram, then answer", "Wolfram worked solve"],
+  },
   /* ---- commercial (menu / service / shop) ---- */
   {
     id: "menu-item",
@@ -682,6 +690,14 @@ export const LESSON_PACKETS: LessonPacket[] = [
       "A guided read: narrative with images, comparisons in tables, and a closing synthesis — for history, culture, arts and ideas, with no evaluations.",
     purpose: "walkthrough",
     templates: ["Story moment", "Narrative + image", "Compare & contrast", "The story behind it"],
+  },
+  {
+    id: "wolfram-walkthrough",
+    name: "Wolfram Alpha walkthrough",
+    description:
+      "Read-through math with live computed results: Wolfram|Alpha introduces, explains and develops the idea across four slides — no questions asked.",
+    purpose: "walkthrough",
+    templates: ["Wolfram explains it", "Formula, by Wolfram", "Wolfram walk-through", "Wolfram deep dive"],
   },
   /* ---- time travel news (report, never test) ---- */
   {
