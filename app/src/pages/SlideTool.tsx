@@ -291,6 +291,8 @@ function ToolStudio({
     }
   };
 
+  const [descDraft, setDescDraft] = useState(tool.description ?? '');
+
   const [mode, setMode] = useState<'config' | 'theater' | 'player'>('config');
   const [topic, setTopic] = useState(seed?.lessonTitle || tool.topic);
   const [instructions, setInstructions] = useState(tool.instructions);
@@ -697,6 +699,52 @@ function ToolStudio({
       >
         <WashiTape rotate={-3} />
         <WashiTape color="blue" rotate={2} className="left-auto right-8" />
+
+        {/* optional custom name & description — collapsed by default so it
+            reads as optional: left alone, the AI titles and describes the
+            tool from its first generated deck. */}
+        {canEditTool && (
+          <motion.details
+            variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}
+            className="mb-5 rounded-wobble-sm border-2 border-dashed border-pencil px-3.5 py-2.5"
+          >
+            <summary className="micro cursor-pointer select-none text-ink-soft">
+              Name &amp; description — optional · leave it and the AI writes them from your prompt
+            </summary>
+            <div className="mt-3 flex flex-col gap-3">
+              <label className="block">
+                <span className="micro mb-1 block text-ink-soft">Custom name</span>
+                <input
+                  className={cn(inputCls)}
+                  value={title}
+                  maxLength={120}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onBlur={commitTitle}
+                  placeholder="Leave as Untitled — the AI names it on first generation"
+                />
+              </label>
+              <label className="block">
+                <span className="micro mb-1 block text-ink-soft">Custom description</span>
+                <textarea
+                  className={cn(inputCls, 'min-h-[56px] resize-y')}
+                  value={descDraft}
+                  maxLength={2000}
+                  onChange={(e) => setDescDraft(e.target.value)}
+                  onBlur={() => {
+                    const next = descDraft.trim();
+                    if (next !== (tool.description ?? '')) {
+                      updateTool.mutate(
+                        { slug: tool.slug, description: next },
+                        { onSuccess: () => void utils.slideTools.getBySlug.invalidate({ slug: tool.slug }) },
+                      );
+                    }
+                  }}
+                  placeholder="Leave empty — the AI describes it from the generated deck"
+                />
+              </label>
+            </div>
+          </motion.details>
+        )}
 
         {/* what kind of presentation — drives templates & whether evaluations
             are offered. Standalone tools only (a seeded lesson inherits the

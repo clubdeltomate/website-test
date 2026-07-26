@@ -795,6 +795,32 @@ export const generateRouter = createRouter({
       // put the answer first, so otherwise every question is "A").
       deck = shuffleQuizAnswers(deck);
 
+      // AI naming: a tool created without a name stays "Untitled …" until its
+      // first successful generation, then takes its identity from the AI's own
+      // deck — the opening slide's title (a headline, for news) becomes the
+      // name and the first written paragraph becomes the description. A
+      // custom name/description typed in the tool's settings is never touched.
+      if (/^untitled\b/i.test(tool.name.trim())) {
+        const firstParagraph = deck.slides
+          .flatMap((s) => s.components)
+          .map((c) => (c.type === "prose" ? c.paragraphs?.[0] : null))
+          .find((p): p is string => !!p?.trim());
+        const autoName = (
+          purpose === "news" && input.newsPeriod?.trim()
+            ? `${(input.topic?.trim() || topic).replace(/\s+news$/i, "")} News — ${input.newsPeriod.trim()}`
+            : deck.slides[0]?.title?.trim() || topic
+        ).slice(0, 255);
+        const set: { name: string; description?: string } = { name: autoName };
+        if (!tool.description?.trim() && firstParagraph) {
+          set.description = firstParagraph.slice(0, 500);
+        }
+        try {
+          await db.update(slideTools).set(set).where(eq(slideTools.id, tool.id));
+        } catch (err) {
+          console.warn("[generate.slides] auto-naming failed (deck unaffected):", err instanceof Error ? err.message : err);
+        }
+      }
+
       // Eagerly generate ONLY the first slide's image inline so slide 1 opens
       // with its picture already in place (no visible wait on the opening
       // slide). Every other slide's image still streams in lazily in the
