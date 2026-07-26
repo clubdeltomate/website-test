@@ -16,7 +16,7 @@ export default function PresetPlay() {
   const lessonSeq = Number(seq);
   const query = trpc.repos.lessonPreset.useQuery(
     { repoSlug: slug, lessonSeq },
-    { enabled: !!slug && Number.isFinite(lessonSeq), retry: false },
+    { enabled: !!slug && Number.isFinite(lessonSeq), retry: 1 },
   );
 
   const back = () => navigate(`/repos/${slug}`);
@@ -34,7 +34,23 @@ export default function PresetPlay() {
   if (query.isLoading) {
     return <div className="mx-auto max-w-[720px] px-4 py-16 text-center text-ink-faint">Opening…</div>;
   }
-  if (query.isError || !query.data) {
+  if (query.isError) {
+    return (
+      <div className="mx-auto max-w-[720px] px-4 py-16 text-center">
+        <p className="font-display text-3xl text-ink">The presentation didn't load</p>
+        <p className="mt-2 text-ink-soft">Usually a hiccup — try again, or go back and reopen it.</p>
+        <div className="mt-4 flex items-center justify-center gap-2">
+          <SketchButton variant="accent" onClick={() => void query.refetch()}>
+            Try again
+          </SketchButton>
+          <SketchButton variant="secondary" onClick={back}>
+            <ChevronLeft className="h-4 w-4" /> Back
+          </SketchButton>
+        </div>
+      </div>
+    );
+  }
+  if (!query.data) {
     return (
       <div className="mx-auto max-w-[720px] px-4 py-16 text-center">
         <p className="font-display text-3xl text-ink">Nothing to show yet</p>
