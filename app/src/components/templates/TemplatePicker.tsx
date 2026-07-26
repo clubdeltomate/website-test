@@ -8,6 +8,7 @@ import {
   TEMPLATE_COMPONENT_SHORT,
   TEMPLATE_FLAVORS,
   TEMPLATE_SECTION_LABEL,
+  GRADABLE_TYPES,
   type SlideTemplate,
   type TemplateComponentType,
   type TemplateFlavor,
@@ -86,12 +87,22 @@ function SectionTag({ t }: { t: SlideTemplate }) {
   );
 }
 
-/** Full option label: [π] name · <coloured section> (level) — Text · Table · … */
+/** Full option label: [π] name ● · <coloured section> (level) — Text · Table · …
+ *  The green dot marks evaluation-free templates (no quiz/solve step). */
 function OptionLabel({ t, withSequence }: { t: SlideTemplate; withSequence: boolean }) {
+  const evalFree = !t.components.some((c) => GRADABLE_TYPES.includes(c));
   return (
     <>
       <TemplateBadges tags={t.tags} />
-      {t.name} · <SectionTag t={t} /> ({t.level})
+      {t.name}
+      {evalFree && (
+        <span
+          title="No evaluation — read-through slide"
+          aria-label="No evaluation"
+          className="mx-1 inline-block h-2 w-2 rounded-full border border-ink bg-green align-middle"
+        />
+      )}{' '}
+      · <SectionTag t={t} /> ({t.level})
       {withSequence && <SequenceLabel components={t.components} />}
     </>
   );

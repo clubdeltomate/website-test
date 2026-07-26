@@ -329,6 +329,31 @@ const STEM_TEMPLATES: SlideTemplate[] = [
   bi("Model & solve on a graph", "C1", ["prose", "chart", "prose", "solve"], ["math", "physics", "problem-solving"]),
   bi("Analyze the diagram & solve", "C1", ["prose", "svg", "prose", "solve"], ["physics", "engineering", "problem-solving"]),
   bi("Interpret the figure & solve", "C1", ["prose", "image", "prose", "solve"], ["math", "physics", "problem-solving"]),
+
+  // graded worksheet built around a formula: text sets it up, the formula is
+  // stated, and the learner works the problem on the scratchpad
+  bi("Solve with the formula", "B1", ["prose", "latex", "solve"], ["math", "physics", "problem-solving"]),
+  bi("Derive, then solve", "C1", ["prose", "latex", "prose", "solve"], ["math", "physics", "problem-solving"]),
+
+  /* -- evaluation-free math reads (no quiz, no solve — display only; the
+        picker marks these with a green dot). One per core element (graph,
+        formula, image, table) per band, text scaled to the level. -- */
+  // beginner: one short text + the visual
+  bi("Math read: graph", "A1", ["prose", "chart"], ["math", "science"]),
+  bi("Math read: formula", "A1", ["prose", "latex"], ["math", "physics"]),
+  bi("Math read: picture", "A1", ["prose", "image"], ["math", "science"]),
+  bi("Math read: table", "A1", ["prose", "table"], ["math", "science"]),
+  // intermediate: explanation around the visual
+  bi("Graph explained", "B1", ["prose", "chart", "prose"], ["math", "science"]),
+  bi("Formula explained", "B1", ["prose", "latex", "prose"], ["math", "physics"]),
+  bi("Figure explained", "B1", ["prose", "image", "prose"], ["math", "science"]),
+  bi("Table explained", "B1", ["prose", "table", "prose"], ["math", "science"]),
+  // advanced: full development — e.g. a derivative or integral worked out
+  // step by step across the page, formula then its graph, no evaluation
+  bi("Worked derivation (read-through)", "C1", ["prose", "latex", "prose", "chart", "prose"], ["math", "physics"]),
+  bi("Graph deep read", "C1", ["prose", "chart", "prose", "prose"], ["math", "science"]),
+  bi("Figure deep read", "C1", ["prose", "image", "prose", "prose"], ["math", "science"]),
+  bi("Table deep read", "C1", ["prose", "table", "prose", "prose"], ["math", "science"]),
 ];
 
 /* ---------------- Humanities: 10 per level ---------------- */

@@ -22,10 +22,12 @@ describe("slide-template catalog", () => {
       expect(TEMPLATE_LEVELS).toContain(t.level);
       expect(t.components.length).toBeGreaterThan(0);
       for (const c of t.components) expect(TEMPLATE_COMPONENT_LABELS[c]).toBeTruthy();
-      // every EDUCATION template must be scoreable; commercial showcases end on
-      // a contact/order close instead of a quiz, so they carry no gradable step
-      if (templatePurpose(t.tags) === "education") {
-        expect(t.components.some((c) => isGradable(c)), t.name).toBe(true);
+      // an EDUCATION template is either scoreable OR an explicit read-through
+      // (evaluation-free by design — marked with a green dot in the picker),
+      // in which case it must carry real written prose. Commercial showcases
+      // end on a contact/order close instead of a quiz.
+      if (templatePurpose(t.tags) === "education" && !t.components.some((c) => isGradable(c))) {
+        expect(t.components.includes("prose"), t.name).toBe(true);
       }
     }
   });
