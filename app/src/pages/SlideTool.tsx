@@ -336,6 +336,8 @@ function ToolStudio({
   // Wolfram filters: explanation-only layouts vs Wolfram layouts with an
   // evaluation — quick paths to the W⍺ catalog without picking a packet.
   const [wolframFilter, setWolframFilter] = useState<null | 'explain' | 'eval'>(null);
+  // ✚ Anatomy & health: only image/table/graph atlas layouts for anatomy.
+  const [anatomyOnly, setAnatomyOnly] = useState(false);
   const [theaterDone, setTheaterDone] = useState(false);
   const [result, setResult] = useState<{
     deck: SlideDeck;
@@ -397,8 +399,13 @@ function ToolStudio({
         return wolframFilter === 'explain' ? !graded : graded;
       });
     }
+    if (anatomyOnly) {
+      base = base.filter((t) =>
+        t.tags.some((tag) => ['anatomy', 'medicine', 'health', 'biology'].includes(tag)),
+      );
+    }
     return base;
-  }, [templatesQuery.data, purpose, topic, level, subjectMode, packetFilter, aiGradableOnly, wolframFilter, packets]);
+  }, [templatesQuery.data, purpose, topic, level, subjectMode, packetFilter, aiGradableOnly, wolframFilter, anatomyOnly, packets]);
   // Resolve a pinned template by name against the FULL catalog (not just the
   // filtered pickable set) so a packet-pinned template from another level
   // still shows its badges, sequence and bar.
@@ -1379,6 +1386,20 @@ function ToolStudio({
                       )}
                     >
                       W⍺ evaluated
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAnatomyOnly((v) => !v)}
+                      aria-pressed={anatomyOnly}
+                      title="Only anatomy & health layouts — atlas sketches, hormone tables, behavior graphs"
+                      className={cn(
+                        'rounded-wobble-sm border-2 px-3 py-1.5 font-heading text-sm font-bold transition-colors',
+                        anatomyOnly
+                          ? 'border-ink bg-green-soft text-ink shadow-offset'
+                          : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                      )}
+                    >
+                      ✚ Anatomy
                     </button>
                   </div>
                   <p className="micro mt-1.5 text-ink-faint">
