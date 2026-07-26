@@ -43,7 +43,7 @@ import TemplatePicker from '@/components/templates/TemplatePicker';
 
 import { isStemTopic } from '@contracts/stem';
 import { loadGenDefaults, saveGenDefaults, type TextDensity } from '@/lib/genDefaults';
-import { templatesForContext, packetsForPurpose, type LessonPacket } from '@contracts/slide-templates';
+import { templatesForContext, packetsForPurpose } from '@contracts/slide-templates';
 import { repoPurpose, templateFilterPurpose, type RepoTemplate } from '@contracts/types';
 import { TemplateIcon } from '@/components/repo/shared';
 
@@ -327,22 +327,12 @@ function ToolStudio({
   // Subject filter for the template catalog: Auto follows topic detection,
   // STEM/Humanities force the choice (detection can misread e.g. derivatives).
   const [subjectMode, setSubjectMode] = useState<'auto' | 'stem' | 'humanities'>('auto');
-  // Apply a lesson packet: pour its templates into the NEXT OPEN (Auto) slots,
-  // in order, up to the chosen slide count. Overflow beyond the slide count is
-  // discarded, so stacking packets fills the deck sequentially — packet 1 fills
-  // slides 1-4, packet 2 fills 5-6, etc. — and any leftover slots stay on Auto
-  // for the AI to fill. The slide count is respected, never grown.
-  const applyPacket = (p: LessonPacket) => {
-    setTemplatePlan((prev) => {
-      const plan = Array.from({ length: slideCount }, (_, i) => prev[i] ?? null);
-      let ti = 0;
-      for (let i = 0; i < slideCount && ti < p.templates.length; i++) {
-        if (plan[i] == null) plan[i] = p.templates[ti++];
-      }
-      return plan;
-    });
-    setAdvancedOpen(true);
-  };
+  // Packets act as FILTERS (like the STEM/Humanities buttons): selecting one
+  // narrows the per-slide template pickers to that packet's layouts. Nothing
+  // is pinned automatically — templates are only set when clicked per slide.
+  const [packetFilter, setPacketFilter] = useState<string | null>(null);
+  // Extra filter: only layouts with an AI-graded step (typed answer / solve).
+  const [aiGradableOnly, setAiGradableOnly] = useState(false);
   const [theaterDone, setTheaterDone] = useState(false);
   const [result, setResult] = useState<{
     deck: SlideDeck;
@@ -379,18 +369,26 @@ function ToolStudio({
     () => repoPurpose(seed ? (repoQuery.data?.template ?? 'course') : category),
     [seed, repoQuery.data, category],
   );
-  const pickableTemplates = useMemo(
-    () =>
-      templatesForContext(templatesQuery.data ?? [], {
-        purpose: templateFilterPurpose(purpose),
-        stem: subjectMode === 'auto' ? isStemTopic(topic) : subjectMode === 'stem',
-        level,
-      }),
-    [templatesQuery.data, purpose, topic, level, subjectMode],
-  );
   // Packets match the tool's real purpose: only education packets carry
   // evaluations; news/walkthrough/commercial get display-only packet shapes.
   const packets = useMemo(() => packetsForPurpose(purpose), [purpose]);
+  const pickableTemplates = useMemo(() => {
+    const all = templatesQuery.data ?? [];
+    // A selected packet overrides the level/subject narrowing: show exactly
+    // that packet's layouts so they can be picked per slide.
+    const packet = packetFilter ? packets.find((p) => p.id === packetFilter) : null;
+    let base = packet
+      ? all.filter((t) => packet.templates.includes(t.name))
+      : templatesForContext(all, {
+          purpose: templateFilterPurpose(purpose),
+          stem: subjectMode === 'auto' ? isStemTopic(topic) : subjectMode === 'stem',
+          level,
+        });
+    if (aiGradableOnly) {
+      base = base.filter((t) => t.components.includes('shortanswer') || t.components.includes('solve'));
+    }
+    return base;
+  }, [templatesQuery.data, purpose, topic, level, subjectMode, packetFilter, aiGradableOnly, packets]);
   // Resolve a pinned template by name against the FULL catalog (not just the
   // filtered pickable set) so a packet-pinned template from another level
   // still shows its badges, sequence and bar.
@@ -1306,29 +1304,49 @@ function ToolStudio({
                 <div className="mb-4">
                   <span className="micro mb-1 block font-semibold text-ink-soft">
                     {purpose === 'commercial'
-                      ? 'Showcase packet — a recommended set of slides to present your item'
-                      : 'Lesson packet — a recommended set of slides for an activity'}
+                      ? 'Showcase packet — filters the template choices below'
+                      : 'Lesson packet — filters the template choices below'}
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {packets.map((p) => (
                       <button
                         key={p.id}
                         type="button"
-                        onClick={() => applyPacket(p)}
+                        onClick={() => setPacketFilter((cur) => (cur === p.id ? null : p.id))}
+                        aria-pressed={packetFilter === p.id}
                         title={p.description}
-                        className="rounded-wobble-sm border-2 border-dashed border-pencil px-3 py-1.5 text-left font-heading text-sm text-ink-soft transition-colors hover:border-ink hover:bg-paper-2 hover:text-ink"
+                        className={cn(
+                          'rounded-wobble-sm border-2 px-3 py-1.5 text-left font-heading text-sm transition-colors',
+                          packetFilter === p.id
+                            ? 'border-ink bg-yellow text-ink shadow-offset'
+                            : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:bg-paper-2 hover:text-ink',
+                        )}
                       >
                         <span className="font-bold text-ink">{p.name}</span>
                         <span className="ml-1 text-[0.68rem] text-ink-faint">
-                          · {p.templates.length} slides
+                          · {p.templates.length} layouts
                         </span>
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      onClick={() => setAiGradableOnly((v) => !v)}
+                      aria-pressed={aiGradableOnly}
+                      title="Show only layouts whose evaluation is graded by the AI (typed answer or worked solve)"
+                      className={cn(
+                        'rounded-wobble-sm border-2 px-3 py-1.5 font-heading text-sm font-bold transition-colors',
+                        aiGradableOnly
+                          ? 'border-ink bg-green-soft text-ink shadow-offset'
+                          : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                      )}
+                    >
+                      ✓ AI-graded only
+                    </button>
                   </div>
                   <p className="micro mt-1.5 text-ink-faint">
-                    Each packet fills the next open slides, in order, up to your slide count — stack
-                    several and any extra slides are left for the AI. Overflow past your count is
-                    dropped. You can still tweak any pinned slide.
+                    Selecting a packet filters the per-slide template pickers below to just its
+                    layouts (click again to clear) — nothing is pinned until you choose a template
+                    on a slide yourself.
                   </p>
                 </div>
 
