@@ -43,7 +43,7 @@ import { isStemTopic } from "../../contracts/stem.js";
 import { typedOverlapCorrect } from "../../contracts/grade.js";
 import { repoPurpose, templateFilterPurpose, type CoachReply, type SlideDeck } from "../../contracts/types.js";
 
-const GUEST_MAX_SLIDES = 6;
+export const GUEST_MAX_SLIDES = 6;
 const MAX_SLIDES = 15;
 /** Token fee for one AI vision review of a handwritten worked solution. */
 const VISION_GRADE_COST = 6;
@@ -381,6 +381,7 @@ export const generateRouter = createRouter({
       slidePlan: import("../../contracts/types.js").SlidePlanInfo[];
       commercial: import("../../contracts/types.js").CommercialInfo | null;
       walkthrough: import("../../contracts/types.js").WalkthroughInfo | null;
+      author: { ownerId: number | null; name: string } | null;
     }> => {
       const db = getDb();
       const tool = await db.query.slideTools.findFirst({
@@ -388,9 +389,12 @@ export const generateRouter = createRouter({
       });
       if (!tool) throw new TRPCError({ code: "NOT_FOUND", message: "Slide tool not found" });
 
-      const isGuest = !ctx.user;
-      if (isGuest) rateLimit(clientKey(ctx.req), 10, 60_000);
-      const slideCount = isGuest ? Math.min(input.slideCount, GUEST_MAX_SLIDES) : input.slideCount;
+      // No anonymous AI: every generation belongs to a signed-in user and is
+      // paid for from that user's balance (or a gifted ticket) below.
+      if (!ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in to generate slides — every generation is charged to your account." });
+      }
+      const slideCount = input.slideCount;
 
       // Resolve topic/instructions: explicit input > lesson objective (seed) > tool defaults
       // Fall back to the tool's NAME when there's no explicit topic, so a tool
@@ -892,7 +896,21 @@ export const generateRouter = createRouter({
         const fresh = await db.query.users.findFirst({ where: eq(users.id, ctx.user.id) });
         balance = fresh?.tokenBalance ?? null;
       }
-      return { deck, usedMock, cost, balance, previouslyTaught, slidePlan, commercial, walkthrough };
+      // Every ending shows who made the deck: resolve the author for lesson
+      // decks too (commercial/walkthrough/news already carry their owner).
+      let author: { ownerId: number | null; name: string } | null = null;
+      if (walkthrough) {
+        author = { ownerId: walkthrough.ownerId, name: walkthrough.ownerName };
+      } else if (commercial) {
+        author = { ownerId: commercial.owner.ownerId ?? null, name: commercial.owner.name };
+      } else {
+        const authorId = seedRepo?.ownerId ?? (!input.seed ? tool.ownerId : null);
+        const owner = authorId
+          ? await db.query.users.findFirst({ where: eq(users.id, authorId) })
+          : null;
+        if (owner) author = { ownerId: owner.id, name: owner.name };
+      }
+      return { deck, usedMock, cost, balance, previouslyTaught, slidePlan, commercial, walkthrough, author };
     }),
 
   /**
@@ -1260,6 +1278,9 @@ RULES:
     )
     .mutation(async ({ ctx, input }) => {
       rateLimit(clientKey(ctx.req), 10, 60_000);
+      if (!ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in to auto-tune settings." });
+      }
       const catalog = await loadTemplateCatalog();
       const evalFree = input.purpose !== "education";
       // Only offer layouts that fit the purpose (news/walkthrough/commercial
@@ -1335,6 +1356,14 @@ export const coachChatProcedure = publicQuery
     )
     .mutation(async ({ ctx, input }): Promise<CoachReply> => {
       rateLimit(clientKey(ctx.req), 20, 60_000);
+      // Chat is a paid, signed-in feature: 1 🪙 per message, charged up front.
+      if (!ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in to chat with the Coach." });
+      }
+      if (ctx.user.tokenBalance < 1) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "INSUFFICIENT_TOKENS: a Coach message costs 1 🪙 — top up to keep chatting." });
+      }
+      await applyTokenDelta(ctx.user.id, -1, "coach chat message");
       const lastUser = [...input.messages].reverse().find((m) => m.role === "user");
       const history = input.messages.slice(-12).map((m) => ({
         role: (m.role === "coach" ? "assistant" : "user") as "assistant" | "user",

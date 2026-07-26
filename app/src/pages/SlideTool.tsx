@@ -348,6 +348,7 @@ function ToolStudio({
     slidePlan: SlidePlanInfo[];
     commercial: CommercialInfo | null;
     walkthrough: WalkthroughInfo | null;
+    author?: { ownerId: number | null; name: string } | null;
   } | null>(null);
   const canceledRef = useRef(false);
   // Captured when the owner presses "Generate & set preset" so the completion
@@ -501,6 +502,7 @@ function ToolStudio({
             slidePlan: res.slidePlan,
             commercial: res.commercial,
             walkthrough: res.walkthrough,
+            author: res.author,
           });
           setTheaterDone(true);
           if (!isGuest) void utils.auth.me.invalidate();
@@ -638,6 +640,7 @@ function ToolStudio({
         scratchpadEnabled={useScratchpad}
         commercial={result.commercial}
         walkthrough={result.walkthrough}
+        author={result.author ?? null}
         onSavePreset={canPublishPreset ? handleSavePreset : undefined}
         savingPreset={setPreset.isPending}
         presetSaved={presetSaved}

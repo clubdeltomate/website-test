@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { motion, useReducedMotion } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { ArrowRight, PlayCircle, RotateCcw, TriangleAlert } from 'lucide-react';
+import { ArrowRight, PlayCircle, RotateCcw, TriangleAlert, UserRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
@@ -24,6 +24,8 @@ export interface FinishScreenProps {
   nextLessonTitle: string | null;
   onReplay: () => void;
   onExitToConfig: () => void;
+  /** deck author — shown as a small profile link, matching every other finish screen */
+  author?: { ownerId: number | null; name: string } | null;
   onReviewSlide: (idx: number) => void;
 }
 
@@ -65,6 +67,7 @@ export default function FinishScreen({
   nextLessonTitle,
   onReplay,
   onExitToConfig,
+  author = null,
   onReviewSlide,
 }: FinishScreenProps) {
   const reduced = useReducedMotion();
@@ -481,6 +484,22 @@ export default function FinishScreen({
               <SketchButton variant="accent" size="lg">
                 Course complete — back to repository
               </SketchButton>
+            </Link>
+          </motion.div>
+        )}
+        {/* small author-profile link — same ending design as showcases and
+            walkthroughs: big "back" action above, quiet profile link below */}
+        {author?.ownerId != null && (
+          <motion.div
+            className="w-full basis-full text-center"
+            variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}
+          >
+            <Link
+              to={`/users/${author.ownerId}`}
+              className="inline-flex items-center gap-1.5 font-heading text-sm font-semibold text-ink-soft underline underline-offset-4 transition-colors hover:text-ink"
+            >
+              <UserRound className="h-4 w-4" strokeWidth={2} />
+              Visit {author.name}'s profile
             </Link>
           </motion.div>
         )}

@@ -79,6 +79,8 @@ export interface DeckPlayerProps {
   commercial?: CommercialInfo | null;
   /** set for walkthrough decks — ends on an author-profile / go-back screen */
   walkthrough?: WalkthroughInfo | null;
+  /** the deck's author — every finish screen shows a small profile link */
+  author?: { ownerId: number | null; name: string } | null;
   /** owner-only: save THIS generated deck as the item's preset (generate once).
    *  undefined → no button (viewers, or already a preset). */
   onSavePreset?: () => void;
@@ -112,6 +114,7 @@ export default function DeckPlayer({
   scratchpadEnabled = true,
   commercial = null,
   walkthrough = null,
+  author = null,
   onSavePreset,
   savingPreset = false,
   presetSaved = false,
@@ -490,6 +493,7 @@ export default function DeckPlayer({
           <WalkthroughFinish walkthrough={walkthrough} onExit={onExit} />
         ) : finished && !inReview ? (
           <FinishScreen
+            author={author}
             deck={deck}
             toolSlug={toolSlug}
             seed={seed}
