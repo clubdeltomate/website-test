@@ -155,6 +155,50 @@ app.get("/api/wolfram", async (c) => {
   const appId = process.env.WOLFRAM_APP_ID?.trim() || process.env.APP_ID?.trim();
   if (!query || query.length > 300) return c.json({ error: "bad_query" }, 400);
   if (!appId) return c.json({ error: "wolfram_not_configured" }, 404);
+  // First choice: the STEP-BY-STEP solution pod from the Full Results API —
+  // the Simple API only ever returns the answer page. If the AppID's tier
+  // doesn't include steps (or the query has none), fall through to Simple.
+  try {
+    const qs = new URLSearchParams({
+      appid: appId,
+      input: query,
+      output: "json",
+      format: "image",
+      podstate: "Step-by-step solution",
+      reinterpret: "true",
+    });
+    const full = await fetch(`https://api.wolframalpha.com/v2/query?${qs.toString()}`, {
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (full.ok) {
+      const data = (await full.json()) as {
+        queryresult?: {
+          pods?: { title?: string; subpods?: { title?: string; img?: { src?: string } }[] }[];
+        };
+      };
+      let stepsSrc: string | undefined;
+      for (const pod of data.queryresult?.pods ?? []) {
+        for (const sp of pod.subpods ?? []) {
+          if (sp.title?.toLowerCase().includes("intermediate steps") && sp.img?.src) {
+            stepsSrc = sp.img.src;
+            break;
+          }
+        }
+        if (stepsSrc) break;
+      }
+      if (stepsSrc) {
+        const img = await fetch(stepsSrc, { signal: AbortSignal.timeout(15_000) });
+        if (img.ok) {
+          return c.body(await img.arrayBuffer(), 200, {
+            "content-type": img.headers.get("content-type") ?? "image/gif",
+            "cache-control": "public, max-age=86400",
+          });
+        }
+      }
+    }
+  } catch {
+    /* steps unavailable — fall through to the Simple card below */
+  }
   try {
     const upstream = await fetch(
       `https://api.wolframalpha.com/v1/simple?appid=${encodeURIComponent(appId)}&i=${encodeURIComponent(query)}&background=F8F3E7&foreground=2B2B2B&width=760&units=metric`,
