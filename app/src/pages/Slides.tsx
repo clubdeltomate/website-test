@@ -258,7 +258,7 @@ export default function Slides() {
     },
     {
       key: 'created',
-      header: 'Sketched',
+      header: 'Made',
       mono: true,
       sortValue: (t) => new Date(t.createdAt).getTime(),
       render: (t) => relTime(t.createdAt),
@@ -646,7 +646,7 @@ export default function Slides() {
 
                       <p className="micro text-ink-faint">
                         {tool.runCount} {tool.runCount === 1 ? 'play' : 'plays'} ·{' '}
-                        {tool.deckSlideCount ?? tool.defaultSlideCount} slides · sketched{' '}
+                        {tool.deckSlideCount ?? tool.defaultSlideCount} slides ·{' '}
                         {relTime(tool.createdAt)}
                       </p>
 
