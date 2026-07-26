@@ -60,6 +60,24 @@ export async function loadTemplateCatalog(): Promise<SlideTemplate[]> {
   return out;
 }
 
+/** A template is either scoreable (has a gradable step) or an explicit
+ *  read-through carrying real content (a Text or Wolfram step). */
+function assertScorableOrReadThrough(components: (typeof TEMPLATE_COMPONENT_TYPES)[number][]) {
+  const gradable = components.some((c) => GRADABLE_TYPES.includes(c));
+  const readThrough = components.includes("prose") || components.includes("wolfram");
+  if (!gradable && !readThrough) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "A template needs a gradable step (Multiple choice, 2-option, Fill blank, Typed answer, Solve) — or, for a read-through, at least a Text or Wolfram step.",
+    });
+  }
+}
+
+function normalizeTags(tags: string[]): string[] {
+  return [...new Set(tags.map((t) => t.toLowerCase().replace(/^#/, "").trim()))].filter(Boolean);
+}
+
 export const templatesRouter = createRouter({
   list: publicQuery.query(async (): Promise<SlideTemplate[]> => loadTemplateCatalog()),
 
@@ -73,16 +91,8 @@ export const templatesRouter = createRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // every template must be gradable — enforce at least one evaluation step
-      if (!input.components.some((c) => GRADABLE_TYPES.includes(c))) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message:
-            "A template needs at least one gradable step (Multiple choice, 2-option, Fill blank, or Typed answer) so the slide can be scored.",
-        });
-      }
-      const tags = [...new Set(input.tags.map((t) => t.toLowerCase().replace(/^#/, "").trim()))]
-        .filter(Boolean);
+      assertScorableOrReadThrough(input.components);
+      const tags = normalizeTags(input.tags);
       const [{ id }] = await getDb()
         .insert(slideTemplates)
         .values({
@@ -94,6 +104,45 @@ export const templatesRouter = createRouter({
         })
         .returning({ id: slideTemplates.id });
       return { id };
+    }),
+
+  update: authedProcedure
+    .input(
+      z.object({
+        id: z.number().int(),
+        name: z.string().min(3).max(120),
+        level: levelSchema,
+        components: z.array(componentSchema).min(1).max(8),
+        tags: z.array(z.string().min(1).max(24)).max(6).default([]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const row = await db.query.slideTemplates.findFirst({
+        where: eq(slideTemplates.id, input.id),
+      });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+      const allowed =
+        row.createdBy === ctx.user.id ||
+        ctx.user.role === "moderator" ||
+        ctx.user.role === "admin";
+      if (!allowed) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only the creator, a moderator, or an admin can edit a template",
+        });
+      }
+      assertScorableOrReadThrough(input.components);
+      await db
+        .update(slideTemplates)
+        .set({
+          name: input.name.trim(),
+          level: input.level,
+          componentsJson: input.components,
+          tagsJson: normalizeTags(input.tags),
+        })
+        .where(eq(slideTemplates.id, input.id));
+      return { ok: true as const };
     }),
 
   delete: authedProcedure

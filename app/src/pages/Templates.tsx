@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
   Plus,
+  Pencil,
+  Copy,
   Trash2,
   X,
   Sparkles,
@@ -50,6 +52,9 @@ export default function Templates() {
   const utils = trpc.useUtils();
   const list = trpc.templates.list.useQuery();
   const [builderOpen, setBuilderOpen] = useState(false);
+  // pre-filled builder seed: edit a custom template (id set) or customize a
+  // copy of a built-in (no id → saved as a new custom template)
+  const [editing, setEditing] = useState<BuilderSeed | null>(null);
 
   const templates = list.data ?? [];
   const bySection = useMemo(() => {
@@ -70,6 +75,18 @@ export default function Templates() {
     !t.builtin &&
     !!user &&
     (t.createdById === user.id || user.role === 'moderator' || user.role === 'admin');
+
+  const openEditor = (t: SlideTemplate) => {
+    setEditing({
+      id: !t.builtin && canDelete(t) && typeof t.id === 'number' ? t.id : undefined,
+      name: t.builtin ? `${t.name} (custom)` : t.name,
+      level: t.level,
+      components: [...t.components],
+      tags: [...t.tags],
+    });
+    setBuilderOpen(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <div className="mx-auto w-full max-w-[1080px] px-4 py-6 lg:px-8">
@@ -112,7 +129,13 @@ export default function Templates() {
 
       {!isGuest && (
         <div className="mb-6">
-          <SketchButton variant="accent" onClick={() => setBuilderOpen((o) => !o)}>
+          <SketchButton
+            variant="accent"
+            onClick={() => {
+              if (builderOpen) setEditing(null);
+              setBuilderOpen((o) => !o);
+            }}
+          >
             {builderOpen ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
             {builderOpen ? 'Close builder' : 'Add a template'}
           </SketchButton>
@@ -128,7 +151,14 @@ export default function Templates() {
             transition={{ duration: 0.3, ease: EASE }}
             className="overflow-hidden"
           >
-            <TemplateBuilder onDone={() => setBuilderOpen(false)} />
+            <TemplateBuilder
+              key={editing ? `${editing.id ?? 'copy'}-${editing.name}` : 'new'}
+              initial={editing}
+              onDone={() => {
+                setBuilderOpen(false);
+                setEditing(null);
+              }}
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -143,6 +173,8 @@ export default function Templates() {
           items={bySection[s.key]}
           onDelete={(id) => del.mutate({ id })}
           canDelete={canDelete}
+          canCopy={!isGuest}
+          onEdit={openEditor}
         />
       ))}
     </div>
@@ -155,12 +187,16 @@ function TemplateSection({
   items,
   onDelete,
   canDelete,
+  canCopy,
+  onEdit,
 }: {
   title: string;
   subtitle: string;
   items: SlideTemplate[];
   onDelete: (id: number) => void;
   canDelete: (t: SlideTemplate) => boolean;
+  canCopy: boolean;
+  onEdit: (t: SlideTemplate) => void;
 }) {
   const [query, setQuery] = useState('');
   const [level, setLevel] = useState<LevelFilter>('all');
@@ -272,6 +308,29 @@ function TemplateSection({
                       {t.createdByName ? `by ${t.createdByName}` : 'custom'}
                     </Chip>
                   )}
+                  {t.builtin
+                    ? canCopy && (
+                        <button
+                          type="button"
+                          onClick={() => onEdit(t)}
+                          aria-label="Copy & edit as a custom template"
+                          title="Copy & edit — built-ins can't change, so this opens an editable copy"
+                          className="rounded-wobble-sm p-1 text-ink-faint transition-colors hover:bg-paper-2 hover:text-ink"
+                        >
+                          <Copy className="h-4 w-4" strokeWidth={2} />
+                        </button>
+                      )
+                    : canDelete(t) && (
+                        <button
+                          type="button"
+                          onClick={() => onEdit(t)}
+                          aria-label="Edit template"
+                          title="Edit template"
+                          className="rounded-wobble-sm p-1 text-ink-faint transition-colors hover:bg-paper-2 hover:text-ink"
+                        >
+                          <Pencil className="h-4 w-4" strokeWidth={2} />
+                        </button>
+                      )}
                   {canDelete(t) && typeof t.id === 'number' && (
                     <button
                       type="button"
@@ -330,16 +389,34 @@ function TemplateSection({
   );
 }
 
-function TemplateBuilder({ onDone }: { onDone: () => void }) {
+interface BuilderSeed {
+  id?: number;
+  name: string;
+  level: TemplateLevel;
+  components: TemplateComponentType[];
+  tags: string[];
+}
+
+function TemplateBuilder({ onDone, initial }: { onDone: () => void; initial?: BuilderSeed | null }) {
   const utils = trpc.useUtils();
-  const [name, setName] = useState('');
-  const [level, setLevel] = useState<TemplateLevel>('A1');
-  const [components, setComponents] = useState<TemplateComponentType[]>(['prose', 'quiz']);
-  const [tagsRaw, setTagsRaw] = useState('');
+  const [name, setName] = useState(initial?.name ?? '');
+  const [level, setLevel] = useState<TemplateLevel>(initial?.level ?? 'A1');
+  const [components, setComponents] = useState<TemplateComponentType[]>(
+    initial?.components ?? ['prose', 'quiz'],
+  );
+  const [tagsRaw, setTagsRaw] = useState(initial?.tags.map((t) => `#${t}`).join(' ') ?? '');
 
   const create = trpc.templates.create.useMutation({
     onSuccess: () => {
       toast.success('Template added — the generator can use it now ✦');
+      void utils.templates.list.invalidate();
+      onDone();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const update = trpc.templates.update.useMutation({
+    onSuccess: () => {
+      toast.success('Template updated ✦');
       void utils.templates.list.invalidate();
       onDone();
     },
@@ -355,20 +432,27 @@ function TemplateBuilder({ onDone }: { onDone: () => void }) {
       toast.error('Give the template a name (3+ characters)');
       return;
     }
-    if (!hasGradable) {
-      toast.error('Add a gradable step (Multiple choice, 2-option, Fill blank, or Typed answer)');
+    const readThrough = components.includes('prose') || components.includes('wolfram');
+    if (!hasGradable && !readThrough) {
+      toast.error('Add a gradable step — or at least a Text/Wolfram step for a read-through');
       return;
     }
     const tags = tagsRaw
       .split(/[,\s]+/)
       .map((t) => t.replace(/^#/, '').toLowerCase().trim())
       .filter(Boolean);
-    create.mutate({ name: name.trim(), level, components, tags });
+    if (initial?.id != null) {
+      update.mutate({ id: initial.id, name: name.trim(), level, components, tags });
+    } else {
+      create.mutate({ name: name.trim(), level, components, tags });
+    }
   };
 
   return (
     <div className="mb-6 rounded-wobble-2 border-2 border-dashed border-blue bg-paper p-5 shadow-offset">
-      <h2 className="font-heading text-xl font-bold text-ink">New slide template</h2>
+      <h2 className="font-heading text-xl font-bold text-ink">
+        {initial?.id != null ? 'Edit template' : initial ? 'Customize a copy' : 'New slide template'}
+      </h2>
       <p className="micro mb-4 text-ink-faint">
         Order matters — the generator lays out the slide in exactly this sequence. It must end with a
         gradable step.
@@ -458,9 +542,9 @@ function TemplateBuilder({ onDone }: { onDone: () => void }) {
         <SketchButton variant="ghost" onClick={onDone}>
           Cancel
         </SketchButton>
-        <SketchButton variant="accent" loading={create.isPending} onClick={submit}>
+        <SketchButton variant="accent" loading={create.isPending || update.isPending} onClick={submit}>
           <Plus className="h-4 w-4" />
-          Save template
+          {initial?.id != null ? 'Save changes' : 'Save template'}
         </SketchButton>
       </div>
     </div>
