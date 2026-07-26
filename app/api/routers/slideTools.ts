@@ -61,10 +61,21 @@ function canEdit(tool: SlideTool, user: User) {
 
 export const slideToolsRouter = createRouter({
   list: publicQuery
-    .input(z.object({ q: z.string().max(200).optional(), limit: z.number().int().min(1).max(100).default(50) }).optional())
+    .input(
+      z
+        .object({
+          q: z.string().max(200).optional(),
+          limit: z.number().int().min(1).max(100).default(50),
+          /** only the signed-in user's own tools (personal shelf) */
+          mine: z.boolean().default(false),
+        })
+        .optional(),
+    )
     .query(async ({ ctx, input }): Promise<SlideToolSummary[]> => {
       const db = getDb();
+      if (input?.mine && !ctx.user) return []; // a guest owns nothing
       const conds = [];
+      if (input?.mine && ctx.user) conds.push(eq(slideTools.ownerId, ctx.user.id));
       if (!ctx.user || ctx.user.role === "user") conds.push(eq(slideTools.isPublic, true));
       if (input?.q) {
         const q = `%${input.q}%`;

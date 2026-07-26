@@ -214,12 +214,16 @@ export const reposRouter = createRouter({
           q: z.string().max(200).optional(),
           template: templateSchema.optional(),
           limit: z.number().int().min(1).max(100).default(50),
+          /** only the signed-in user's own repos (personal shelf) */
+          mine: z.boolean().default(false),
         })
         .optional(),
     )
     .query(async ({ ctx, input }): Promise<RepoSummary[]> => {
       const db = getDb();
+      if (input?.mine && !ctx.user) return []; // a guest owns nothing
       const conds = [];
+      if (input?.mine && ctx.user) conds.push(eq(repos.ownerId, ctx.user.id));
       if (!ctx.user || ctx.user.role === "user") conds.push(eq(repos.isPublic, true));
       if (input?.template) conds.push(eq(repos.template, input.template));
       if (input?.q) {

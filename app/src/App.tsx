@@ -8,6 +8,7 @@ import RepoBuilder from './pages/RepoBuilder';
 import Users from './pages/Users';
 import UserProfile from './pages/UserProfile';
 import Slides from './pages/Slides';
+import Gallery from './pages/Gallery';
 import SlideTool from './pages/SlideTool';
 import ManualSlideBuilder from './pages/ManualSlideBuilder';
 import ManualSlidePlay from './pages/ManualSlidePlay';
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/repos/:slug/play/:seq/edit" element={<PresetEditor />} />
         <Route path="/repos/:slug/play/:seq/mine" element={<MyCustomizationPlay />} />
         <Route path="/slides" element={<Slides />} />
+        <Route path="/gallery" element={<Gallery />} />
         <Route path="/slides/build" element={<ManualSlideBuilder />} />
         <Route path="/slides/build/:slug" element={<ManualSlideBuilder />} />
         <Route path="/slides/show/:slug" element={<ManualSlidePlay />} />
