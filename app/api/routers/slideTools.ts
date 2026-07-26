@@ -77,7 +77,15 @@ export const slideToolsRouter = createRouter({
         .orderBy(desc(slideTools.createdAt))
         .limit(input?.limit ?? 50);
       const summaries = await Promise.all(rows.map((t) => toSummary(t, ctx.user?.id)));
-      return summaries.sort((a, b) => Number(b.favorite) - Number(a.favorite));
+      // Drafts (no deck generated, never played) are private to their owner:
+      // everyone else browsing the gallery only sees finished, playable tools.
+      // Admins keep full visibility for moderation.
+      const visible = summaries.filter((s, i) => {
+        const isDraft = !s.hasDeck && s.runCount === 0;
+        if (!isDraft) return true;
+        return !!ctx.user && (rows[i].ownerId === ctx.user.id || ctx.user.role === "admin");
+      });
+      return visible.sort((a, b) => Number(b.favorite) - Number(a.favorite));
     }),
 
   getBySlug: publicQuery

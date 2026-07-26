@@ -37,6 +37,19 @@ type ViewMode = 'cards' | 'table';
 
 const PAGE_SIZE = 12;
 
+/** Card icon-circle background per category, so the gallery reads at a
+ *  glance: each template gets its own color + its own icon (compass for
+ *  walkthrough, newspaper for news, …) via TemplateIcon. */
+const TEMPLATE_CIRCLE_BG: Record<string, string> = {
+  course: 'bg-yellow-soft',
+  restaurant: 'bg-red-soft',
+  service: 'bg-blue-soft',
+  shop: 'bg-green-soft',
+  walkthrough: 'bg-purple-soft',
+  news: 'bg-orange/25',
+  other: 'bg-paper-2',
+};
+
 function relTime(d: Date): string {
   const diff = Date.now() - new Date(d).getTime();
   const mins = Math.floor(diff / 60000);
@@ -47,17 +60,6 @@ function relTime(d: Date): string {
   const days = Math.floor(hrs / 24);
   if (days < 30) return `${days}d ago`;
   return new Date(d).toLocaleDateString();
-}
-
-/** Film-strip doodle for the card top row (slides-gallery.md §2) */
-function FilmStripDoodle({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 24" className={cn('h-6 w-8', className)} fill="none" aria-hidden="true">
-      <rect x="2" y="3" width="28" height="18" rx="3" stroke="currentColor" strokeWidth="2.2" />
-      <path d="M12 3v18M22 3v18" stroke="currentColor" strokeWidth="2" />
-      <path d="M4.5 7h4M4.5 12h4M4.5 17h4M14.5 7h4M14.5 12h4M24.5 7h3M24.5 17h3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
 }
 
 function StarButton({
@@ -553,6 +555,7 @@ export default function Slides() {
             >
               {pageTools.map((tool, i) => {
                 const repo = repoLinkByTool.get(tool.slug);
+                const isDraft = !tool.hasDeck && tool.runCount === 0;
                 return (
                   <motion.div
                     key={tool.slug}
@@ -564,15 +567,31 @@ export default function Slides() {
                     <SketchCard
                       index={i}
                       hover
-                      className="relative flex h-full flex-col gap-3 p-5"
+                      className={cn(
+                        'relative flex h-full flex-col gap-3 p-5',
+                        isDraft && 'border-dashed !border-green',
+                      )}
                       onMouseEnter={() => prefetch(tool.slug)}
                       onClick={() =>
                         navigate(tool.hasDeck ? `/slides/show/${tool.slug}` : `/slides/${tool.slug}`)
                       }
                     >
                       <div className="flex items-start justify-between">
-                        <span className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-ink bg-blue-soft text-ink">
-                          <FilmStripDoodle className="h-6 w-6" />
+                        <span className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              'flex h-11 w-11 items-center justify-center rounded-full border-2 border-ink text-ink',
+                              TEMPLATE_CIRCLE_BG[tool.template] ?? 'bg-blue-soft',
+                            )}
+                            title={tool.template}
+                          >
+                            <TemplateIcon template={tool.template} className="h-5 w-5" />
+                          </span>
+                          {isDraft && (
+                            <span className="rounded-wobble-sm border-2 border-dashed border-green bg-green-soft px-2 py-0.5 text-xs font-bold text-ink">
+                              Draft · only you see this
+                            </span>
+                          )}
                         </span>
                         <span className="flex items-center gap-0.5">
                           {repo && (
