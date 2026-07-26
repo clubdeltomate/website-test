@@ -619,6 +619,14 @@ export const LESSON_PACKETS: LessonPacket[] = [
     ],
   },
   {
+    id: "wolfram-only",
+    name: "Wolfram only ×4",
+    description:
+      "Every slide is a single live Wolfram|Alpha computed explanation — one query per slide, no extra text, no quizzes. The purest calculator-led read-through.",
+    purpose: "education",
+    templates: ["Wolfram only", "Wolfram only", "Wolfram only", "Wolfram only"],
+  },
+  {
     id: "wolfram-lesson",
     name: "Wolfram Alpha lesson",
     description:
