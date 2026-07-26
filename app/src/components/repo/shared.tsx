@@ -112,6 +112,18 @@ export const TEMPLATE_META: Record<RepoTemplate, TemplateMeta> = {
   },
 };
 
+/** Icon-circle background per category — one color per template, shared by
+ *  repo cards and slide-tool cards so both galleries read the same way. */
+export const TEMPLATE_CIRCLE_BG: Record<string, string> = {
+  course: 'bg-yellow-soft',
+  restaurant: 'bg-red-soft',
+  service: 'bg-blue-soft',
+  shop: 'bg-green-soft',
+  walkthrough: 'bg-purple-soft',
+  news: 'bg-orange/25',
+  other: 'bg-paper-2',
+};
+
 export function TemplateIcon({
   template,
   className,

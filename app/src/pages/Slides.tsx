@@ -30,25 +30,13 @@ import EmptyState from '@/components/sketch/EmptyState';
 import AuthWall from '@/components/AuthWall';
 import { Toaster } from '@/components/ui/sonner';
 import CreateToolModal from '@/components/slides/CreateToolModal';
-import { SourceBadge, TemplateIcon, TEMPLATE_META } from '@/components/repo/shared';
+import { SourceBadge, TemplateIcon, TEMPLATE_CIRCLE_BG, TEMPLATE_META } from '@/components/repo/shared';
 
 type SortKey = 'recent' | 'name' | 'plays';
 type ViewMode = 'cards' | 'table';
 
 const PAGE_SIZE = 12;
 
-/** Card icon-circle background per category, so the gallery reads at a
- *  glance: each template gets its own color + its own icon (compass for
- *  walkthrough, newspaper for news, …) via TemplateIcon. */
-const TEMPLATE_CIRCLE_BG: Record<string, string> = {
-  course: 'bg-yellow-soft',
-  restaurant: 'bg-red-soft',
-  service: 'bg-blue-soft',
-  shop: 'bg-green-soft',
-  walkthrough: 'bg-purple-soft',
-  news: 'bg-orange/25',
-  other: 'bg-paper-2',
-};
 
 function relTime(d: Date): string {
   const diff = Date.now() - new Date(d).getTime();
