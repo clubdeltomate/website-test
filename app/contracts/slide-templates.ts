@@ -642,6 +642,22 @@ export const LESSON_PACKETS: LessonPacket[] = [
     templates: ["Coding challenge", "Explain the code (in words)", "Coding challenge (advanced)", "Explain the algorithm (typed)"],
   },
   {
+    id: "wolfram-test-walkthrough",
+    name: "Wolfram test walkthrough",
+    description:
+      "Teach, then test: three read-through Wolfram|Alpha explanation slides (formula + computed steps + your own text, no quizzes) build up a problem type — then slide 4 proposes one to solve on the annotation scratchpad or describe in the input box; the AI checks either and marks it correct or false.",
+    purpose: "education",
+    templates: ["Formula, by Wolfram", "Wolfram walk-through", "Wolfram deep dive", "Wolfram worked solve"],
+  },
+  {
+    id: "wolfram-test-quiz",
+    name: "Wolfram test walkthrough (quiz finish)",
+    description:
+      "Same three read-through Wolfram|Alpha explanation slides — but the fourth ends on a single multiple-choice question instead of a worked solve.",
+    purpose: "education",
+    templates: ["Formula, by Wolfram", "Wolfram walk-through", "Wolfram deep dive", "Wolfram, then answer"],
+  },
+  {
     id: "wolfram-only",
     name: "Wolfram only ×4",
     description:
