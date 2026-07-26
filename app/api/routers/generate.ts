@@ -37,6 +37,7 @@ import {
   bestMatchingTemplate,
   GRADABLE_TYPES,
   TEMPLATE_COMPONENT_LABELS,
+  LESSON_PACKETS,
 } from "../../contracts/slide-templates.js";
 import { isStemTopic } from "../../contracts/stem.js";
 import { typedOverlapCorrect } from "../../contracts/grade.js";
@@ -1239,6 +1240,80 @@ RULES:
           charged,
         };
       }
+    }),
+
+  /**
+   * Auto-tune: read the author's prompt and recommend every generation
+   * setting — level, slide count, image style, text density, and a full
+   * per-slide template plan chosen from the real catalog (packets are 4
+   * slides; for longer decks the AI fills every slide). Falls back to a
+   * sensible heuristic when no AI provider answers, so the button always
+   * does something useful.
+   */
+  tuneSettings: publicQuery
+    .input(
+      z.object({
+        topic: z.string().min(3).max(2000),
+        purpose: z.enum(["education", "commercial", "walkthrough", "news"]).default("education"),
+        newsPeriod: z.string().max(200).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      rateLimit(clientKey(ctx.req), 10, 60_000);
+      const catalog = await loadTemplateCatalog();
+      const evalFree = input.purpose !== "education";
+      // Only offer layouts that fit the purpose (news/walkthrough/commercial
+      // never pin an evaluation-bearing layout the mode would then skip).
+      const allowed = catalog.filter((t) =>
+        evalFree ? t.tags.includes("commercial") || !t.components.some((c) => GRADABLE_TYPES.includes(c)) : true,
+      );
+      const names = allowed.map((t) => t.name);
+      const recSchema = z.object({
+        level: z.enum(["A0", "A1", "A2", "B1", "B2", "C1", "C2"]),
+        slideCount: z.number().int().min(3).max(15),
+        imageStyle: z.enum(["sketch", "watercolor", "flat", "photo", "none"]),
+        textDensity: z.enum(["minimal", "brief", "standard", "detailed"]),
+        templatePlan: z.array(z.string()).min(3).max(15),
+      });
+      const system = `You configure a slide-presentation generator. Reply with ONLY JSON: {"level":"A0..C2","slideCount":3-15,"imageStyle":"sketch|watercolor|flat|photo|none","textDensity":"minimal|brief|standard|detailed","templatePlan":[exactly slideCount layout names]}. Purpose of this deck: ${input.purpose}${input.newsPeriod ? ` (news from "${input.newsPeriod}")` : ""}. Choose settings that BEST fit the user's prompt: reading level from the implied audience, slide count from the scope, photo style for food/products, more images for menus/shops, denser text for scholarly topics. Every templatePlan entry MUST be exactly one of: ${names.join(" · ")}. Vary layouts; order them to open strong (image-led) and close with synthesis.`;
+      try {
+        const result = await completeText({
+          userId: ctx.user?.id,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: `PROMPT: ${input.topic}` },
+          ],
+          maxTokens: 600,
+          timeoutMs: 12_000,
+          maxCandidates: 2,
+        });
+        if (result) {
+          const rec = recSchema.parse(JSON.parse(extractJson(result.text)));
+          const valid = new Set(names);
+          const templatePlan = rec.templatePlan
+            .slice(0, rec.slideCount)
+            .map((n) => (valid.has(n) ? n : null));
+          while (templatePlan.length < rec.slideCount) templatePlan.push(null);
+          return { ...rec, templatePlan, source: "ai" as const };
+        }
+      } catch (err) {
+        console.warn("[tuneSettings] AI recommendation failed, using heuristic:", err instanceof Error ? err.message : err);
+      }
+      // Heuristic fallback: purpose-shaped defaults + the first fitting packet.
+      const packet = LESSON_PACKETS.find((p) => p.purpose === input.purpose);
+      const slideCount = input.purpose === "commercial" ? 4 : 6;
+      const plan: (string | null)[] = Array.from({ length: slideCount }, (_, i) => {
+        const name = packet?.templates[i % (packet.templates.length || 1)] ?? null;
+        return name && names.includes(name) ? name : null;
+      });
+      return {
+        level: "B1" as const,
+        slideCount,
+        imageStyle: (input.purpose === "commercial" ? "photo" : "sketch") as "photo" | "sketch",
+        textDensity: (input.purpose === "commercial" ? "brief" : "standard") as "brief" | "standard",
+        templatePlan: plan,
+        source: "heuristic" as const,
+      };
     }),
 
 })

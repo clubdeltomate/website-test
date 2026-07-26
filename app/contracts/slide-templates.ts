@@ -438,8 +438,9 @@ export interface LessonPacket {
   id: string;
   name: string;
   description: string;
-  /** who this packet is for — only shown for repos of that purpose */
-  purpose: "education" | "commercial";
+  /** who this packet is for — only shown for tools/repos of that purpose.
+   *  Only education packets carry evaluations; the rest are display-only. */
+  purpose: "education" | "commercial" | "walkthrough" | "news";
   /** built-in template NAMES, in order, pinned onto slides 1..N */
   templates: string[];
 }
@@ -575,10 +576,78 @@ export const LESSON_PACKETS: LessonPacket[] = [
     purpose: "commercial",
     templates: ["Hero shot", "Show & tell", "The details", "Why choose this"],
   },
+  {
+    id: "photo-menu",
+    name: "Photo feast",
+    description:
+      "Image-first selling: four photo-led slides so the viewer SEES the dish or item from every angle before they decide. Copy stays short and appetizing.",
+    purpose: "commercial",
+    templates: ["Hero shot", "Snapshot", "Show & tell", "Why choose this"],
+  },
+  {
+    id: "catalog-page",
+    name: "Catalog page",
+    description:
+      "The full listing: hero photo, complete showcase, specs/ingredients table, and the closing pitch — a rich page for a flagship item.",
+    purpose: "commercial",
+    templates: ["Hero shot", "Full showcase", "The details", "Why choose this"],
+  },
+  /* ---- walkthrough (explain, never test) ---- */
+  {
+    id: "data-walkthrough",
+    name: "Data-driven walkthrough",
+    description:
+      "Explain with numbers: graphs and tables carry the argument, prose interprets each one. No questions asked — evaluation steps are skipped in walkthrough mode.",
+    purpose: "walkthrough",
+    templates: ["Interpret the graph", "What's included", "Historical trends", "Full showcase"],
+  },
+  {
+    id: "science-walkthrough",
+    name: "Science walkthrough",
+    description:
+      "Guide through a system or process: labelled visuals, diagrams and clear prose that build a mental model step by step — no quizzes.",
+    purpose: "walkthrough",
+    templates: ["Anatomy illustrated", "Show & tell", "Interpret the graph", "The story behind it"],
+  },
+  {
+    id: "humanities-walkthrough",
+    name: "Humanities walkthrough",
+    description:
+      "A guided read: narrative with images, comparisons in tables, and a closing synthesis — for history, culture, arts and ideas, with no evaluations.",
+    purpose: "walkthrough",
+    templates: ["Story moment", "Narrative + image", "Compare & contrast", "The story behind it"],
+  },
+  /* ---- time travel news (report, never test) ---- */
+  {
+    id: "front-page",
+    name: "Front page",
+    description:
+      "A classic paper: photo-led stories, each slide its own headline, photo and report — the reader flips through the era's front page.",
+    purpose: "news",
+    templates: ["Hero shot", "Show & tell", "Snapshot", "The story behind it"],
+  },
+  {
+    id: "data-desk",
+    name: "Data desk",
+    description:
+      "The numbers section: stories told through figures — standings, prices, counts — each chart or table explained in plain reporting prose.",
+    purpose: "news",
+    templates: ["Interpret the graph", "What's included", "Historical trends", "The details"],
+  },
+  {
+    id: "feature-spread",
+    name: "Feature spread",
+    description:
+      "A long-form feature: a big opening image, an in-depth report, supporting details in a table, and a closing human-interest angle.",
+    purpose: "news",
+    templates: ["Hero shot", "Full showcase", "The details", "Narrative + image"],
+  },
 ];
 
 /** Packets that fit a repo's purpose (education vs commercial). */
-export function packetsForPurpose(purpose: "education" | "commercial"): LessonPacket[] {
+export function packetsForPurpose(
+  purpose: "education" | "commercial" | "walkthrough" | "news",
+): LessonPacket[] {
   return LESSON_PACKETS.filter((p) => p.purpose === purpose);
 }
 

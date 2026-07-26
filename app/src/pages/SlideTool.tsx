@@ -384,7 +384,9 @@ function ToolStudio({
       }),
     [templatesQuery.data, purpose, topic, level],
   );
-  const packets = useMemo(() => packetsForPurpose(templateFilterPurpose(purpose)), [purpose]);
+  // Packets match the tool's real purpose: only education packets carry
+  // evaluations; news/walkthrough/commercial get display-only packet shapes.
+  const packets = useMemo(() => packetsForPurpose(purpose), [purpose]);
   // Resolve a pinned template by name against the FULL catalog (not just the
   // filtered pickable set) so a packet-pinned template from another level
   // still shows its badges, sequence and bar.
@@ -426,6 +428,38 @@ function ToolStudio({
     !!user && !!estimate && user.tokenBalance < estimate.total;
 
   const generate = trpc.generate.slides.useMutation();
+
+  // AI auto-tune: read the prompt and set level/slides/style/density plus a
+  // full per-slide template plan (packets are 4 slides; longer decks get
+  // every slide filled with what the AI thinks fits best).
+  const tune = trpc.generate.tuneSettings.useMutation({
+    onSuccess: (rec) => {
+      setLevel(rec.level);
+      setSlideCount(rec.slideCount);
+      setImageStyle(rec.imageStyle);
+      setTextDensity(rec.textDensity);
+      setTemplatePlan(rec.templatePlan);
+      setAdvancedOpen(true);
+      toast.success(
+        rec.source === 'ai'
+          ? 'Settings tuned to your prompt — review them below.'
+          : 'Settings preset for this category — no AI reply, used smart defaults.',
+      );
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const runTune = () => {
+    const t = (purpose === 'news' && !seed ? `${newsType} news` : topic).trim();
+    if (t.length < 3) {
+      toast.error('Write your prompt first — then I can tune the settings to it.');
+      return;
+    }
+    tune.mutate({
+      topic: t,
+      purpose,
+      newsPeriod: purpose === 'news' ? newsPeriod.trim() || undefined : undefined,
+    });
+  };
 
   const runGenerate = () => {
     canceledRef.current = false;
@@ -818,7 +852,22 @@ function ToolStudio({
         ) : (
           <motion.div variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}>
             <span className="micro mb-1 flex items-center justify-between text-ink-soft">
-              Topic / prompt
+              <span className="flex items-center gap-2">
+                Topic / prompt
+                <button
+                  type="button"
+                  onClick={runTune}
+                  disabled={tune.isPending}
+                  title="Tune all settings to this prompt — the AI picks level, slides, style, text amount and a layout for every slide"
+                  aria-label="Auto-tune settings from prompt"
+                  className={cn(
+                    'flex h-6 w-6 items-center justify-center rounded-full border-2 border-ink bg-yellow text-ink shadow-offset transition-transform hover:-translate-y-0.5',
+                    tune.isPending && 'animate-pulse cursor-wait',
+                  )}
+                >
+                  <Sparkles className="h-3.5 w-3.5" strokeWidth={2.5} />
+                </button>
+              </span>
               <span className="font-mono normal-case tracking-normal">{topic.length}/2000</span>
             </span>
             <textarea
