@@ -79,6 +79,7 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
       template: template === 'all' ? undefined : template,
       limit: 100,
       mine,
+      excludeMine: !mine,
     },
     { placeholderData: (prev) => prev },
   );

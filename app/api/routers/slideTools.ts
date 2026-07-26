@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, eq, like, or, desc } from "drizzle-orm";
+import { and, eq, ne, like, or, desc } from "drizzle-orm";
 import { createRouter, publicQuery } from "../middleware.js";
 import { authedProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
@@ -68,6 +68,8 @@ export const slideToolsRouter = createRouter({
           limit: z.number().int().min(1).max(100).default(50),
           /** only the signed-in user's own tools (personal shelf) */
           mine: z.boolean().default(false),
+          /** community gallery: everyone's work EXCEPT the viewer's own */
+          excludeMine: z.boolean().default(false),
         })
         .optional(),
     )
@@ -76,6 +78,7 @@ export const slideToolsRouter = createRouter({
       if (input?.mine && !ctx.user) return []; // a guest owns nothing
       const conds = [];
       if (input?.mine && ctx.user) conds.push(eq(slideTools.ownerId, ctx.user.id));
+      if (input?.excludeMine && ctx.user) conds.push(ne(slideTools.ownerId, ctx.user.id));
       if (!ctx.user || ctx.user.role === "user") conds.push(eq(slideTools.isPublic, true));
       if (input?.q) {
         const q = `%${input.q}%`;
