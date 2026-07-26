@@ -350,6 +350,9 @@ export const generateRouter = createRouter({
         purpose: z.enum(["education", "commercial", "walkthrough", "news"]).optional(),
         // How much explanatory text each slide carries (advanced setting).
         textDensity: z.enum(["minimal", "brief", "standard", "detailed"]).default("standard"),
+        // Subject override for template filtering: "auto" detects from the
+        // topic; "stem"/"humanities" force the catalog the author chose.
+        subject: z.enum(["auto", "stem", "humanities"]).default("auto"),
         // News decks only: the moment in time the briefing reports from.
         newsPeriod: z.string().max(200).optional(),
         // Search the web for current facts about the topic first (accuracy for
@@ -538,9 +541,13 @@ export const generateRouter = createRouter({
       // conforms to an approved configuration (so text is guaranteed because
       // every template pairs its visuals with a text step).
       const catalog = await loadTemplateCatalog();
+      // The author's explicit subject choice beats detection — a derivatives
+      // lesson misread as humanities must still get the STEM catalog.
+      const stemActive =
+        input.subject === "stem" ? true : input.subject === "humanities" ? false : isStemTopic(topic);
       let allowedTemplates = templatesForContext(catalog, {
         purpose: templateFilterPurpose(purpose),
-        stem: isStemTopic(topic),
+        stem: stemActive,
         level: input.level,
       });
       // A news briefing reads like a newspaper: give it the image-forward
@@ -550,7 +557,7 @@ export const generateRouter = createRouter({
       if (purpose === "news") {
         const imageForward = templatesForContext(catalog, {
           purpose: "commercial",
-          stem: isStemTopic(topic),
+          stem: stemActive,
           level: input.level,
         });
         const seen = new Set(allowedTemplates.map((t) => t.name));

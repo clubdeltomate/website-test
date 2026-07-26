@@ -324,6 +324,9 @@ function ToolStudio({
   const [useScratchpad, setUseScratchpad] = useState(true);
   // Advanced: pinned layout template per slide (name | null = auto). Index i → slide i+1.
   const [templatePlan, setTemplatePlan] = useState<(string | null)[]>([]);
+  // Subject filter for the template catalog: Auto follows topic detection,
+  // STEM/Humanities force the choice (detection can misread e.g. derivatives).
+  const [subjectMode, setSubjectMode] = useState<'auto' | 'stem' | 'humanities'>('auto');
   // Apply a lesson packet: pour its templates into the NEXT OPEN (Auto) slots,
   // in order, up to the chosen slide count. Overflow beyond the slide count is
   // discarded, so stacking packets fills the deck sequentially — packet 1 fills
@@ -380,10 +383,10 @@ function ToolStudio({
     () =>
       templatesForContext(templatesQuery.data ?? [], {
         purpose: templateFilterPurpose(purpose),
-        stem: isStemTopic(topic),
+        stem: subjectMode === 'auto' ? isStemTopic(topic) : subjectMode === 'stem',
         level,
       }),
-    [templatesQuery.data, purpose, topic, level],
+    [templatesQuery.data, purpose, topic, level, subjectMode],
   );
   // Packets match the tool's real purpose: only education packets carry
   // evaluations; news/walkthrough/commercial get display-only packet shapes.
@@ -485,6 +488,7 @@ function ToolStudio({
         tone,
         purpose: seed ? undefined : purpose,
         textDensity,
+        subject: subjectMode,
         newsPeriod: purpose === 'news' ? newsPeriod.trim() || undefined : undefined,
         webSearch,
         templatePlan: templatePlan.some(Boolean)
@@ -1170,10 +1174,31 @@ function ToolStudio({
           </button>
 
           {topic.trim() && (
-            <Chip kind="neutral" className="border-purple bg-purple-soft">
+            <span className="flex items-center gap-1.5" role="group" aria-label="Template subject filter">
               <DoodleSparkle className="h-3.5 w-3.5 text-purple" />
-              Detected: {stem ? 'STEM — formulas on' : 'Humanities — formulas off'} ✦
-            </Chip>
+              {(
+                [
+                  { id: 'auto', label: `Auto (detected: ${stem ? 'STEM' : 'Humanities'})` },
+                  { id: 'stem', label: 'STEM — formulas on' },
+                  { id: 'humanities', label: 'Humanities — formulas off' },
+                ] as const
+              ).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setSubjectMode(m.id)}
+                  aria-pressed={subjectMode === m.id}
+                  className={cn(
+                    'rounded-wobble-sm border-2 px-2 py-0.5 text-xs font-bold transition-all',
+                    subjectMode === m.id
+                      ? 'border-purple bg-purple-soft text-ink shadow-offset'
+                      : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </span>
           )}
         </motion.div>
       </motion.div>
