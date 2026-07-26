@@ -394,6 +394,21 @@ const STEM_TEMPLATES: SlideTemplate[] = [
   // graph-based finisher with a typed word box (AI-checked)
   bi("Answer from the graph (typed)", "B1", ["prose", "chart", "shortanswer"], ["math", "physics"]),
 
+  /* -- anatomy atlas: read-throughs that teach like an anatomy book — a
+        labelled sketch or image of the structure (a schematic when no real
+        photo fits), tables for hormones/markers, charts for how a level
+        behaves over time or dose. Same idea as the Wolfram math layouts:
+        visualize first, then deepen with text. Green-dot (no evaluation)
+        except the finishers the packets add. -- */
+  bi("Anatomy sketch (read)", "A1", ["prose", "image"], ["biology", "medicine", "anatomy", "health"]),
+  bi("Hormone table (read)", "A1", ["prose", "table"], ["medicine", "health", "biology"]),
+  bi("Anatomy atlas page", "B1", ["prose", "image", "prose"], ["biology", "medicine", "anatomy", "health"]),
+  bi("Hormone levels graphed", "B1", ["prose", "chart", "prose"], ["medicine", "health", "biology", "data"]),
+  bi("Organ & its data", "B1", ["prose", "image", "table", "prose"], ["biology", "medicine", "anatomy", "health"]),
+  bi("Full anatomy spread", "C1", ["prose", "image", "table", "chart", "prose"], ["biology", "medicine", "anatomy", "health"]),
+  bi("Physiology deep read", "C1", ["prose", "image", "prose", "chart", "prose"], ["biology", "medicine", "anatomy", "health"]),
+  bi("Dose-response formula", "C1", ["prose", "latex", "chart", "prose"], ["medicine", "biology", "data"]),
+
   /* -- code & programming: explanation-led snippets, data tables, hardware
         imagery — mixed read-throughs (green dot) and graded exercises. The
         deck's CEFR level doubles as exercise difficulty. -- */
@@ -666,6 +681,38 @@ export const LESSON_PACKETS: LessonPacket[] = [
       "Same three read-through Wolfram|Alpha explanation slides — but the fourth ends on a single multiple-choice question instead of a worked solve.",
     purpose: "education",
     templates: ["Formula, by Wolfram", "Wolfram walk-through", "Wolfram deep dive", "Wolfram, then answer"],
+  },
+  {
+    id: "anatomy-atlas-typed",
+    name: "Anatomy atlas — describe it (typed)",
+    description:
+      "Like an anatomy book: a sketch of the structure, an atlas page, and a full image+table+graph spread — then describe the structure in your own words, AI-checked.",
+    purpose: "education",
+    templates: ["Anatomy sketch (read)", "Anatomy atlas page", "Full anatomy spread", "Anatomy — describe it"],
+  },
+  {
+    id: "anatomy-atlas-label",
+    name: "Anatomy atlas — label it",
+    description:
+      "Three visual atlas read-throughs, then label the structure (fill in the blanks) to lock the names in.",
+    purpose: "education",
+    templates: ["Anatomy sketch (read)", "Organ & its data", "Physiology deep read", "Anatomy — label it"],
+  },
+  {
+    id: "anatomy-atlas-mcq",
+    name: "Anatomy atlas — multiple choice",
+    description:
+      "The same visual teaching, closing on one multiple-choice check about what was shown.",
+    purpose: "education",
+    templates: ["Anatomy atlas page", "Organ & its data", "Full anatomy spread", "Anatomy illustrated"],
+  },
+  {
+    id: "hormones-data-study",
+    name: "Hormones & data study",
+    description:
+      "For hormones, chemicals and physiology: the table of players, their levels graphed over time, the dose-response formula — then read a clinical graph and answer, AI-checked.",
+    purpose: "education",
+    templates: ["Hormone table (read)", "Hormone levels graphed", "Dose-response formula", "Clinical data graph"],
   },
   {
     id: "wolfram-graph-solve",
