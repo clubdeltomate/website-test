@@ -4,8 +4,9 @@ import { and, desc, eq, like, or } from "drizzle-orm";
 import { createRouter, publicQuery } from "../middleware.js";
 import { adminProcedure, authedProcedure, moderatorProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
-import { favorites, repos, runs, slideTools, users } from "../../db/schema.js";
+import { favorites, repos, runs, slideTools, tokenLedger, users } from "../../db/schema.js";
 import { applyTokenDelta } from "../tokens.js";
+import { hashPassword } from "../auth-utils.js";
 import { favoriteSlugs, repoSummaries } from "./repos.js";
 import { toSummary as slideToolSummary } from "./slideTools.js";
 import type { AdminUserRow, DirectoryUser, RepoTemplate, UserProfile } from "../../contracts/types.js";
@@ -157,6 +158,45 @@ export const usersRouter = createRouter({
       const user = await db.query.users.findFirst({ where: eq(users.id, input.userId) });
       if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
       return toRow(db, user);
+    }),
+
+  /** Admin only — create an account directly from the Manage users page. */
+  createUser: adminProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(255),
+        email: z.string().email().max(320),
+        password: z.string().min(6).max(128),
+        role: z.enum(["user", "moderator", "admin"]).default("user"),
+        tokens: z.number().int().min(0).max(100000).default(50),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const email = input.email.toLowerCase().trim();
+      const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
+      if (existing) {
+        throw new TRPCError({ code: "CONFLICT", message: "That email already has an account" });
+      }
+      const [{ id }] = await db
+        .insert(users)
+        .values({
+          email,
+          name: input.name.trim(),
+          passwordHash: hashPassword(input.password),
+          role: input.role,
+          tokenBalance: input.tokens,
+        })
+        .returning({ id: users.id });
+      if (input.tokens > 0) {
+        await db.insert(tokenLedger).values({
+          userId: id,
+          delta: input.tokens,
+          reason: "starting balance (admin-created account)",
+          balanceAfter: input.tokens,
+        });
+      }
+      return { id };
     }),
 
   /** Admin only — role assignment. */

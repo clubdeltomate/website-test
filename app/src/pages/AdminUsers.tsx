@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { Coins, Search, ShieldCheck, Ticket, UserCog } from 'lucide-react';
+import { Coins, Plus, Search, ShieldCheck, Ticket, UserCog, X } from 'lucide-react';
 import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 import SketchButton from '@/components/sketch/SketchButton';
@@ -21,6 +21,75 @@ import {
 } from '@/components/admin/controls';
 import { errMsg, formatDate, formatRelative } from '@/components/admin/utils';
 import type { AdminUserRow, Role } from '@contracts/types';
+
+/** Inline "create account" panel for the Manage users toolbar (admin only —
+ *  the whole page is behind AdminGate; the endpoint is adminProcedure too). */
+function AddUserForm({ onDone }: { onDone: () => void }) {
+  const utils = trpc.useUtils();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState<Role>('user');
+  const [tokens, setTokens] = useState(50);
+
+  const create = trpc.users.createUser.useMutation({
+    onSuccess: () => {
+      toast.success(`Account created for ${name.trim()} ✦`);
+      void utils.users.list.invalidate();
+      onDone();
+    },
+    onError: (e) => toast.error(errMsg(e)),
+  });
+
+  const submit = () => {
+    if (name.trim().length < 1) return toast.error('Give the user a name');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return toast.error('That email looks smudged');
+    if (password.length < 6) return toast.error('Password needs at least 6 characters');
+    create.mutate({ name: name.trim(), email: email.trim(), password, role, tokens });
+  };
+
+  return (
+    <div className="mt-3 rounded-wobble-2 border-2 border-dashed border-blue bg-paper p-4 shadow-offset">
+      <p className="micro mb-3 font-semibold text-ink-soft">
+        New account — they can sign in right away with this email and password.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <LabeledField label="Name">
+          <SketchInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Sam Sketcher" />
+        </LabeledField>
+        <LabeledField label="Email">
+          <SketchInput value={email} onChange={(e) => setEmail(e.target.value)} placeholder="sam@example.com" type="email" />
+        </LabeledField>
+        <LabeledField label="Password">
+          <SketchInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder="6+ characters" type="text" />
+        </LabeledField>
+        <LabeledField label="Role">
+          <SketchSelect value={role} onChange={(e) => setRole(e.target.value as Role)}>
+            <option value="user">user</option>
+            <option value="moderator">moderator</option>
+            <option value="admin">admin</option>
+          </SketchSelect>
+        </LabeledField>
+        <LabeledField label="Starting tokens">
+          <SketchInput
+            value={String(tokens)}
+            onChange={(e) => setTokens(Math.max(0, Math.min(100000, Number(e.target.value) || 0)))}
+            type="number"
+          />
+        </LabeledField>
+      </div>
+      <div className="mt-3 flex justify-end gap-2">
+        <SketchButton variant="ghost" size="sm" onClick={onDone}>
+          Cancel
+        </SketchButton>
+        <SketchButton variant="accent" size="sm" loading={create.isPending} onClick={submit}>
+          <Plus className="h-4 w-4" strokeWidth={2.5} />
+          Create account
+        </SketchButton>
+      </div>
+    </div>
+  );
+}
 
 const ROLE_FILTERS: { id: Role | 'all'; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -407,6 +476,7 @@ function UsersBody() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounced(search, 250);
   const [roleFilter, setRoleFilter] = useState<Role | 'all'>('all');
+  const [addOpen, setAddOpen] = useState(false);
   const [drawerId, setDrawerId] = useState<number | null>(null);
   const [crediting, setCrediting] = useState<AdminUserRow | null>(null);
   const [roleEditing, setRoleEditing] = useState<AdminUserRow | null>(null);
@@ -479,8 +549,31 @@ function UsersBody() {
               </motion.button>
             ))}
           </div>
+          <SketchButton
+            variant="accent"
+            size="sm"
+            className="ml-auto"
+            onClick={() => setAddOpen((o) => !o)}
+          >
+            {addOpen ? <X className="h-4 w-4" strokeWidth={2.5} /> : <Plus className="h-4 w-4" strokeWidth={2.5} />}
+            {addOpen ? 'Close' : 'Add user'}
+          </SketchButton>
         </SketchCard>
       </motion.div>
+
+      <AnimatePresence>
+        {addOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden"
+          >
+            <AddUserForm onDone={() => setAddOpen(false)} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* table */}
       {list.isLoading ? (
