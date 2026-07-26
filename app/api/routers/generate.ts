@@ -5,7 +5,7 @@ import { createRouter, publicQuery } from "../middleware.js";
 import { authedProcedure, moderatorProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
 import { lessons, repos, slideTools, units, users, type Repo } from "../../db/schema.js";
-import { completeText, completeVision, generateImage, resolveProviderName, userHasKey, webResearch, type VisionImage } from "../ai/provider.js";
+import { completeText, completeVision, generateImage, resolveProviderName, textKeyIdPool, userHasKey, webResearch, type VisionImage } from "../ai/provider.js";
 import { mockCoachReply, mockDeck, mockLessonPath } from "../ai/mock.js";
 import {
   buildLessonPathPrompt,
@@ -122,6 +122,8 @@ type MathStepsResult = {
   pages: { title: string; steps: { text: string; latex?: string }[] }[];
   answer: { text?: string; latex?: string };
   provider: import("../../contracts/types.js").AiProvider;
+  providerId: string;
+  providerPool: number;
 };
 const MATH_STEPS_CACHE = new Map<string, MathStepsResult>();
 
@@ -1363,11 +1365,22 @@ RULES:
    * null return tells the player to fall back to the Wolfram image card.
    */
   mathSteps: publicQuery
-    .input(z.object({ query: z.string().min(2).max(300) }))
+    .input(
+      z.object({
+        query: z.string().min(2).max(300),
+        // providers already used in this rotation — the next call picks a
+        // different one; when every provider has been used, pass [] to restart
+        exclude: z.array(z.string().max(200)).max(16).default([]),
+      }),
+    )
     .query(async ({ ctx, input }) => {
       const key = input.query.trim().toLowerCase();
-      const hit = MATH_STEPS_CACHE.get(key);
-      if (hit) return hit;
+      // only the first, un-rotated request may serve from cache — a
+      // regeneration explicitly wants a FRESH take from another provider
+      if (input.exclude.length === 0) {
+        const hit = MATH_STEPS_CACHE.get(key);
+        if (hit) return hit;
+      }
       rateLimit(clientKey(ctx.req), 20, 60_000);
       const stepsSchema = z.object({
         title: z.string().max(200),
@@ -1412,10 +1425,18 @@ RULES:
           maxTokens: 3500,
           timeoutMs: 60_000,
           maxCandidates: 3,
+          shuffleProviders: true,
+          excludeKeyIds: input.exclude,
         });
         if (result) {
           const parsed = stepsSchema.parse(JSON.parse(extractJson(result.text)));
-          const out = { ...parsed, provider: result.provider };
+          const pool = await textKeyIdPool(ctx.user?.id);
+          const out = {
+            ...parsed,
+            provider: result.provider,
+            providerId: result.keyId ?? result.provider,
+            providerPool: Math.max(1, pool.length),
+          };
           if (MATH_STEPS_CACHE.size > 400) MATH_STEPS_CACHE.clear();
           MATH_STEPS_CACHE.set(key, out);
           return out;

@@ -104,8 +104,11 @@ function WolframView({
   ci: number;
   current: string | null;
 }) {
+  // provider rotation: each regenerate excludes the providers already used,
+  // so a different AI answers; once all have had a turn the cycle restarts.
+  const [usedProviders, setUsedProviders] = useState<string[]>([]);
   const steps = trpc.generate.mathSteps.useQuery(
-    { query },
+    { query, exclude: usedProviders },
     { staleTime: Infinity, retry: 1, refetchOnWindowFocus: false },
   );
   const [page, setPage] = useState(0);
@@ -124,6 +127,26 @@ function WolframView({
           ∑
         </span>
         Step-by-step · <span className="font-mono normal-case">{query}</span>
+        {d && (
+          <>
+            <span className="ml-auto normal-case">solved by {d.provider}</span>
+            <button
+              type="button"
+              title="Solve again with a different AI (rotates through all providers)"
+              onClick={() => {
+                setPage(0);
+                setUsedProviders((used) => {
+                  const next = used.includes(d.providerId) ? used : [...used, d.providerId];
+                  // full cycle completed → start the rotation over
+                  return next.length >= d.providerPool ? [] : next;
+                });
+              }}
+              className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-ink bg-paper-3 text-ink shadow-offset transition-transform hover:-translate-y-0.5"
+            >
+              <RotateCcw className="h-3 w-3" strokeWidth={2.5} />
+            </button>
+          </>
+        )}
       </p>
 
       {steps.isLoading ? (
