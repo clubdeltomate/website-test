@@ -13,7 +13,7 @@ const ROLE_CHIP: Record<string, string> = {
 };
 
 const TITLES: [RegExp, string][] = [
-  [/^\/$/, 'Coach'],
+  [/^\/$/, 'Slide tools'],
   [/^\/lesson-path/, 'Lesson Path'],
   [/^\/repos\/.+/, 'Repository'],
   [/^\/repos/, 'Repositories'],
