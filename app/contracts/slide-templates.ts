@@ -396,6 +396,13 @@ const STEM_TEMPLATES: SlideTemplate[] = [
   bi("Code deep dive", "C1", ["prose", "code", "prose", "prose"], ["programming", "cs"]),
   bi("Architecture walk-through", "C1", ["prose", "image", "code", "prose"], ["cs", "engineering", "hardware"]),
   bi("Fix the bug", "C1", ["prose", "code", "prose", "shortanswer"], ["programming", "cs"]),
+  // coding challenges: a snippet plus an ANSWER BOX — "solve" gives a code
+  // input worksheet, "shortanswer" a word box to answer verbally; both are
+  // graded by the AI, not multiple choice.
+  bi("Coding challenge", "B1", ["prose", "code", "solve"], ["programming", "cs", "problem-solving"]),
+  bi("Explain the code (in words)", "B1", ["prose", "code", "shortanswer"], ["programming", "cs"]),
+  bi("Coding challenge (advanced)", "C1", ["prose", "code", "prose", "solve"], ["programming", "cs", "problem-solving"]),
+  bi("Explain the algorithm (typed)", "C1", ["prose", "code", "prose", "shortanswer"], ["programming", "cs"]),
 ];
 
 /* ---------------- Humanities: 10 per level ---------------- */
@@ -617,6 +624,22 @@ export const LESSON_PACKETS: LessonPacket[] = [
       "Timeline reasoning",
       "Interpret a source",
     ],
+  },
+  {
+    id: "coding-explained",
+    name: "Coding explained",
+    description:
+      "Explanation-led code reading: snippets wrapped in prose — snippet+text, text+snippet+text — no pressure, just understanding.",
+    purpose: "education",
+    templates: ["Code read", "Code explained", "Code + data table", "Code deep dive"],
+  },
+  {
+    id: "coding-challenges",
+    name: "Coding challenges",
+    description:
+      "AI-graded practice: write code in an input box or answer in words — a challenge, a verbal explanation, then advanced variants of both.",
+    purpose: "education",
+    templates: ["Coding challenge", "Explain the code (in words)", "Coding challenge (advanced)", "Explain the algorithm (typed)"],
   },
   {
     id: "wolfram-only",
