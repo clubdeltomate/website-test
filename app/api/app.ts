@@ -2,8 +2,10 @@ import { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
 import { cors } from "hono/cors";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
+import { sql } from "drizzle-orm";
 import { appRouter } from "./router.js";
 import { createContext } from "./context.js";
+import { getDb } from "./queries/connection.js";
 import { ensureCefrLevelEnum } from "./lib/migrate-levels.js";
 import {
   ensureRunAnnotationsColumn,
@@ -67,6 +69,80 @@ app.use(
     credentials: true,
   }),
 );
+
+/**
+ * Deployment diagnostics. Reports whether required env vars are present and
+ * whether the database answers, with timings — without leaking any secrets.
+ * Every user-facing failure mode (sign-in timeout, empty galleries, silent
+ * chat) funnels through the same database, so this endpoint pinpoints where
+ * requests are stalling: missing env, unreachable DB, or lock contention on
+ * the shared `sketchlearn.users` table.
+ */
+app.get("/api/health", async (c) => {
+  const timeout = <T>(p: Promise<T>, ms: number) =>
+    new Promise<T>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms);
+      p.then(
+        (v) => (clearTimeout(t), resolve(v)),
+        (e) => (clearTimeout(t), reject(e)),
+      );
+    });
+
+  const started = Date.now();
+  const report: Record<string, unknown> = {
+    env: {
+      DATABASE_URL: Boolean(process.env.DATABASE_URL?.trim()),
+      JWT_SECRET: Boolean(process.env.JWT_SECRET?.trim() || process.env.APP_SECRET?.trim()),
+      ENABLE_BOOT_MIGRATIONS: process.env.ENABLE_BOOT_MIGRATIONS === "true",
+    },
+  };
+  let ok = false;
+  try {
+    const db = getDb();
+
+    let t = Date.now();
+    await timeout(db.execute(sql`select 1`), 6000);
+    report.dbConnectMs = Date.now() - t;
+
+    // Sessions from ANY app on this database currently stuck waiting on a
+    // lock — nonzero here while sign-in hangs means another client (e.g. a
+    // second website's startup migrations) is blocking shared tables. These
+    // probes read pg_stat_activity, which table locks can never block, so
+    // they run BEFORE the users-table read that a lock would stall.
+    const waiting = await timeout(
+      db.execute(sql`
+        select count(*)::int as n
+        from pg_stat_activity
+        where wait_event_type = 'Lock' and datname = current_database()`),
+      6000,
+    );
+    report.queriesWaitingOnLocks = (waiting.rows[0] as { n: number } | undefined)?.n ?? null;
+
+    const conns = await timeout(
+      db.execute(sql`
+        select count(*)::int as total
+        from pg_stat_activity
+        where datname = current_database()`),
+      6000,
+    );
+    report.dbConnectionsInUse = (conns.rows[0] as { total: number } | undefined)?.total ?? null;
+
+    t = Date.now();
+    const users = await timeout(
+      db.execute(sql`select count(*)::int as n from sketchlearn.users`),
+      6000,
+    );
+    report.usersTableMs = Date.now() - t;
+    report.userCount = (users.rows[0] as { n: number } | undefined)?.n ?? null;
+
+    ok = true;
+  } catch (err) {
+    report.error = err instanceof Error ? err.message : String(err);
+  }
+  report.ok = ok;
+  report.totalMs = Date.now() - started;
+  return c.json(report, ok ? 200 : 503);
+});
 
 app.use("/api/trpc/*", async (c) => {
   return fetchRequestHandler({
