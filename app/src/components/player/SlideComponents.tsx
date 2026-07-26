@@ -143,9 +143,7 @@ function WolframView({
         Step-by-step · <span className="font-mono normal-case">{query}</span>
         {d && (
           <>
-            <span className="ml-auto whitespace-nowrap normal-case font-bold text-ink-soft">
-              solved by {solverName(d.providerId, d.provider)}
-            </span>
+            <span className="ml-auto" />
             <button
               type="button"
               title="Solve again with a DIFFERENT AI — rotates through every configured model before repeating"
@@ -281,11 +279,18 @@ function WolframView({
         </div>
       )}
 
-      {caption && (
+      {(caption || d) && (
         <p className="mt-2 border-t-2 border-dashed border-pencil pt-2 text-sm italic text-ink-soft">
-          <Kara k={`wolframcap:${ci}`} current={current}>
-            {caption}
-          </Kara>
+          {caption && (
+            <Kara k={`wolframcap:${ci}`} current={current}>
+              {caption}
+            </Kara>
+          )}
+          {d && (
+            <span className={cn('micro not-italic text-ink-faint', caption && 'ml-2')}>
+              — solved by {solverName(d.providerId, d.provider)}
+            </span>
+          )}
         </p>
       )}
     </div>
