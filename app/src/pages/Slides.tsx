@@ -656,8 +656,8 @@ export default function Slides() {
                       >
                         {tool.hasDeck ? (
                           <>
-                            <Link to={`/slides/show/${tool.slug}`} className="flex-1">
-                              <SketchButton variant="accent" size="sm" className="w-full">
+                            <Link to={`/slides/show/${tool.slug}`}>
+                              <SketchButton variant="accent" size="sm" className="w-40 justify-center">
                                 <Play className="h-3.5 w-3.5" strokeWidth={2.5} />
                                 Play
                               </SketchButton>
@@ -672,8 +672,8 @@ export default function Slides() {
                         ) : tool.runCount === 0 ? (
                           // Configured but never generated — a green call-to-action.
                           <>
-                            <Link to={`/slides/${tool.slug}`} className="flex-1 no-underline">
-                              <span className="flex w-full items-center justify-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-green px-3 py-1.5 text-sm font-bold text-paper-3 shadow-offset transition-colors hover:bg-[#3f8850]">
+                            <Link to={`/slides/${tool.slug}`} className="no-underline">
+                              <span className="flex w-40 items-center justify-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-green px-3 py-1.5 text-sm font-bold text-paper-3 shadow-offset transition-colors hover:bg-[#3f8850]">
                                 <Sparkles className="h-3.5 w-3.5" strokeWidth={2.5} />
                                 Generate
                               </span>
@@ -686,8 +686,8 @@ export default function Slides() {
                           </>
                         ) : (
                           <>
-                            <Link to={`/slides/${tool.slug}`} className="flex-1">
-                              <SketchButton variant="accent" size="sm" className="w-full">
+                            <Link to={`/slides/${tool.slug}`}>
+                              <SketchButton variant="accent" size="sm" className="w-40 justify-center">
                                 <Play className="h-3.5 w-3.5" strokeWidth={2.5} />
                                 Play
                               </SketchButton>
