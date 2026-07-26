@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360" width="480" height="360" fill="none">
+  <rect width="480" height="360" fill="#FBF4E6"/>
+  <!-- coach pencil mascot waving -->
+  <g transform="translate(150 220) rotate(-6)" stroke="#2E2820" stroke-width="5" stroke-linejoin="round">
+    <rect x="-30" y="-80" width="60" height="120" rx="10" fill="#FFC53D"/>
+    <rect x="-30" y="-102" width="60" height="26" rx="10" fill="#DE5346"/>
+    <path d="M-30 40l30 44 30-44z" fill="#F4EBD6"/>
+    <path d="M-8 68l8 10 8-10z" fill="#2E2820" stroke="none"/>
+    <circle cx="-12" cy="-38" r="4.5" fill="#2E2820" stroke="none"/>
+    <circle cx="12" cy="-38" r="4.5" fill="#2E2820" stroke="none"/>
+    <path d="M-14-20q14 11 28 0" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <!-- waving arm -->
+    <path d="M30-60c22-6 34-20 38-38" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <circle cx="68" cy="-102" r="9" fill="#FFFDF6"/>
+    <path d="M84-116l8-10M88-100l12-4" stroke-width="3.5" stroke-linecap="round"/>
+    <!-- other arm -->
+    <path d="M-30-50c-16 4-26 12-30 26" stroke-width="5" fill="none" stroke-linecap="round"/>
+  </g>
+  <!-- blank speech bubble -->
+  <g stroke="#2E2820" stroke-width="5">
+    <rect x="230" y="110" width="180" height="110" rx="18" fill="#FFFDF6"/>
+    <path d="M262 220l-10 26 32-22z" fill="#FFFDF6"/>
+    <path d="M258 150h124M258 178h90" stroke="#C9BFA9" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <!-- sparkle -->
+  <path d="M396 66l5 12 12 5-12 5-5 12-5-12-12-5 12-5z" fill="#8566D4"/>
+  <circle cx="90" cy="90" r="5" stroke="#2E2820" stroke-width="3"/>
+  <path d="M330 280c16-12 36-12 50 0" stroke="#2E2820" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+</svg>

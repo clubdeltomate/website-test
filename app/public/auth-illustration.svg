@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1100" width="900" height="1100" fill="none">
+  <rect width="900" height="1100" fill="#FBF4E6"/>
+  <!-- dashed swoosh trail from rocket -->
+  <path d="M180 920C120 700 260 470 480 380S760 220 700 90" stroke="#3F74D6" stroke-width="5" stroke-dasharray="14 12" stroke-linecap="round"/>
+  <!-- open sketchbook -->
+  <g stroke="#2E2820" stroke-linejoin="round">
+    <path d="M120 940c100-50 230-50 330-10v110c-100-40-230-40-330 10z" fill="#FFFDF6" stroke-width="6"/>
+    <path d="M780 940c-100-50-230-50-330-10v110c100-40 230-40 330 10z" fill="#FFFDF6" stroke-width="6"/>
+    <path d="M450 930v110" stroke-width="4"/>
+    <path d="M150 960c80-30 180-32 270-8M150 990c80-30 180-32 270-8M480 952c90-24 190-22 270 8M480 982c90-24 190-22 270 8" stroke="#C9BFA9" stroke-width="3.5" fill="none"/>
+  </g>
+  <!-- slide frames popping out of pages -->
+  <g stroke="#2E2820" stroke-width="5">
+    <g transform="rotate(-7 330 700)">
+      <rect x="230" y="640" width="200" height="130" rx="10" fill="#FFFDF6"/>
+      <rect x="230" y="640" width="200" height="30" rx="10" fill="#FFC53D" stroke="none"/>
+      <path d="M252 700h156M252 722h110M252 744h140" stroke="#C9BFA9" stroke-width="3.5"/>
+    </g>
+    <g transform="rotate(6 560 620)">
+      <rect x="470" y="560" width="180" height="120" rx="10" fill="#FFFDF6"/>
+      <circle cx="520" cy="620" r="24" stroke="#3F74D6" stroke-width="4"/>
+      <path d="M560 600h70M560 622h56M560 644h66" stroke="#C9BFA9" stroke-width="3.5"/>
+    </g>
+    <g transform="rotate(-4 380 500)">
+      <rect x="300" y="440" width="160" height="110" rx="10" fill="#FFFDF6"/>
+      <path d="M320 480l30 30 40-44 34 26" stroke="#4C9A5C" stroke-width="4" fill="none"/>
+      <path d="M320 520h120" stroke="#C9BFA9" stroke-width="3.5"/>
+    </g>
+  </g>
+  <!-- pencil rocket -->
+  <g transform="translate(690,160) rotate(28)" stroke="#2E2820" stroke-width="5" stroke-linejoin="round">
+    <rect x="-26" y="-70" width="52" height="110" rx="10" fill="#FFC53D"/>
+    <path d="M-26-70l26-44 26 44z" fill="#F4EBD6"/>
+    <path d="M-7-96l7-10 7 10z" fill="#2E2820"/>
+    <rect x="-26" y="40" width="52" height="20" rx="6" fill="#DE5346"/>
+    <path d="M-26 60l-18 30 18-8M26 60l18 30-18-8" fill="#3F74D6"/>
+    <path d="M-12 70c0 18 24 18 24 0l-4 26c-2 10-14 10-16 0z" fill="#EF8A3C" stroke-width="4"/>
+    <circle cx="0" cy="-20" r="12" fill="#FFFDF6" stroke-width="4"/>
+  </g>
+  <!-- stars & sparkles -->
+  <g stroke="#2E2820" stroke-width="3.5" fill="none">
+    <path d="M150 180l5 13 13 5-13 5-5 13-5-13-13-5 13-5z" fill="#FFC53D" stroke="none"/>
+    <path d="M760 420l4 10 10 4-10 4-4 10-4-10-10-4 10-4z" fill="#8566D4" stroke="none"/>
+    <path d="M230 300l4 10 10 4-10 4-4 10-4-10-10-4 10-4z" fill="#FFC53D" stroke="none"/>
+    <circle cx="640" cy="480" r="5"/>
+    <circle cx="120" cy="430" r="5"/>
+    <path d="M540 240c20-14 44-14 60 0" stroke-width="3.5"/>
+  </g>
+</svg>

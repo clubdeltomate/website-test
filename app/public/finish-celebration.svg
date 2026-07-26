@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="600" height="400" fill="none">
+  <rect width="600" height="400" fill="#FBF4E6"/>
+  <!-- confetti stars -->
+  <g>
+    <path d="M110 80l5 12 12 5-12 5-5 12-5-12-12-5 12-5z" fill="#FFC53D"/>
+    <path d="M500 70l5 12 12 5-12 5-5 12-5-12-12-5 12-5z" fill="#DE5346"/>
+    <path d="M180 40l4 10 10 4-10 4-4 10-4-10-10-4 10-4z" fill="#3F74D6"/>
+    <path d="M430 40l4 10 10 4-10 4-4 10-4-10-10-4 10-4z" fill="#4C9A5C"/>
+    <path d="M70 190l4 10 10 4-10 4-4 10-4-10-10-4 10-4z" fill="#8566D4"/>
+    <path d="M540 200l4 10 10 4-10 4-4 10-4-10-10-4 10-4z" fill="#EF8A3C"/>
+    <circle cx="150" cy="150" r="5" fill="#DE5346"/>
+    <circle cx="470" cy="140" r="5" fill="#3F74D6"/>
+    <circle cx="90" cy="280" r="5" fill="#4C9A5C"/>
+    <circle cx="520" cy="290" r="5" fill="#FFC53D"/>
+    <path d="M210 90c14-12 30-12 42 0M370 80c14-12 30-12 42 0" stroke="#2E2820" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+  </g>
+  <!-- trophy doodle -->
+  <g stroke="#2E2820" stroke-width="6" stroke-linejoin="round">
+    <path d="M250 110h100v50a50 50 0 0 1-100 0z" fill="#FFC53D"/>
+    <path d="M250 122h-34c-8 0-14 8-12 16 4 18 22 30 46 30M350 122h34c8 0 14 8 12 16-4 18-22 30-46 30" fill="none" stroke-width="5"/>
+    <path d="M286 210h28v26h-28z" fill="#FFC53D"/>
+    <path d="M262 236h76l10 26h-96z" fill="#F4EBD6"/>
+    <path d="M300 132l5 12 12 5-12 5-5 12-5-12-12-5 12-5z" fill="#FFFDF6" stroke="none"/>
+  </g>
+  <!-- hand-lettered ribbon "bravo!" -->
+  <g>
+    <path d="M150 300c60 26 240 26 300 0l14 34c-70 28-258 28-328 0z" fill="#FFFDF6" stroke="#2E2820" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M150 300l-30 14 22 22 8-20zM450 300l30 14-22 22-8-20z" fill="#FFE9AE" stroke="#2E2820" stroke-width="5" stroke-linejoin="round"/>
+    <text x="300" y="330" font-family="Caveat, cursive" font-size="42" font-weight="700" fill="#2E2820" text-anchor="middle">bravo!</text>
+  </g>
+</svg>

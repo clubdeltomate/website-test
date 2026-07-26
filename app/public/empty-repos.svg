@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360" width="480" height="360" fill="none">
+  <rect width="480" height="360" fill="#FBF4E6"/>
+  <!-- empty notebook -->
+  <g stroke="#2E2820" stroke-width="5" stroke-linejoin="round">
+    <rect x="90" y="90" width="220" height="180" rx="12" fill="#FFFDF6"/>
+    <rect x="90" y="90" width="30" height="180" rx="10" fill="#FFE9AE"/>
+    <path d="M150 140h120M150 172h100M150 204h120" stroke="#C9BFA9" stroke-width="3.5"/>
+  </g>
+  <!-- dashed empty card outline -->
+  <rect x="330" y="150" width="110" height="80" rx="10" stroke="#2E2820" stroke-width="4" stroke-dasharray="10 8" fill="none"/>
+  <!-- pencil tapping -->
+  <g transform="rotate(30 350 90)" stroke="#2E2820" stroke-width="4" stroke-linejoin="round">
+    <rect x="336" y="30" width="22" height="56" rx="4" fill="#FFC53D"/>
+    <rect x="336" y="30" width="22" height="10" rx="4" fill="#DE5346"/>
+    <path d="M336 86l11 18 11-18z" fill="#F4EBD6"/>
+    <path d="M344 96l3 4 3-4z" fill="#2E2820" stroke="none"/>
+  </g>
+  <!-- tap motion marks -->
+  <path d="M380 120l10-8M392 132l12-4" stroke="#2E2820" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- speech bubble "…" -->
+  <g stroke="#2E2820" stroke-width="4">
+    <rect x="150" y="26" width="86" height="44" rx="14" fill="#FFFDF6"/>
+    <path d="M186 70l-6 18 20-16z" fill="#FFFDF6"/>
+    <circle cx="176" cy="48" r="3.5" fill="#2E2820" stroke="none"/>
+    <circle cx="193" cy="48" r="3.5" fill="#2E2820" stroke="none"/>
+    <circle cx="210" cy="48" r="3.5" fill="#2E2820" stroke="none"/>
+  </g>
+  <!-- sparkle -->
+  <path d="M420 70l4 10 10 4-10 4-4 10-4-10-10-4 10-4z" fill="#8566D4"/>
+</svg>

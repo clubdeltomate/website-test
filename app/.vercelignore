@@ -1,0 +1,4 @@
+# Test files must never be compiled as serverless functions on Vercel — they
+# aren't endpoints and only need to run locally / in CI (vitest).
+**/*.test.ts
+scripts/run-cycle-test.sh

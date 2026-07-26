@@ -1,0 +1,627 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router';
+import { motion } from 'framer-motion';
+import { toast } from 'sonner';
+import { Coins, Search, ShieldCheck, Ticket, UserCog } from 'lucide-react';
+import { trpc } from '@/providers/trpc';
+import { useAuth } from '@/hooks/useAuth';
+import SketchButton from '@/components/sketch/SketchButton';
+import SketchCard from '@/components/sketch/SketchCard';
+import SketchTable from '@/components/sketch/SketchTable';
+import Chip from '@/components/sketch/Chip';
+import AdminGate from '@/components/admin/AdminGate';
+import SketchToaster from '@/components/admin/SketchToaster';
+import CountUp from '@/components/admin/CountUp';
+import { SketchDrawer, SketchModal } from '@/components/admin/overlays';
+import {
+  LabeledField,
+  SketchInput,
+  SketchSelect,
+  SkeletonBlock,
+} from '@/components/admin/controls';
+import { errMsg, formatDate, formatRelative } from '@/components/admin/utils';
+import type { AdminUserRow, Role } from '@contracts/types';
+
+const ROLE_FILTERS: { id: Role | 'all'; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'user', label: 'User' },
+  { id: 'moderator', label: 'Moderator' },
+  { id: 'admin', label: 'Admin' },
+];
+
+function useDebounced<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(value), ms);
+    return () => window.clearTimeout(t);
+  }, [value, ms]);
+  return debounced;
+}
+
+/* ------------------------------------------------------------------ */
+/* Credit tokens modal                                                 */
+/* ------------------------------------------------------------------ */
+
+function CreditModal({
+  target,
+  onClose,
+  onCredited,
+}: {
+  target: AdminUserRow;
+  onClose: () => void;
+  onCredited: (userId: number, balance: number) => void;
+}) {
+  const [amount, setAmount] = useState(100);
+  const [reason, setReason] = useState('manual credit');
+
+  const credit = trpc.users.creditTokens.useMutation({
+    onSuccess: (r) => {
+      toast.success(`Credited ${amount} 🪙 to ${target.name}`);
+      onCredited(target.id, r.balance);
+      onClose();
+    },
+    onError: (e) => toast.error(errMsg(e)),
+  });
+
+  return (
+    <SketchModal open onClose={onClose} title={`Credit ${target.name}`} maxWidth="max-w-[440px]">
+      <div className="flex flex-col gap-4">
+        <LabeledField label="Amount 🪙" helper="1 – 100,000 tokens, added to their balance.">
+          <div className="flex items-center gap-2">
+            <SketchButton
+              variant="secondary"
+              size="icon"
+              aria-label="Less"
+              onClick={() => setAmount((a) => Math.max(1, a - 50))}
+            >
+              −
+            </SketchButton>
+            <SketchInput
+              type="number"
+              min={1}
+              max={100000}
+              value={amount}
+              onChange={(e) => setAmount(Math.max(1, Number(e.target.value) || 1))}
+              className="text-center font-mono font-bold"
+            />
+            <SketchButton
+              variant="secondary"
+              size="icon"
+              aria-label="More"
+              onClick={() => setAmount((a) => Math.min(100000, a + 50))}
+            >
+              +
+            </SketchButton>
+          </div>
+        </LabeledField>
+        <LabeledField label="Reason" helper="Written to their token ledger.">
+          <SketchInput value={reason} onChange={(e) => setReason(e.target.value)} />
+        </LabeledField>
+        <div className="flex gap-2">
+          <SketchButton
+            variant="accent"
+            loading={credit.isPending}
+            onClick={() => credit.mutate({ userId: target.id, amount, reason: reason || 'manual credit' })}
+          >
+            <Coins className="h-4 w-4" strokeWidth={2} /> Credit {amount} 🪙
+          </SketchButton>
+          <SketchButton variant="ghost" onClick={onClose}>
+            Cancel
+          </SketchButton>
+        </div>
+      </div>
+    </SketchModal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Sell customization tickets to a moderator (admin only)              */
+/* ------------------------------------------------------------------ */
+
+function TicketsModal({
+  target,
+  onClose,
+  onSold,
+}: {
+  target: AdminUserRow;
+  onClose: () => void;
+  onSold: () => void;
+}) {
+  const [count, setCount] = useState(10);
+  const priceQ = trpc.tickets.price.useQuery();
+  const unit = priceQ.data?.price ?? 0;
+  const total = unit * count;
+
+  const sell = trpc.tickets.sellToModerator.useMutation({
+    onSuccess: (r) => {
+      toast.success(
+        `Sold ${count} ticket${count === 1 ? '' : 's'} to ${target.name} — ${r.ticketBalance} in pool, ${r.tokenBalance} 🪙 left`,
+      );
+      onSold();
+      onClose();
+    },
+    onError: (e) => toast.error(errMsg(e)),
+  });
+
+  const tooExpensive = total > target.tokenBalance;
+
+  return (
+    <SketchModal open onClose={onClose} title={`Sell tickets to ${target.name}`} maxWidth="max-w-[440px]">
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-ink-soft">
+          Each customization ticket costs{' '}
+          <span className="font-bold text-orange">{unit} 🪙</span> — the price of the most expensive
+          slide a customization can produce. The cost is charged to {target.name}'s credit balance
+          ({target.tokenBalance} 🪙) and added to their ticket pool.
+        </p>
+        <LabeledField label="Tickets to sell" helper="They gift these to their students, one per customization.">
+          <div className="flex items-center gap-2">
+            <SketchButton
+              variant="secondary"
+              size="icon"
+              aria-label="Fewer"
+              onClick={() => setCount((c) => Math.max(1, c - 5))}
+            >
+              −
+            </SketchButton>
+            <SketchInput
+              type="number"
+              min={1}
+              max={500}
+              value={count}
+              onChange={(e) => setCount(Math.max(1, Math.min(500, Number(e.target.value) || 1)))}
+              className="text-center font-mono font-bold"
+            />
+            <SketchButton
+              variant="secondary"
+              size="icon"
+              aria-label="More"
+              onClick={() => setCount((c) => Math.min(500, c + 5))}
+            >
+              +
+            </SketchButton>
+          </div>
+        </LabeledField>
+        <p className={tooExpensive ? 'text-sm font-bold text-red' : 'text-sm text-ink-soft'}>
+          Total: {total} 🪙{tooExpensive && ` — more than ${target.name}'s balance`}
+        </p>
+        <div className="flex gap-2">
+          <SketchButton
+            variant="accent"
+            loading={sell.isPending}
+            disabled={tooExpensive || unit === 0}
+            onClick={() => sell.mutate({ userId: target.id, count })}
+          >
+            <Ticket className="h-4 w-4" strokeWidth={2} /> Sell {count} for {total} 🪙
+          </SketchButton>
+          <SketchButton variant="ghost" onClick={onClose}>
+            Cancel
+          </SketchButton>
+        </div>
+      </div>
+    </SketchModal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Set role (admin only)                                               */
+/* ------------------------------------------------------------------ */
+
+function RoleModal({
+  target,
+  onClose,
+  onChanged,
+}: {
+  target: AdminUserRow;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [role, setRole] = useState<Role>(target.role);
+
+  const setRoleMut = trpc.users.setRole.useMutation({
+    onSuccess: () => {
+      toast.success(
+        role === 'moderator'
+          ? `Welcome to the desk, ${target.name} ✦`
+          : `${target.name} is now ${role === 'admin' ? 'an admin' : 'a user'}`,
+      );
+      onChanged();
+      onClose();
+    },
+    onError: (e) => toast.error(errMsg(e)),
+  });
+
+  return (
+    <SketchModal open onClose={onClose} title={`Change ${target.name}'s role`} maxWidth="max-w-[440px]">
+      <LabeledField
+        label="New role"
+        helper={
+          role === 'moderator'
+            ? 'Moderators can credit tokens, review flags, and view all runs.'
+            : role === 'admin'
+              ? 'Admins can do everything, including pricing and platform keys.'
+              : 'Users create repos, play decks, and buy tokens.'
+        }
+      >
+        <SketchSelect value={role} onChange={(e) => setRole(e.target.value as Role)}>
+          <option value="user">User</option>
+          <option value="moderator">Moderator</option>
+          <option value="admin">Admin</option>
+        </SketchSelect>
+      </LabeledField>
+      <div className="mt-4 flex gap-2">
+        <SketchButton
+          loading={setRoleMut.isPending}
+          disabled={role === target.role}
+          onClick={() => setRoleMut.mutate({ userId: target.id, role })}
+        >
+          <ShieldCheck className="h-4 w-4" strokeWidth={2} /> Set role
+        </SketchButton>
+        <SketchButton variant="ghost" onClick={onClose}>
+          Cancel
+        </SketchButton>
+      </div>
+    </SketchModal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* User detail drawer                                                  */
+/* ------------------------------------------------------------------ */
+
+function UserDrawer({
+  userId,
+  isAdmin,
+  selfId,
+  onClose,
+  onChanged,
+}: {
+  userId: number;
+  isAdmin: boolean;
+  selfId: number;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const detail = trpc.users.detail.useQuery({ userId });
+  const [crediting, setCrediting] = useState(false);
+  const [roleEditing, setRoleEditing] = useState(false);
+  const [sellingTickets, setSellingTickets] = useState(false);
+  const utils = trpc.useUtils();
+
+  const u = detail.data;
+  const isModerator = u?.role === 'moderator' || u?.role === 'admin';
+
+  return (
+    <SketchDrawer open onClose={onClose} title={u ? u.name : 'User'} width={520}>
+      {detail.isLoading || !u ? (
+        <SkeletonBlock lines={4} status="Opening their page…" />
+      ) : (
+        <div className="flex flex-col gap-5">
+          <div className="flex items-center gap-4">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-ink bg-purple-soft font-display text-3xl text-ink shadow-offset">
+              {u.name.charAt(0).toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <p className="flex flex-wrap items-center gap-2 font-heading text-lg font-semibold text-ink">
+                {u.name}
+                <Chip kind={u.role}>{u.role}</Chip>
+                {u.id === selfId && <Chip kind="neutral">you</Chip>}
+              </p>
+              <p className="truncate text-sm text-ink-soft">{u.email}</p>
+              <p className="micro mt-0.5 text-ink-faint">joined {formatDate(u.createdAt)}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <SketchCard borderStyle="dashed" className="p-3 text-center">
+              <p className="font-display text-3xl font-bold text-orange">
+                <CountUp value={u.tokenBalance} />
+              </p>
+              <p className="micro text-ink-faint">tokens</p>
+            </SketchCard>
+            {isModerator ? (
+              <SketchCard borderStyle="dashed" index={1} className="p-3 text-center">
+                <p className="font-display text-3xl font-bold text-green">
+                  <CountUp value={u.ticketBalance} />
+                </p>
+                <p className="micro text-ink-faint">tickets</p>
+              </SketchCard>
+            ) : (
+              <SketchCard borderStyle="dashed" index={1} className="p-3 text-center">
+                <p className="font-display text-3xl font-bold text-ink">
+                  <CountUp value={u.runCount} />
+                </p>
+                <p className="micro text-ink-faint">runs</p>
+              </SketchCard>
+            )}
+            <SketchCard borderStyle="dashed" index={2} className="p-3 text-center">
+              <p className="font-display text-3xl font-bold text-ink">
+                {formatRelative(u.createdAt).replace(' ago', '')}
+              </p>
+              <p className="micro text-ink-faint">member for</p>
+            </SketchCard>
+          </div>
+
+          <div className="flex flex-wrap gap-2 border-t-2 border-dashed border-pencil pt-4">
+            <SketchButton variant="accent" onClick={() => setCrediting(true)}>
+              <Coins className="h-4 w-4" strokeWidth={2} /> Credit tokens
+            </SketchButton>
+            {isAdmin && isModerator && (
+              <SketchButton variant="secondary" onClick={() => setSellingTickets(true)}>
+                <Ticket className="h-4 w-4" strokeWidth={2} /> Sell tickets
+              </SketchButton>
+            )}
+            {isAdmin && (
+              <SketchButton variant="secondary" onClick={() => setRoleEditing(true)}>
+                <UserCog className="h-4 w-4" strokeWidth={2} /> Set role
+              </SketchButton>
+            )}
+          </div>
+
+          {crediting && (
+            <CreditModal
+              target={u}
+              onClose={() => setCrediting(false)}
+              onCredited={() => {
+                void detail.refetch();
+                void utils.auth.me.invalidate();
+                onChanged();
+              }}
+            />
+          )}
+          {roleEditing && (
+            <RoleModal
+              target={u}
+              onClose={() => setRoleEditing(false)}
+              onChanged={() => {
+                void detail.refetch();
+                onChanged();
+              }}
+            />
+          )}
+          {sellingTickets && (
+            <TicketsModal
+              target={u}
+              onClose={() => setSellingTickets(false)}
+              onSold={() => {
+                void detail.refetch();
+                void utils.auth.me.invalidate();
+                onChanged();
+              }}
+            />
+          )}
+        </div>
+      )}
+    </SketchDrawer>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Page                                                                */
+/* ------------------------------------------------------------------ */
+
+function UsersBody() {
+  const { user: me, role: myRole } = useAuth();
+  const utils = trpc.useUtils();
+  const [params, setParams] = useSearchParams();
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounced(search, 250);
+  const [roleFilter, setRoleFilter] = useState<Role | 'all'>('all');
+  const [drawerId, setDrawerId] = useState<number | null>(null);
+  const [crediting, setCrediting] = useState<AdminUserRow | null>(null);
+  const [roleEditing, setRoleEditing] = useState<AdminUserRow | null>(null);
+
+  const isAdmin = myRole === 'admin';
+
+  const list = trpc.users.list.useQuery({
+    q: debouncedSearch || undefined,
+    role: roleFilter === 'all' ? undefined : roleFilter,
+    limit: 100,
+  });
+
+  // ?u= deep link opens the drawer (dashboard chart bars link here)
+  useEffect(() => {
+    const u = params.get('u');
+    if (u) {
+      const id = Number(u);
+      if (Number.isFinite(id)) setDrawerId(id);
+    }
+  }, [params]);
+
+  const closeDrawer = () => {
+    setDrawerId(null);
+    setParams((p) => {
+      const next = new URLSearchParams(p);
+      next.delete('u');
+      return next;
+    });
+  };
+
+  const rows = useMemo(() => list.data ?? [], [list.data]);
+
+  return (
+    <div className="mx-auto flex w-full max-w-content flex-col gap-6 px-4 py-8 lg:px-8">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="font-display text-4xl font-bold text-ink">Users</h2>
+        <Chip kind="neutral">{rows.length}</Chip>
+      </div>
+
+      {/* toolbar */}
+      <motion.div
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <SketchCard className="flex flex-wrap items-center gap-3 p-3">
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" strokeWidth={2} />
+            <SketchInput
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search name or email…"
+              className="pl-9"
+              aria-label="Search users"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {ROLE_FILTERS.map((f) => (
+              <motion.button
+                key={f.id}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setRoleFilter(f.id)}
+                className={
+                  roleFilter === f.id
+                    ? 'rounded-wobble-sm border-2 border-ink bg-yellow px-3 py-1 text-xs font-bold uppercase tracking-wider text-ink shadow-offset'
+                    : 'rounded-wobble-sm border-2 border-dashed border-pencil px-3 py-1 text-xs font-bold uppercase tracking-wider text-ink-soft hover:border-ink hover:text-ink'
+                }
+              >
+                {f.label}
+              </motion.button>
+            ))}
+          </div>
+        </SketchCard>
+      </motion.div>
+
+      {/* table */}
+      {list.isLoading ? (
+        <SkeletonBlock lines={5} status="Flipping through the yearbook…" />
+      ) : list.isError ? (
+        <div className="rounded-wobble-sm border-2 border-red bg-red-soft p-4">
+          <p className="font-bold text-red">Couldn't load users: {errMsg(list.error)}</p>
+          <SketchButton variant="secondary" size="sm" className="mt-2" onClick={() => list.refetch()}>
+            Try again
+          </SketchButton>
+        </div>
+      ) : (
+        <SketchTable<AdminUserRow>
+          rows={rows}
+          rowKey={(r) => String(r.id)}
+          onRowClick={(r) => setDrawerId(r.id)}
+          columns={[
+            {
+              key: 'user',
+              header: 'User',
+              sortValue: (r) => r.name.toLowerCase(),
+              render: (r) => (
+                <span className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-ink bg-blue-soft font-display text-base text-ink">
+                    {r.name.charAt(0).toUpperCase()}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-heading font-semibold text-ink">
+                      {r.name}
+                      {r.id === me?.id && (
+                        <span className="ml-1.5 text-xs font-normal text-ink-faint">(you)</span>
+                      )}
+                    </span>
+                    <span className="block truncate text-xs text-ink-faint">{r.email}</span>
+                  </span>
+                </span>
+              ),
+            },
+            {
+              key: 'role',
+              header: 'Role',
+              sortValue: (r) => r.role,
+              render: (r) => <Chip kind={r.role}>{r.role}</Chip>,
+            },
+            {
+              key: 'tokens',
+              header: 'Tokens',
+              mono: true,
+              sortValue: (r) => r.tokenBalance,
+              render: (r) => (
+                <span className="inline-flex items-center gap-2">
+                  <span className="font-bold text-orange">{r.tokenBalance} 🪙</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCrediting(r);
+                    }}
+                    className="rounded-wobble-sm border-2 border-dashed border-pencil px-1.5 py-0.5 text-xs font-bold text-ink-soft hover:border-ink hover:text-ink"
+                    title="Credit tokens"
+                  >
+                    + Credit
+                  </button>
+                </span>
+              ),
+            },
+            {
+              key: 'runs',
+              header: 'Runs',
+              mono: true,
+              sortValue: (r) => r.runCount,
+              render: (r) => r.runCount,
+            },
+            {
+              key: 'joined',
+              header: 'Joined',
+              mono: true,
+              sortValue: (r) => r.createdAt.getTime(),
+              render: (r) => formatDate(r.createdAt),
+            },
+            {
+              key: 'actions',
+              header: '',
+              render: (r) =>
+                isAdmin ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRoleEditing(r);
+                    }}
+                    className="rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-xs font-bold text-ink-soft hover:border-ink hover:text-ink"
+                  >
+                    Set role
+                  </button>
+                ) : (
+                  <span className="text-xs text-ink-faint">view →</span>
+                ),
+            },
+          ]}
+          emptyState={
+            <span className="font-display text-2xl text-ink-faint">
+              No users match — try clearing the filters 🔍
+            </span>
+          }
+        />
+      )}
+
+      {drawerId !== null && (
+        <UserDrawer
+          userId={drawerId}
+          isAdmin={isAdmin}
+          selfId={me?.id ?? -1}
+          onClose={closeDrawer}
+          onChanged={() => void utils.users.list.invalidate()}
+        />
+      )}
+      {crediting && (
+        <CreditModal
+          target={crediting}
+          onClose={() => setCrediting(null)}
+          onCredited={() => {
+            void utils.users.list.invalidate();
+            void utils.auth.me.invalidate();
+          }}
+        />
+      )}
+      {roleEditing && (
+        <RoleModal
+          target={roleEditing}
+          onClose={() => setRoleEditing(null)}
+          onChanged={() => void utils.users.list.invalidate()}
+        />
+      )}
+    </div>
+  );
+}
+
+export default function AdminUsers() {
+  return (
+    <AdminGate minRole="moderator">
+      <SketchToaster />
+      <UsersBody />
+    </AdminGate>
+  );
+}

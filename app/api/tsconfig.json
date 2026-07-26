@@ -1,0 +1,23 @@
+{
+  "//": "Used by Vercel's @vercel/node function compiler when it treats files in api/ as serverless functions. Mirrors tsconfig.server.json so path aliases (@contracts, @db, @) and extensionless imports resolve — the real app build/type-check uses tsconfig.server.json and ignores this file.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "skipLibCheck": true,
+    "noEmit": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "moduleDetection": "force",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["../src/*"],
+      "@contracts/*": ["../contracts/*"],
+      "@db/*": ["../db/*"]
+    }
+  },
+  "include": ["**/*.ts", "../contracts/**/*.ts", "../db/**/*.ts"],
+  "exclude": ["**/*.test.ts"]
+}

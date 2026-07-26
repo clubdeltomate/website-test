@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" width="240" height="160" role="img" aria-label="Flat vector rocket launching">
+  <rect width="240" height="160" fill="#DCEBF6"/>
+  <!-- flat clouds -->
+  <g fill="#F3F8FC">
+    <ellipse cx="44" cy="128" rx="34" ry="16"/>
+    <ellipse cx="196" cy="120" rx="30" ry="14"/>
+  </g>
+  <!-- stars -->
+  <g fill="#FFC53D">
+    <circle cx="40" cy="40" r="3"/>
+    <circle cx="210" cy="52" r="3"/>
+    <circle cx="180" cy="30" r="2.4"/>
+  </g>
+  <g stroke="#2E2820" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    <!-- rocket body -->
+    <path d="M120 28 C138 46 140 78 132 104 L108 104 C100 78 102 46 120 28 Z" fill="#F0F2F4"/>
+    <!-- window -->
+    <circle cx="120" cy="62" r="10" fill="#3F74D6"/>
+    <!-- fins -->
+    <path d="M108 92 L92 112 L108 104 Z" fill="#E4572E"/>
+    <path d="M132 92 L148 112 L132 104 Z" fill="#E4572E"/>
+    <!-- flame -->
+    <path d="M110 106 L120 138 L130 106 Z" fill="#FFC53D"/>
+    <path d="M115 106 L120 126 L125 106 Z" fill="#E4572E"/>
+  </g>
+</svg>

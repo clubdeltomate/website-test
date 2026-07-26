@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 800" width="1400" height="800" fill="none">
+  <rect width="1400" height="800" fill="#FBF4E6"/>
+  <!-- notebook (repo) -->
+  <g stroke="#2E2820" stroke-width="6" stroke-linejoin="round">
+    <rect x="120" y="280" width="320" height="260" rx="14" fill="#FFFDF6"/>
+    <rect x="120" y="280" width="40" height="260" rx="14" fill="#FFC53D"/>
+    <path d="M200 340h200M200 380h170M200 420h200M200 460h150" stroke="#C9BFA9" stroke-width="4"/>
+    <path d="M120 320h-14M120 380h-14M120 440h-14M120 500h-14" stroke-width="5"/>
+    <text x="260" y="590" font-family="Caveat, cursive" font-size="44" fill="#2E2820" stroke="none" text-anchor="middle">Repository</text>
+  </g>
+  <!-- slide frames -->
+  <g stroke="#2E2820" stroke-width="6">
+    <g transform="rotate(-5 620 300)">
+      <rect x="520" y="240" width="200" height="130" rx="10" fill="#FFFDF6"/>
+      <rect x="520" y="240" width="200" height="30" rx="10" fill="#FFC53D" stroke="none"/>
+      <path d="M542 296h156M542 318h110" stroke="#C9BFA9" stroke-width="4"/>
+    </g>
+    <g transform="rotate(4 640 440)">
+      <rect x="540" y="390" width="200" height="130" rx="10" fill="#FFFDF6"/>
+      <circle cx="592" cy="455" r="24" stroke="#3F74D6" stroke-width="4"/>
+      <path d="M632 432h84M632 456h66M632 480h78" stroke="#C9BFA9" stroke-width="4"/>
+    </g>
+    <g transform="rotate(-3 610 580)">
+      <rect x="510" y="530" width="200" height="130" rx="10" fill="#FFFDF6"/>
+      <path d="M534 620l30-32 40 26 34-40" stroke="#4C9A5C" stroke-width="4" fill="none"/>
+      <path d="M534 560h150M534 640h120" stroke="#C9BFA9" stroke-width="4"/>
+    </g>
+    <text x="625" y="720" font-family="Caveat, cursive" font-size="44" fill="#2E2820" stroke="none" text-anchor="middle">Slide tool</text>
+  </g>
+  <!-- logbook -->
+  <g stroke="#2E2820" stroke-width="6" stroke-linejoin="round">
+    <rect x="1000" y="290" width="280" height="250" rx="14" fill="#FFFDF6"/>
+    <rect x="1000" y="290" width="280" height="46" rx="14" fill="#3F74D6"/>
+    <path d="M1030 380h160M1030 380l14 14M1030 380l14-14" stroke-width="4"/>
+    <path d="M1070 372v22h150" stroke="#C9BFA9" stroke-width="4" fill="none"/>
+    <path d="M1030 430h160M1030 430l14 14M1030 430l14-14" stroke-width="4"/>
+    <path d="M1070 422v22h150" stroke="#C9BFA9" stroke-width="4" fill="none"/>
+    <path d="M1030 480h160" stroke="#C9BFA9" stroke-width="4"/>
+    <text x="1140" y="600" font-family="Caveat, cursive" font-size="44" fill="#2E2820" stroke="none" text-anchor="middle">Lesson logs</text>
+  </g>
+  <!-- dashed arrows: repo -> slides, slides -> logs, logs -> repo -->
+  <g stroke="#2E2820" stroke-width="5" stroke-dasharray="14 11" stroke-linecap="round" fill="none">
+    <path d="M455 350c30-20 45-30 60-40"/>
+    <path d="M760 420c90-10 170 0 225 10"/>
+    <path d="M1050 545c-60 90-240 130-400 120-90-6-160-30-200-80"/>
+  </g>
+  <g fill="#2E2820">
+    <path d="M515 310l-16-8 4 18z"/>
+    <path d="M985 430l-18-6 6 18z"/>
+    <path d="M450 585l16 10-18 8z"/>
+  </g>
+  <!-- sparkles -->
+  <g>
+    <path d="M480 200l6 15 15 6-15 6-6 15-6-15-15-6 15-6z" fill="#8566D4"/>
+    <path d="M900 300l5 12 12 5-12 5-5 12-5-12-12-5 12-5z" fill="#8566D4"/>
+    <path d="M700 660l5 12 12 5-12 5-5 12-5-12-12-5 12-5z" fill="#8566D4"/>
+    <path d="M1330 200l4 10 10 4-10 4-4 10-4-10-10-4 10-4z" fill="#FFC53D"/>
+    <path d="M70 180l4 10 10 4-10 4-4 10-4-10-10-4 10-4z" fill="#FFC53D"/>
+  </g>
+</svg>

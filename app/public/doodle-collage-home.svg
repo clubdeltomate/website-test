@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" width="1200" height="600" fill="none" opacity="0.5" stroke="#2E2820" stroke-linecap="round" stroke-linejoin="round">
+  <!-- lightbulb -->
+  <g transform="translate(120,90) rotate(-8)" stroke-width="4">
+    <path d="M0 0a34 34 0 1 1 20 61l-4 15h-32l-4-15A34 34 0 0 1 0 0z" transform="translate(-0,-20) scale(1)" fill="none"/>
+    <path d="M-12 84h24M-10 92h20" stroke-width="3.5"/>
+    <path d="M-34 14l-14-8M34 14l14-8M0-66v-16" stroke-width="3.5"/>
+  </g>
+  <!-- paper plane -->
+  <g transform="translate(360,70) rotate(12)" stroke-width="4">
+    <path d="M-60 0l110-30-36 66-26-22z" fill="none"/>
+    <path d="M-12 14l26-44" stroke-width="3.5"/>
+  </g>
+  <!-- open book -->
+  <g transform="translate(620,110) rotate(-4)" stroke-width="4">
+    <path d="M-64-20c20-10 42-10 60-2v60c-18-8-40-8-60 2z" fill="none"/>
+    <path d="M64-20c-20-10-42-10-60-2v60c18-8 40-8 60 2z" fill="none"/>
+    <path d="M-52-4c14-5 28-5 40-1M-52 8c14-5 28-5 40-1M12-5c12-4 26-4 40 1M12 7c12-4 26-4 40 1" stroke-width="2.5"/>
+  </g>
+  <!-- stars -->
+  <g stroke-width="3.5">
+    <path d="M880 60l4 10 10 4-10 4-4 10-4-10-10-4 10-4z"/>
+    <path d="M1040 150l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"/>
+    <path d="M80 320l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"/>
+  </g>
+  <!-- spiral arrow -->
+  <g transform="translate(950,300)" stroke-width="4">
+    <path d="M0 0c30-24 70-18 84 8 10 20 2 42-18 50-16 7-34-1-38-16-3-11 4-22 14-24 8-1 14 4 15 11" fill="none"/>
+    <path d="M70 8l18-12M70 8l2 22" stroke-width="3.5"/>
+  </g>
+  <!-- coffee cup -->
+  <g transform="translate(200,330) rotate(5)" stroke-width="4">
+    <path d="M-34-20h60v44a20 20 0 0 1-20 20h-20a20 20 0 0 1-20-20z" fill="none"/>
+    <path d="M26-10c14-2 22 4 22 14s-8 16-22 14" fill="none"/>
+    <path d="M-18-34c4-6-4-10 0-16M-2-34c4-6-4-10 0-16M14-34c4-6-4-10 0-16" stroke-width="3"/>
+    <path d="M-42 54h76" stroke-width="3.5"/>
+  </g>
+  <!-- sandwich -->
+  <g transform="translate(470,340) rotate(-6)" stroke-width="4">
+    <path d="M-56 20h112l-8 14h-96z" fill="none"/>
+    <path d="M-50 4c14 8 28-8 42 0s28-8 42 0" fill="none"/>
+    <path d="M-52-6c10-22 94-22 104 0z" fill="none"/>
+  </g>
+  <!-- wrench -->
+  <g transform="translate(730,330) rotate(24)" stroke-width="4">
+    <path d="M-52 6l52-52c-2-16 8-30 24-32-4 10-4 18 2 24s14 6 24 2c-2 16-16 26-32 24L-34-26c-6 12-18 20-32 18 6-10 12-16 24-22" transform="scale(0.9)" fill="none"/>
+  </g>
+  <!-- more small stars / sparkles -->
+  <g stroke-width="3">
+    <path d="M1120 420l2.5 6.5 6.5 2.5-6.5 2.5-2.5 6.5-2.5-6.5-6.5-2.5 6.5-2.5z"/>
+    <path d="M340 500l2.5 6.5 6.5 2.5-6.5 2.5-2.5 6.5-2.5-6.5-6.5-2.5 6.5-2.5z"/>
+    <circle cx="1090" cy="240" r="4"/>
+    <circle cx="150" cy="510" r="4"/>
+    <circle cx="640" cy="480" r="4"/>
+  </g>
+  <!-- dashed swoosh -->
+  <path d="M840 480c60 30 150 26 210-14" stroke-width="3.5" stroke-dasharray="10 9"/>
+</svg>

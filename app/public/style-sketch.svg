@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" width="240" height="160" role="img" aria-label="Pencil sketch of a potted leafy plant">
+  <rect width="240" height="160" fill="#EFE6D0"/>
+  <!-- faint paper hatching -->
+  <g stroke="#D9CBAA" stroke-width="1" opacity="0.6">
+    <line x1="0" y1="130" x2="240" y2="130"/>
+    <line x1="0" y1="140" x2="240" y2="140"/>
+    <line x1="0" y1="150" x2="240" y2="150"/>
+  </g>
+  <g fill="none" stroke="#2E2820" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <!-- stems -->
+    <path d="M120 118 C118 90 108 70 96 54" fill="none"/>
+    <path d="M120 118 C122 92 132 74 146 58" fill="none"/>
+    <path d="M120 118 C120 96 120 78 120 60" fill="none"/>
+    <!-- leaves -->
+    <path d="M96 54 C78 48 70 34 82 26 C94 20 104 34 96 54 Z" fill="#8FB98A"/>
+    <path d="M146 58 C164 50 172 36 160 28 C148 22 138 38 146 58 Z" fill="#A6C79E"/>
+    <path d="M120 60 C104 52 100 34 114 30 C128 28 132 46 120 60 Z" fill="#7FAE7B"/>
+    <path d="M120 60 C136 52 142 36 130 30 C120 27 112 44 120 60 Z" fill="#93BE8D"/>
+    <!-- pot -->
+    <path d="M96 118 L144 118 L138 150 L102 150 Z" fill="#D98E5A"/>
+    <path d="M92 112 L148 112 L144 122 L96 122 Z" fill="#E7A877"/>
+  </g>
+  <!-- leaf veins + pot hatching (pencil detail) -->
+  <g stroke="#2E2820" stroke-width="1" opacity="0.55" stroke-linecap="round">
+    <line x1="120" y1="120" x2="118" y2="146"/>
+    <line x1="128" y1="120" x2="127" y2="146"/>
+    <line x1="112" y1="120" x2="111" y2="146"/>
+    <line x1="86" y1="38" x2="94" y2="46"/>
+    <line x1="156" y1="40" x2="149" y2="49"/>
+    <line x1="121" y1="40" x2="120" y2="56"/>
+  </g>
+</svg>
