@@ -18,6 +18,46 @@ export interface ReadAloud {
  * highlight, pauses/resumes, and auto-stops when the slide changes
  * (i.e. when `units` identity changes — memoize it per slide).
  */
+/** Lightweight language sniff so the read-aloud voice matches the TEXT, not
+ *  the device locale (a Spanish browser must not read English with a Spanish
+ *  accent). Covers the deck languages we expect; defaults to English. */
+function detectLang(text: string): string {
+  const t = ` ${text.toLowerCase()} `;
+  const scores: Record<string, number> = { en: 0, es: 0, fr: 0, de: 0, pt: 0, it: 0 };
+  if (/[¿¡]/.test(t)) scores.es += 6;
+  if (/ñ/.test(t)) scores.es += 3;
+  if (/[ãõ]/.test(t)) scores.pt += 5;
+  if (/[äöüß]/.test(t)) scores.de += 5;
+  if (/[âêîôûëïç]/.test(t)) scores.fr += 2;
+  const words: Record<string, string[]> = {
+    en: [' the ', ' and ', ' is ', ' of ', ' to ', ' with ', ' that ', ' this '],
+    es: [' el ', ' la ', ' los ', ' las ', ' una ', ' que ', ' y ', ' con ', ' para ', ' del '],
+    fr: [' le ', ' les ', ' est ', ' et ', ' une ', ' pour ', ' avec ', ' dans '],
+    de: [' der ', ' die ', ' das ', ' und ', ' ist ', ' mit ', ' für ', ' ein '],
+    pt: [' os ', ' uma ', ' não ', ' com ', ' para ', ' do ', ' da ', ' em '],
+    it: [' il ', ' gli ', ' è ', ' di ', ' che ', ' con ', ' per ', ' una '],
+  };
+  for (const [lang, list] of Object.entries(words)) {
+    for (const w of list) {
+      let i = -1;
+      while ((i = t.indexOf(w, i + 1)) !== -1) scores[lang] += 1;
+    }
+  }
+  return Object.entries(scores).sort((a, b) => b[1] - a[1])[0][0];
+}
+
+/** Best available voice for a language: prefers local/default and the
+ *  higher-quality "Google"/"Natural" voices when present. */
+function voiceForLang(synth: SpeechSynthesis, lang: string): SpeechSynthesisVoice | null {
+  const candidates = synth.getVoices().filter((v) => v.lang.toLowerCase().startsWith(lang));
+  if (candidates.length === 0) return null;
+  return (
+    candidates.find((v) => /google|natural|neural/i.test(v.name)) ??
+    candidates.find((v) => v.default) ??
+    candidates[0]
+  );
+}
+
 export function useReadAloud(
   units: NarrationUnit[],
   voiceURI: string | null,
@@ -42,9 +82,12 @@ export function useReadAloud(
       const synth = window.speechSynthesis;
       synth.cancel();
 
-      const voice = voiceURI
-        ? synth.getVoices().find((v) => v.voiceURI === voiceURI) ?? null
-        : null;
+      // The text's own language decides accent — never the device locale. An
+      // explicitly chosen voice still wins over the auto-match.
+      const lang = detectLang(units.map((u) => u.text).join(' ').slice(0, 2000));
+      const voice =
+        (voiceURI ? synth.getVoices().find((v) => v.voiceURI === voiceURI) : null) ??
+        voiceForLang(synth, lang);
 
       const speakOne = (i: number) => {
         if (sessionRef.current !== session || i >= units.length) {
@@ -57,6 +100,9 @@ export function useReadAloud(
         const unit = units[i];
         const utt = new SpeechSynthesisUtterance(unit.text);
         if (voice) utt.voice = voice;
+        // set the language even without a matched voice so the engine at
+        // least switches pronunciation rules to the text's language
+        utt.lang = voice?.lang ?? lang;
         utt.rate = 1;
         utt.pitch = 1;
         utt.onstart = () => {
