@@ -43,7 +43,7 @@ import TemplatePicker from '@/components/templates/TemplatePicker';
 
 import { isStemTopic } from '@contracts/stem';
 import { loadGenDefaults, saveGenDefaults, type TextDensity } from '@/lib/genDefaults';
-import { templatesForContext, packetsForPurpose } from '@contracts/slide-templates';
+import { templatesForContext, packetsForPurpose, GRADABLE_TYPES } from '@contracts/slide-templates';
 import { repoPurpose, templateFilterPurpose, type RepoTemplate } from '@contracts/types';
 import { TemplateIcon } from '@/components/repo/shared';
 
@@ -333,6 +333,9 @@ function ToolStudio({
   const [packetFilter, setPacketFilter] = useState<string | null>(null);
   // Extra filter: only layouts with an AI-graded step (typed answer / solve).
   const [aiGradableOnly, setAiGradableOnly] = useState(false);
+  // Wolfram filters: explanation-only layouts vs Wolfram layouts with an
+  // evaluation — quick paths to the W⍺ catalog without picking a packet.
+  const [wolframFilter, setWolframFilter] = useState<null | 'explain' | 'eval'>(null);
   const [theaterDone, setTheaterDone] = useState(false);
   const [result, setResult] = useState<{
     deck: SlideDeck;
@@ -387,8 +390,15 @@ function ToolStudio({
     if (aiGradableOnly) {
       base = base.filter((t) => t.components.includes('shortanswer') || t.components.includes('solve'));
     }
+    if (wolframFilter) {
+      base = base.filter((t) => {
+        if (!t.components.includes('wolfram')) return false;
+        const graded = t.components.some((c) => GRADABLE_TYPES.includes(c));
+        return wolframFilter === 'explain' ? !graded : graded;
+      });
+    }
     return base;
-  }, [templatesQuery.data, purpose, topic, level, subjectMode, packetFilter, aiGradableOnly, packets]);
+  }, [templatesQuery.data, purpose, topic, level, subjectMode, packetFilter, aiGradableOnly, wolframFilter, packets]);
   // Resolve a pinned template by name against the FULL catalog (not just the
   // filtered pickable set) so a packet-pinned template from another level
   // still shows its badges, sequence and bar.
@@ -1341,6 +1351,34 @@ function ToolStudio({
                       )}
                     >
                       ✓ AI-graded only
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWolframFilter((v) => (v === 'explain' ? null : 'explain'))}
+                      aria-pressed={wolframFilter === 'explain'}
+                      title="Only Wolfram|Alpha explanation layouts (read-throughs, no evaluation)"
+                      className={cn(
+                        'rounded-wobble-sm border-2 px-3 py-1.5 font-heading text-sm font-bold transition-colors',
+                        wolframFilter === 'explain'
+                          ? 'border-ink bg-red-soft text-ink shadow-offset'
+                          : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                      )}
+                    >
+                      W⍺ explanations
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWolframFilter((v) => (v === 'eval' ? null : 'eval'))}
+                      aria-pressed={wolframFilter === 'eval'}
+                      title="Wolfram|Alpha layouts that END on an evaluation (solve box, typed answer, or multiple choice)"
+                      className={cn(
+                        'rounded-wobble-sm border-2 px-3 py-1.5 font-heading text-sm font-bold transition-colors',
+                        wolframFilter === 'eval'
+                          ? 'border-ink bg-red-soft text-ink shadow-offset'
+                          : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                      )}
+                    >
+                      W⍺ evaluated
                     </button>
                   </div>
                   <p className="micro mt-1.5 text-ink-faint">

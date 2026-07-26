@@ -383,6 +383,16 @@ const STEM_TEMPLATES: SlideTemplate[] = [
   bi("Wolfram, then answer", "B1", ["prose", "latex", "wolfram", "quiz"], ["math", "physics", "wolfram"]),
   bi("Wolfram deep dive", "C1", ["prose", "latex", "wolfram", "prose", "prose"], ["math", "physics", "wolfram"]),
   bi("Wolfram worked solve", "C1", ["prose", "latex", "wolfram", "prose", "solve"], ["math", "physics", "wolfram", "problem-solving"]),
+  // formula + GRAPH + Wolfram explanation, text varied around them — for
+  // understanding a function visually alongside the computed steps
+  bi("Formula graphed (Wolfram)", "A1", ["prose", "latex", "chart", "wolfram"], ["math", "physics", "wolfram"]),
+  bi("Graph first, Wolfram after", "A1", ["latex", "chart", "wolfram", "prose"], ["math", "science", "wolfram"]),
+  bi("Graphed walk-through (Wolfram)", "B1", ["prose", "latex", "chart", "wolfram", "prose"], ["math", "physics", "wolfram"]),
+  bi("Curve read (Wolfram)", "B1", ["prose", "chart", "wolfram", "prose"], ["math", "science", "wolfram"]),
+  bi("Function deep study (Wolfram)", "C1", ["prose", "latex", "chart", "wolfram", "prose", "prose"], ["math", "physics", "wolfram"]),
+  bi("Wolfram, then the graph", "C1", ["prose", "latex", "wolfram", "chart", "prose"], ["math", "physics", "wolfram"]),
+  // graph-based finisher with a typed word box (AI-checked)
+  bi("Answer from the graph (typed)", "B1", ["prose", "chart", "shortanswer"], ["math", "physics"]),
 
   /* -- code & programming: explanation-led snippets, data tables, hardware
         imagery — mixed read-throughs (green dot) and graded exercises. The
@@ -656,6 +666,30 @@ export const LESSON_PACKETS: LessonPacket[] = [
       "Same three read-through Wolfram|Alpha explanation slides — but the fourth ends on a single multiple-choice question instead of a worked solve.",
     purpose: "education",
     templates: ["Formula, by Wolfram", "Wolfram walk-through", "Wolfram deep dive", "Wolfram, then answer"],
+  },
+  {
+    id: "wolfram-graph-solve",
+    name: "Wolfram graph study — annotate & solve",
+    description:
+      "Understand a function visually: three read-throughs pairing the formula, its graph and Wolfram's computed steps — then solve one yourself on the annotation scratchpad / input box, AI-checked.",
+    purpose: "education",
+    templates: ["Formula graphed (Wolfram)", "Graphed walk-through (Wolfram)", "Function deep study (Wolfram)", "Solve with a graph"],
+  },
+  {
+    id: "wolfram-graph-typed",
+    name: "Wolfram graph study — typed answer",
+    description:
+      "Same three formula-graph-Wolfram read-throughs, ending on a graph question answered in words in the input box — AI-checked.",
+    purpose: "education",
+    templates: ["Formula graphed (Wolfram)", "Curve read (Wolfram)", "Wolfram, then the graph", "Answer from the graph (typed)"],
+  },
+  {
+    id: "wolfram-graph-mcq",
+    name: "Wolfram graph study — multiple choice",
+    description:
+      "Same graph-led Wolfram teaching, closing on one multiple-choice question about the graph.",
+    purpose: "education",
+    templates: ["Graph first, Wolfram after", "Graphed walk-through (Wolfram)", "Function deep study (Wolfram)", "Interpret the graph"],
   },
   {
     id: "wolfram-only",
