@@ -95,6 +95,11 @@ function envKeyCandidates(capability: AiCapability): ResolvedKey[] {
     }
     const openai = val("OPENAI_API_KEY");
     if (openai) out.push({ provider: "openai", apiKey: openai, source: "env" });
+    // xAI Grok — OpenAI-compatible API (either env spelling works)
+    const grok = val("GROK_API_KEY") ?? val("Grok_API_KEY");
+    if (grok) {
+      out.push({ provider: "openai", apiKey: grok, baseUrl: "https://api.x.ai/v1", model: val("GROK_MODEL") ?? "grok-2-latest", source: "env" });
+    }
     const deepseek = val("DEEPSEEK_API_KEY");
     if (deepseek) {
       out.push({ provider: "openai", apiKey: deepseek, baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat", source: "env" });

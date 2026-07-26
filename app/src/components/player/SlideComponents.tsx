@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import katex from 'katex';
+import 'katex/contrib/mhchem';
+import { trpc } from '@/providers/trpc';
 import { PenLine, Image as ImageIcon, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SlideComponent } from '@contracts/types';
@@ -68,9 +70,29 @@ function ProseView({
   );
 }
 
-/** A live Wolfram|Alpha computed explanation, loaded through the server
- *  proxy (/api/wolfram) so the App ID stays server-side. Falls back to the
- *  raw query text if the service is unconfigured or unreachable. */
+/** One KaTeX block (display mode), tolerant of bad input. */
+function KatexLine({ latex }: { latex: string }) {
+  const html = useMemo(() => {
+    try {
+      return katex.renderToString(latex, { displayMode: true, throwOnError: false });
+    } catch {
+      return null;
+    }
+  }, [latex]);
+  return html ? (
+    <div
+      className="overflow-x-auto rounded-wobble-sm bg-paper-2/60 px-3 py-1.5 text-ink [&_.katex]:text-[1.1rem]"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  ) : (
+    <code className="font-mono text-sm">{latex}</code>
+  );
+}
+
+/** Step-by-step solver card. The site's own AI works the problem out fully
+ *  (calculus, matrices, chemistry, thermodynamics …) as paginated pages of
+ *  numbered steps with KaTeX notation. When no AI provider answers, it falls
+ *  back to the Wolfram|Alpha image card (with retry). */
 function WolframView({
   query,
   caption,
@@ -82,28 +104,107 @@ function WolframView({
   ci: number;
   current: string | null;
 }) {
-  const [failed, setFailed] = useState(false);
-  // bumping the attempt counter changes the img URL, forcing a fresh request
+  const steps = trpc.generate.mathSteps.useQuery(
+    { query },
+    { staleTime: Infinity, retry: 1, refetchOnWindowFocus: false },
+  );
+  const [page, setPage] = useState(0);
+  const [imgFailed, setImgFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+
+  const d = steps.data;
+  const pageCount = d ? d.pages.length : 0;
+  const safePage = Math.min(page, Math.max(0, pageCount - 1));
+  const pg = d?.pages[safePage];
+
   return (
     <div className="rounded-wobble-2 border-2 border-ink bg-paper-3 px-4 py-4 shadow-offset">
       <p className="micro mb-2 flex items-center gap-1.5 text-ink-faint">
         <span className="inline-flex h-5 items-center rounded-full border border-ink bg-red-soft px-1.5 font-mono text-[0.65rem] font-bold text-ink">
-          W⍺
+          ∑
         </span>
-        Wolfram|Alpha · <span className="font-mono normal-case">{query}</span>
+        Step-by-step · <span className="font-mono normal-case">{query}</span>
       </p>
-      {failed ? (
+
+      {steps.isLoading ? (
+        <div className="flex flex-col gap-2 py-4">
+          <div className="skeleton-stroke h-4 w-2/3" />
+          <div className="skeleton-stroke h-4 w-5/6" />
+          <div className="skeleton-stroke h-4 w-1/2" />
+          <p className="micro text-ink-faint">Working out the steps…</p>
+        </div>
+      ) : d && pg ? (
+        <>
+          <h4 className="font-heading text-lg font-bold text-ink">{d.title}</h4>
+          {/* one "page" of the worked solution */}
+          <div className="mt-2 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper px-4 py-3">
+            <p className="micro mb-2 font-bold text-ink-soft">{pg.title}</p>
+            <ol className="flex flex-col gap-2.5">
+              {pg.steps.map((st, i) => (
+                <li key={i} className="flex items-start gap-2.5">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-ink bg-yellow-soft font-mono text-[0.65rem] font-bold text-ink">
+                    {i + 1}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm leading-relaxed text-ink">{st.text}</span>
+                    {st.latex && (
+                      <span className="mt-1 block">
+                        <KatexLine latex={st.latex} />
+                      </span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ol>
+            {/* the boxed answer closes the last page */}
+            {safePage === pageCount - 1 && (d.answer.latex || d.answer.text) && (
+              <div className="mt-3 rounded-wobble-sm border-2 border-green bg-green-soft/50 px-3 py-2">
+                <p className="micro font-bold text-ink-soft">Answer</p>
+                {d.answer.latex ? (
+                  <KatexLine latex={d.answer.latex} />
+                ) : (
+                  <p className="text-sm font-bold text-ink">{d.answer.text}</p>
+                )}
+              </div>
+            )}
+          </div>
+          {/* pagination */}
+          {pageCount > 1 && (
+            <div className="mt-2 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                disabled={safePage === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-2.5 py-1 text-sm font-bold text-ink shadow-offset disabled:border-pencil disabled:text-pencil disabled:shadow-none"
+              >
+                ← Prev
+              </button>
+              <span className="font-mono text-xs text-ink-soft">
+                Page {safePage + 1} of {pageCount}
+              </span>
+              <button
+                type="button"
+                disabled={safePage >= pageCount - 1}
+                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                className="rounded-wobble-sm border-2 border-ink bg-yellow px-2.5 py-1 text-sm font-bold text-ink shadow-offset disabled:border-pencil disabled:bg-paper-3 disabled:text-pencil disabled:shadow-none"
+              >
+                Next →
+              </button>
+            </div>
+          )}
+        </>
+      ) : imgFailed ? (
         <div className="flex flex-col items-start gap-2.5">
           <p className="text-sm text-ink-soft">
-            The computed explanation isn't available right now — it can be retried, or run the
-            query yourself: <span className="font-mono">{query}</span>
+            The worked solution isn't available right now — it can be retried, or run the query
+            yourself: <span className="font-mono">{query}</span>
           </p>
           <button
             type="button"
             onClick={() => {
-              setFailed(false);
+              setImgFailed(false);
               setAttempt((a) => a + 1);
+              void steps.refetch();
             }}
             className="flex items-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-yellow px-3 py-1.5 text-sm font-bold text-ink shadow-offset transition-transform hover:-translate-y-0.5"
           >
@@ -112,14 +213,16 @@ function WolframView({
           </button>
         </div>
       ) : (
+        /* fallback: the Wolfram|Alpha computed card */
         <img
           src={`/api/wolfram?i=${encodeURIComponent(query)}${attempt ? `&r=${attempt}` : ''}`}
           alt={`Wolfram|Alpha computed result for: ${query}`}
           className="mx-auto w-auto max-w-full rounded-wobble-sm border border-pencil"
           loading="lazy"
-          onError={() => setFailed(true)}
+          onError={() => setImgFailed(true)}
         />
       )}
+
       {caption && (
         <p className="mt-2 border-t-2 border-dashed border-pencil pt-2 text-sm italic text-ink-soft">
           <Kara k={`wolframcap:${ci}`} current={current}>
