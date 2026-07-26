@@ -12,7 +12,7 @@ import SketchButton from '@/components/sketch/SketchButton';
 export default function ManualSlidePlay() {
   const { slug = '' } = useParams();
   const navigate = useNavigate();
-  const query = trpc.slideTools.deck.useQuery({ slug }, { enabled: !!slug, retry: false });
+  const query = trpc.slideTools.deck.useQuery({ slug }, { enabled: !!slug, retry: 1 });
   const back = () => navigate('/slides');
 
   // admin length-calibration persists back onto the tool's saved deck
@@ -28,7 +28,27 @@ export default function ManualSlidePlay() {
   if (query.isLoading) {
     return <div className="mx-auto max-w-[720px] px-4 py-16 text-center text-ink-faint">Opening…</div>;
   }
-  if (query.isError || !query.data) {
+  if (query.isError) {
+    // transient load failure — offer a retry and the road back to settings
+    return (
+      <div className="mx-auto max-w-[720px] px-4 py-16 text-center">
+        <p className="font-display text-3xl text-ink">The presentation didn't load</p>
+        <p className="mt-2 text-ink-soft">
+          Usually a hiccup — try again, or head back to the tool's settings and reopen it from
+          there.
+        </p>
+        <div className="mt-4 flex items-center justify-center gap-2">
+          <SketchButton variant="accent" onClick={() => void query.refetch()}>
+            Try again
+          </SketchButton>
+          <SketchButton variant="secondary" onClick={() => navigate(`/slides/${slug}`)}>
+            <ChevronLeft className="h-4 w-4" /> Tool settings
+          </SketchButton>
+        </div>
+      </div>
+    );
+  }
+  if (!query.data) {
     return (
       <div className="mx-auto max-w-[720px] px-4 py-16 text-center">
         <p className="font-display text-3xl text-ink">Nothing to show</p>
