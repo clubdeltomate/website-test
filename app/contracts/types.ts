@@ -12,6 +12,14 @@ export type LevelTier = "light" | "mid" | "dense";
 export type ImageStyle = "sketch" | "watercolor" | "flat" | "photo" | "none";
 export type RepoTemplate = "course" | "restaurant" | "service" | "shop" | "walkthrough" | "news" | "other";
 export type AiProvider = "openai" | "anthropic" | "gemini" | "elevenlabs";
+/**
+ * Extra image sources. They are configured by env only and never hold a BYOK
+ * or platform key row, so they are deliberately NOT part of the `provider` DB
+ * enum — adding them there would need a migration for no gain. Unsplash is a
+ * stock-photo search rather than a generator: it is the last resort that keeps
+ * a deck illustrated when every real generator is down.
+ */
+export type ImageProvider = AiProvider | "leonardo" | "unsplash";
 export type AiCapability = "text" | "image" | "tts";
 
 export const LEVELS: Level[] = ["A0", "A1", "A2", "B1", "B2", "C1", "C2"];
@@ -176,7 +184,7 @@ export interface SlideDeck {
   /** which model wrote the text (prose / quizzes / structure); null = mock */
   provider?: AiProvider | null;
   /** which model makes the images; null = none / mock */
-  imageProvider?: AiProvider | null;
+  imageProvider?: ImageProvider | null;
 }
 
 /* ---------------- Lesson seed (repo → slide tool handoff) ---------- */

@@ -552,6 +552,10 @@ export const PROVIDER_LABEL: Record<string, string> = {
   gemini: 'Gemini',
   openai: 'OpenAI',
   anthropic: 'Anthropic',
+  leonardo: 'Leonardo',
+  // Unsplash supplies a stock photograph rather than a generated image, and
+  // its licence asks that the source be named where the photo is shown.
+  unsplash: 'Unsplash',
 };
 
 /** Tiny "made by <model>" caption shown under a generated section. */
