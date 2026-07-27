@@ -62,6 +62,17 @@ const mockAiAllowed = () => process.env.SKETCHLEARN_ALLOW_MOCK_AI === "1";
 const AI_UNAVAILABLE_MSG =
   "AI_UNAVAILABLE: no AI provider produced content — nothing was saved and any tokens were refunded. Check the server .env AI keys (e.g. GEMINI_API_KEY) or add your own key in Settings → API Keys, then try again.";
 
+/**
+ * Name the providers that were actually tried and why each one refused. Without
+ * this the banner says only "no AI provider produced content", which is true of
+ * a missing key, an expired key, a rate limit and a model that cannot fit the
+ * prompt alike — four very different fixes.
+ */
+function aiUnavailableMessage(providerErrors: string[]): string {
+  if (providerErrors.length === 0) return AI_UNAVAILABLE_MSG;
+  return `${AI_UNAVAILABLE_MSG}\n\nProviders tried — ${providerErrors.join(" | ")}`;
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms);
@@ -231,10 +242,12 @@ export const generateRouter = createRouter({
           reference: reference || undefined,
         });
         let parsed: import("../ai/prompts.js").LessonPathDraft | null = null;
+        const providerErrors: string[] = [];
         for (let attempt = 0; attempt < 2 && parsed === null; attempt++) {
           try {
             const result = await completeText({
               userId: ctx.user.id,
+              collectErrors: providerErrors,
               messages: [
                 { role: "system", content: prompt },
                 {
@@ -256,7 +269,10 @@ export const generateRouter = createRouter({
         usedMock = parsed === null;
         if (parsed === null && !mockAiAllowed()) {
           await refundTokens(ctx.user.id, cost.total, `refund: ${reason}`);
-          throw new TRPCError({ code: "PRECONDITION_FAILED", message: AI_UNAVAILABLE_MSG });
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: aiUnavailableMessage(providerErrors),
+          });
         }
         draft = parsed ?? mockLessonPath({
           description: input.description,
@@ -666,6 +682,9 @@ export const generateRouter = createRouter({
         .filter(Boolean)
         .join("\n");
 
+      // Why each provider refused — so a total failure names the cause
+      // instead of the useless "no provider produced content".
+      const providerErrors: string[] = [];
       let deck: SlideDeck | null = null;
       let lastAttempt: SlideDeck | null = null; // best non-conforming try, as a fallback
       let usedMock = false;
@@ -687,6 +706,7 @@ export const generateRouter = createRouter({
               // 22s is a real fallback that still fits.
               maxCandidates: 2,
               timeoutMs: 22_000,
+              collectErrors: providerErrors,
               messages: [
                 { role: "system", content: systemPrompt },
                 {
@@ -801,7 +821,10 @@ export const generateRouter = createRouter({
       if (!deck) {
         if (!mockAiAllowed()) {
           if (ctx.user && cost > 0) await refundTokens(ctx.user.id, cost, `refund: ${reason}`);
-          throw new TRPCError({ code: "PRECONDITION_FAILED", message: AI_UNAVAILABLE_MSG });
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: aiUnavailableMessage(providerErrors),
+          });
         }
         usedMock = true;
         deck = mockDeck({

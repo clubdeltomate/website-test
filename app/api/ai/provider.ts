@@ -127,19 +127,22 @@ function envKeyCandidates(capability: AiCapability): ResolvedKey[] {
       },
       deepseek: () => {
         const k = val("DEEPSEEK_API_KEY");
-        return k ? { provider: "openai", apiKey: k, baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat", source: "env" } : null;
+        return k ? { provider: "openai", apiKey: k, baseUrl: "https://api.deepseek.com/v1", model: val("DEEPSEEK_MODEL") ?? "deepseek-chat", source: "env" } : null;
       },
       openrouter: () => {
         const k = val("OPENROUTER_API_KEY");
-        return k ? { provider: "openai", apiKey: k, baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini", source: "env" } : null;
+        return k ? { provider: "openai", apiKey: k, baseUrl: "https://openrouter.ai/api/v1", model: val("OPENROUTER_MODEL") ?? "openai/gpt-4o-mini", source: "env" } : null;
       },
       kimi: () => {
         const k = val("KIMI_API_KEY");
-        return k ? { provider: "openai", apiKey: k, baseUrl: "https://api.moonshot.ai/v1", model: "moonshot-v1-8k", source: "env" } : null;
+        // NOT moonshot-v1-8k: 8k is the TOTAL context (prompt + reply), and a
+        // deck prompt alone measures ~3.5k tokens before the model writes a
+        // word — that model could never answer a generation, only fail.
+        return k ? { provider: "openai", apiKey: k, baseUrl: "https://api.moonshot.ai/v1", model: val("KIMI_MODEL") ?? "moonshot-v1-32k", source: "env" } : null;
       },
     };
-    // Grok leads by default.
-    const DEFAULT_ORDER = ["grok", "gemini", "anthropic", "openai", "deepseek", "openrouter", "kimi"];
+    // Gemini leads by default; AI_TEXT_PRIORITY overrides without a deploy.
+    const DEFAULT_ORDER = ["gemini", "kimi", "grok", "anthropic", "openai", "deepseek", "openrouter"];
     const requested = (val("AI_TEXT_PRIORITY") ?? "")
       .split(",")
       .map((x) => x.trim().toLowerCase())
@@ -215,7 +218,8 @@ async function callOpenAICompatible(
   timeoutMs: number,
 ): Promise<string> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.openai).replace(/\/$/, "");
-  // DeepSeek/Moonshot reject max_tokens above 8k; gpt-4o-mini tops out at 16k.
+  // Per-route output ceilings. Moonshot/DeepSeek reject very large
+  // max_tokens; gpt-4o-mini tops out at 16k.
   const cap = /deepseek|moonshot/.test(base) ? 8192 : 16384;
   maxTokens = Math.min(maxTokens, cap);
   const res = await fetch(`${base}/chat/completions`, {
@@ -301,7 +305,17 @@ async function callGemini(
         body: JSON.stringify({
           ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
           contents,
-          generationConfig: { maxOutputTokens: maxTokens, responseMimeType: "application/json" },
+          generationConfig: {
+            maxOutputTokens: maxTokens,
+            responseMimeType: "application/json",
+            // Gemini 2.5 "thinks" before answering by default, and those
+            // thinking tokens are billed against maxOutputTokens. On a long
+            // JSON deck the model can spend the entire budget reasoning and
+            // return finishReason MAX_TOKENS with an EMPTY body — which
+            // arrives here as "returned no content" and looks exactly like a
+            // dead provider. We want the deck, not the monologue.
+            thinkingConfig: { thinkingBudget: 0 },
+          },
         }),
         signal: AbortSignal.timeout(timeoutMs),
       },
@@ -320,7 +334,11 @@ async function callGemini(
       console.warn(`[ai/text] gemini ${model} hit MAX_TOKENS — output likely truncated`);
     }
     const text = candidate?.content?.parts?.map((p) => p.text ?? "").join("");
-    if (!text) throw new Error("Gemini API returned no content");
+    if (!text) {
+      throw new Error(
+        `Gemini returned no content (finishReason: ${candidate?.finishReason ?? "unknown"})`,
+      );
+    }
     return text;
   }
   throw notFound ?? new Error("No Gemini text model available");
@@ -346,6 +364,9 @@ export async function completeText(opts: {
   shuffleProviders?: boolean;
   /** Skip these resolvedKeyId()s — used to rotate providers without repeats. */
   excludeKeyIds?: string[];
+  /** Pass an array to collect each candidate's failure reason, so a total
+   *  failure can report WHICH provider refused and why. */
+  collectErrors?: string[];
 }): Promise<CompletionResult | null> {
   const capability = opts.capability ?? "text";
   let candidates = await resolveKeyCandidates(opts.userId, capability);
@@ -388,10 +409,10 @@ export async function completeText(opts: {
       return { text, provider: key.provider, source: key.source, keyId: resolvedKeyId(key) };
     } catch (err) {
       // Bad key, quota, timeout, unreachable host — log and try the next key.
-      console.warn(
-        `[ai/text] ${key.provider} (${key.source}${key.model ? `, ${key.model}` : ""}) failed, trying next candidate:`,
-        err instanceof Error ? err.message : err,
-      );
+      const detail = err instanceof Error ? err.message : String(err);
+      const label = `${key.provider}${key.model ? `/${key.model}` : ""} (${key.source})`;
+      opts.collectErrors?.push(`${label}: ${detail.slice(0, 160)}`);
+      console.warn(`[ai/text] ${label} failed, trying next candidate:`, detail);
     }
   }
   console.warn(`[ai/text] all ${keys.length} ${capability} key candidate(s) failed`);
