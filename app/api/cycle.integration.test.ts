@@ -63,9 +63,12 @@ describe.runIf(HAS_DB)("full coins ↔ tickets cycle", () => {
     toolSlug = tool.slug;
 
     // Register three accounts through the real auth router.
-    const a = await call().auth.register({ name: "Ada Admin", email: `admin-${Date.now()}@t.co`, password: "pw123456" });
-    const m = await call().auth.register({ name: "Mo Mod", email: `mod-${Date.now()}@t.co`, password: "pw123456" });
-    const s = await call().auth.register({ name: "Sam Student", email: `stu-${Date.now()}@t.co`, password: "pw123456" });
+    // Names double as unique usernames, so they have to be per-run too —
+    // otherwise a second run of this suite collides with the first one's users.
+    const stamp = Date.now();
+    const a = await call().auth.register({ name: `Ada Admin ${stamp}`, email: `admin-${stamp}@t.co`, password: "pw123456" });
+    const m = await call().auth.register({ name: `Mo Mod ${stamp}`, email: `mod-${stamp}@t.co`, password: "pw123456" });
+    const s = await call().auth.register({ name: `Sam Student ${stamp}`, email: `stu-${stamp}@t.co`, password: "pw123456" });
     // Promote the admin (bootstrap — normally the first user / manual grant).
     await db.update(users).set({ role: "admin" }).where(eq(users.id, a.user.id));
     admin = await reload(a.user.id);
