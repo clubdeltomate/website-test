@@ -75,7 +75,7 @@ const mockAiAllowed = () => process.env.SKETCHLEARN_ALLOW_MOCK_AI === "1";
  * limit. Raise both this and vercel.json's maxDuration together if the
  * hosting plan allows longer functions.
  */
-const GENERATION_BUDGET_MS = Number(process.env.GENERATION_BUDGET_MS ?? 52_000);
+const GENERATION_BUDGET_MS = Number(process.env.GENERATION_BUDGET_MS ?? 45_000);
 /** Ceiling for the optional pre-generation web search. */
 const WEB_SEARCH_MS = 12_000;
 /** A deck attempt shorter than this can't realistically return a full deck. */
@@ -85,11 +85,11 @@ const MIN_ATTEMPT_MS = 12_000;
  * deck is the ONE thing the request exists for, so it gets the lion's share
  * and every optional extra lives off the leftovers.
  */
-const MAX_ATTEMPT_MS = 34_000;
+const MAX_ATTEMPT_MS = 30_000;
 /** Kept aside for saving the deck, auto-naming and sending the response. */
 const FINISH_RESERVE_MS = 3_000;
 /** The prose-repair pass is an enhancement — only run it if this much is left. */
-const PROSE_REPAIR_MS = 12_000;
+const PROSE_REPAIR_MS = 10_000;
 /** Inline first-slide image; skipped when tight (the player lazy-loads it). */
 const FIRST_IMAGE_MS = 8_000;
 /**
@@ -153,6 +153,11 @@ export async function expandThinProse(
           ? 1
           : opts.paraFloor;
 
+    // Only rescue slides that are genuinely broken — no body text, or a
+    // caption-sized stub where an explanation belongs. Rewriting slides that
+    // are merely a little under target would add an AI round trip to almost
+    // every generation, which is latency the request cannot spare.
+    const rescueWords = needWords > 0 ? Math.max(35, Math.round(needWords * 0.45)) : 0;
     const targets: { i: number; title: string; existing: string[]; visuals: string[] }[] = [];
     deck.slides.forEach((s, i) => {
       // A Wolfram card IS the explanation; a "solve" slide is a problem
@@ -160,7 +165,7 @@ export async function expandThinProse(
       if (s.components.some((c) => c.type === "wolfram")) return;
       if (s.quiz?.kind === "solve") return;
       const { words, paras } = slideProseStats(s);
-      if (paras >= Math.max(1, needParas) && words >= needWords) return;
+      if (paras >= 1 && words >= rescueWords) return;
       targets.push({
         i,
         title: s.title,
@@ -794,11 +799,9 @@ export const generateRouter = createRouter({
       const densityDelta =
         input.textDensity === "minimal" ? -99 : input.textDensity === "brief" ? -1 : input.textDensity === "detailed" ? 2 : 0;
       const paraFloor = Math.max(1, purposeParaFloor + densityDelta);
-      // A news slide carries a real article body: paragraph floor scales with
-      // the requested text amount (standard = a 2-paragraph story, detailed =
-      // a 3+-paragraph feature; brief/minimal stay a single short brief).
-      const newsMinParas =
-        input.textDensity === "detailed" ? 3 : input.textDensity === "standard" ? 2 : 1;
+      // A news story needs a written body; how LONG it is comes from the
+      // prompt and the repair pass, not from rejecting decks (see above).
+      const newsMinParas = input.textDensity === "detailed" ? 2 : 1;
       const layoutTemplates = allowedTemplates.map((t) => ({
         name: t.name,
         tags: t.tags,
@@ -929,10 +932,12 @@ export const generateRouter = createRouter({
                       : `${userPrompt}\n\nReminder: STRICT JSON ONLY, exactly the requested shape. Return EXACTLY ${slideCount} slides — no fewer. EVERY slide MUST follow one of the SLIDE LAYOUT TEMPLATES exactly — include all of its steps, so any image/chart/table/diagram/formula/code is paired with the text that explains it. Never a slide that is only a visual and a question.${hasPlan ? " Your previous attempt did NOT honor the MANDATORY SLIDE PLAN — for each pinned slide, the 'components' array MUST include the exact table/chart/image/code/formula/diagram it lists, built with real content. Do not drop them." : ""}`,
                 },
               ],
-              // A full deck is a large JSON; leave generous headroom so the
-              // model's output is never truncated mid-object (providers clamp
-              // this to their own per-model maximums).
-              maxTokens: 16384,
+              // Generous headroom so the model's output is never truncated
+              // mid-object, but scaled to the deck actually asked for: a
+              // blanket 16k invited far longer answers than a 6-slide deck
+              // needs, and every extra token is latency inside a request the
+              // platform will cut off.
+              maxTokens: Math.min(16_384, 1_600 * slideCount + 2_500),
             });
             if (!result) {
               await trace.mark(
@@ -981,31 +986,25 @@ export const generateRouter = createRouter({
                   (n, c) => n + (c.type === "prose" ? c.paragraphs.length : 0),
                   0,
                 );
-                // "Standard"/"Detailed" are promises of real READING: enforce
-                // a hard word floor per teaching slide so the setting visibly
-                // changes the output instead of being advisory.
-                const proseWords = s.components.reduce(
-                  (n, c) =>
-                    n + (c.type === "prose" ? c.paragraphs.join(" ").split(/\s+/).filter(Boolean).length : 0),
-                  0,
-                );
-                const wordFloor =
-                  input.textDensity === "detailed" ? 220 : input.textDensity === "standard" ? 110 : 0;
-                // A news slide is a newspaper clipping: it must carry a written
-                // article body (the word floor applies to news too — a story is
-                // reading, not a caption) AND (unless images are off) a photo —
-                // never a bare headline, never a headline with only a picture.
+                // NOTE: text LENGTH deliberately does not trigger a retry.
+                // Regenerating a whole deck because its prose came in short
+                // turned one AI call into two or three and pushed requests
+                // past the platform's time limit — the deck was fine, it was
+                // the rewrite that killed it. Length is asked for in the
+                // prompt and, when a slide really is thin, fixed afterwards
+                // by the targeted prose-repair pass (one small call for the
+                // affected slides only). Retries are reserved for STRUCTURAL
+                // problems the repair pass cannot fix.
+                //
+                // A news slide is a newspaper clipping: it must carry a
+                // written body AND (unless images are off) a photo — never a
+                // bare headline, never a headline with only a picture.
                 if (purpose === "news") {
                   const hasImage = s.components.some((c) => c.type === "image");
                   const needsImage = input.imageStyle !== "none";
-                  return (
-                    !structOk ||
-                    paraCount < newsMinParas ||
-                    (needsImage && !hasImage) ||
-                    proseWords < wordFloor
-                  );
+                  return !structOk || paraCount < newsMinParas || (needsImage && !hasImage);
                 }
-                return !structOk || paraCount < paraFloor || proseWords < wordFloor;
+                return !structOk || paraCount < paraFloor;
               });
             // The model sometimes under-delivers (e.g. 3 slides when 8 were
             // asked). Retry (up to maxAttempts) before accepting a miss.
