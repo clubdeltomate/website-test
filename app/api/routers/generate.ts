@@ -739,7 +739,17 @@ export const generateRouter = createRouter({
                   const needsImage = input.imageStyle !== "none";
                   return !structOk || paraCount < newsMinParas || (needsImage && !hasImage);
                 }
-                return !structOk || paraCount < paraFloor;
+                // "Detailed" is a promise of a real READING activity: enforce
+                // a hard word floor per teaching slide so the setting visibly
+                // changes the output instead of being advisory.
+                const proseWords = s.components.reduce(
+                  (n, c) =>
+                    n + (c.type === "prose" ? c.paragraphs.join(" ").split(/\s+/).filter(Boolean).length : 0),
+                  0,
+                );
+                const wordFloor =
+                  input.textDensity === "detailed" ? 220 : input.textDensity === "standard" ? 110 : 0;
+                return !structOk || paraCount < paraFloor || proseWords < wordFloor;
               });
             // The model sometimes under-delivers (e.g. 3 slides when 8 were
             // asked). Retry (up to maxAttempts) before accepting a miss.
