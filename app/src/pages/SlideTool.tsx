@@ -294,6 +294,10 @@ function ToolStudio({
   const [descDraft, setDescDraft] = useState(tool.description ?? '');
 
   const [mode, setMode] = useState<'config' | 'theater' | 'player'>('config');
+  // Why the last generation failed. A toast alone is easy to miss after a long
+  // wait (people switch tabs), and landing back on the settings screen with no
+  // explanation reads as "the button did nothing".
+  const [lastError, setLastError] = useState<string | null>(null);
   const [topic, setTopic] = useState(seed?.lessonTitle || tool.topic);
   const [instructions, setInstructions] = useState(tool.instructions);
   const [instructionsTouched, setInstructionsTouched] = useState(false);
@@ -482,6 +486,7 @@ function ToolStudio({
 
   const runGenerate = () => {
     canceledRef.current = false;
+    setLastError(null);
     // Remember this user's choices so they become the defaults next time.
     saveGenDefaults(user?.id, { slideCount, level, imageStyle, textDensity });
     const isSet = canPublishPreset && !!seed;
@@ -534,6 +539,16 @@ function ToolStudio({
         onError: (err) => {
           if (canceledRef.current) return;
           setMode('config');
+          // A serverless timeout / dropped connection has no useful message —
+          // say what actually happened instead of showing raw fetch noise.
+          const network =
+            !err.data?.code ||
+            /failed to fetch|networkerror|load failed|timed? ?out|504|502/i.test(err.message);
+          setLastError(
+            network
+              ? 'The generation took too long and the connection dropped. Any tokens charged are refunded automatically — try again, or lower the slide count / turn off web search to make it faster.'
+              : err.message,
+          );
           if (err.message.startsWith('AI_UNAVAILABLE')) {
             toast.error('AI provider not responding — no deck was generated', {
               description:
@@ -1526,6 +1541,21 @@ function ToolStudio({
         </StickyNote>
 
         <div className="flex flex-col justify-end gap-2">
+          {lastError && (
+            <div className="rounded-wobble-sm border-2 border-red bg-red-soft px-3 py-2 text-sm text-ink">
+              <p className="flex items-start gap-2 font-bold">
+                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-red" />
+                <span>That generation didn't finish — nothing was saved.</span>
+              </p>
+              <p className="mt-1 pl-6 text-xs text-ink-soft">{lastError}</p>
+              <button
+                onClick={() => setLastError(null)}
+                className="mt-1 pl-6 text-xs font-bold text-blue underline"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
           {insufficient && (
             <p className="flex items-center gap-2 rounded-wobble-sm border-2 border-red bg-red-soft px-3 py-2 text-sm font-bold text-ink">
               <TriangleAlert className="h-4 w-4 shrink-0 text-red" />

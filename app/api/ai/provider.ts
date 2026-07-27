@@ -420,7 +420,11 @@ export async function completeText(opts: {
 /* news, etc. are accurate. Uses Gemini's Google-Search grounding or an  */
 /* OpenRouter ":online" model — providers without a web path are skipped.*/
 
-async function callGeminiGrounded(key: ResolvedKey, prompt: string): Promise<string> {
+async function callGeminiGrounded(
+  key: ResolvedKey,
+  prompt: string,
+  timeoutMs = 60_000,
+): Promise<string> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.gemini).replace(/\/$/, "");
   const models = key.model
     ? [key.model, ...GEMINI_TEXT_MODELS.filter((m) => m !== key.model)]
@@ -437,7 +441,7 @@ async function callGeminiGrounded(key: ResolvedKey, prompt: string): Promise<str
           tools: [{ google_search: {} }],
           generationConfig: { maxOutputTokens: 1200 },
         }),
-        signal: AbortSignal.timeout(60_000),
+        signal: AbortSignal.timeout(timeoutMs),
       },
     );
     if (res.status === 404) {
@@ -455,7 +459,11 @@ async function callGeminiGrounded(key: ResolvedKey, prompt: string): Promise<str
   throw notFound ?? new Error("No Gemini model available for grounding");
 }
 
-async function callOpenRouterOnline(key: ResolvedKey, prompt: string): Promise<string> {
+async function callOpenRouterOnline(
+  key: ResolvedKey,
+  prompt: string,
+  timeoutMs = 60_000,
+): Promise<string> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.openai).replace(/\/$/, "");
   const model = `${key.model || "openai/gpt-4o-mini"}:online`;
   const res = await fetch(`${base}/chat/completions`, {
@@ -467,7 +475,7 @@ async function callOpenRouterOnline(key: ResolvedKey, prompt: string): Promise<s
       max_tokens: 1200,
       temperature: 0.3,
     }),
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new Error(`OpenRouter online ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
@@ -485,6 +493,7 @@ async function callOpenRouterOnline(key: ResolvedKey, prompt: string): Promise<s
 export async function webResearch(
   userId: number | undefined,
   query: string,
+  timeoutMs = 60_000,
 ): Promise<{ text: string; provider: AiProvider } | null> {
   const candidates = await resolveKeyCandidates(userId, "text").catch(() => [] as ResolvedKey[]);
   const prompt = `Search the web for CURRENT, ACCURATE information about: ${query}
@@ -493,10 +502,10 @@ Return concise factual notes an author can rely on for an accurate presentation:
   for (const key of candidates) {
     try {
       if (key.provider === "gemini") {
-        const text = await callGeminiGrounded(key, prompt);
+        const text = await callGeminiGrounded(key, prompt, timeoutMs);
         if (text.trim()) return { text: text.trim(), provider: "gemini" };
       } else if (key.provider === "openai" && /openrouter\.ai/.test(key.baseUrl ?? "")) {
-        const text = await callOpenRouterOnline(key, prompt);
+        const text = await callOpenRouterOnline(key, prompt, timeoutMs);
         if (text.trim()) return { text: text.trim(), provider: "openai" };
       }
       // providers without a web-search path are skipped

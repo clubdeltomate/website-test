@@ -59,6 +59,31 @@ const RECALIBRATE_COST = 2;
  */
 const mockAiAllowed = () => process.env.SKETCHLEARN_ALLOW_MOCK_AI === "1";
 
+/* ------------------------------------------------------------------ */
+/* Time budget for one slide generation.                                */
+/* The request runs inside a single serverless invocation (vercel.json  */
+/* pins api/server.ts to maxDuration 60). If we overrun it the platform */
+/* kills the function mid-flight: the browser gets no response (so the  */
+/* player bounces back to the settings screen) and the tokens charged   */
+/* up front are never refunded, because no catch block ever runs.       */
+/* Everything below is therefore fitted to the time actually remaining. */
+/* ------------------------------------------------------------------ */
+
+/** Total wall-clock we allow ourselves, leaving headroom under the limit. */
+const GENERATION_BUDGET_MS = Number(process.env.GENERATION_BUDGET_MS ?? 48_000);
+/** Ceiling for the optional pre-generation web search. */
+const WEB_SEARCH_MS = 14_000;
+/** A deck attempt shorter than this can't realistically return a full deck. */
+const MIN_ATTEMPT_MS = 12_000;
+/** Longest we let a single deck attempt run when the budget is generous. */
+const MAX_ATTEMPT_MS = 25_000;
+/** Kept aside for saving the deck, auto-naming and sending the response. */
+const FINISH_RESERVE_MS = 4_000;
+/** The prose-repair pass is an enhancement — only run it if this much is left. */
+const PROSE_REPAIR_MS = 15_000;
+/** Inline first-slide image; skipped when tight (the player lazy-loads it). */
+const FIRST_IMAGE_MS = 10_000;
+
 const AI_UNAVAILABLE_MSG =
   "AI_UNAVAILABLE: no AI provider produced content — nothing was saved and any tokens were refunded. Check the server .env AI keys (e.g. GEMINI_API_KEY) or add your own key in Settings → API Keys, then try again.";
 
@@ -95,6 +120,8 @@ export async function expandThinProse(
     newsPeriod?: string;
     paraFloor: number;
     newsMinParas: number;
+    /** Cap for the single repair call, fitted to the request's time budget. */
+    timeoutMs?: number;
   },
   // injectable for tests — production always uses the real provider cascade
   complete: typeof completeText = completeText,
@@ -151,6 +178,7 @@ export async function expandThinProse(
     const result = await complete({
       userId: opts.userId,
       maxTokens: 8192,
+      ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}),
       messages: [
         {
           role: "system",
@@ -538,6 +566,8 @@ export const generateRouter = createRouter({
       walkthrough: import("../../contracts/types.js").WalkthroughInfo | null;
       author: { ownerId: number | null; name: string } | null;
     }> => {
+      // Clock starts the moment the invocation does — see GENERATION_BUDGET_MS.
+      const startedAt = Date.now();
       const db = getDb();
       const tool = await db.query.slideTools.findFirst({
         where: eq(slideTools.slug, input.toolSlug),
@@ -687,6 +717,13 @@ export const generateRouter = createRouter({
         }
       }
 
+      // From here on the user has already paid. ANY failure — a provider
+      // error, a bad DB write, a validation slip — must hand the coins back
+      // before the error reaches the client; `refunded` keeps the dedicated
+      // AI-unavailable path below from refunding twice.
+      let refunded = false;
+      try {
+
       // Offer the AI only the layouts that fit this topic's subject area AND
       // this deck's difficulty level (beginner=lighter text, advanced=denser).
       // The same filtered set is used to VALIDATE that each generated slide
@@ -786,11 +823,29 @@ export const generateRouter = createRouter({
         previouslyTaught,
         layoutTemplates,
       });
+      // ---- wall-clock budget -------------------------------------------
+      // The whole request runs inside one serverless invocation (Vercel:
+      // maxDuration 60s). Web search + up to 3 deck attempts + the prose
+      // repair pass + the first image can easily exceed that, and a killed
+      // function returns no response at all: the client bounces back to the
+      // settings page AND the pre-charged tokens are never refunded because
+      // no catch block runs. So every AI step below is fitted to the time
+      // actually left, and we always return a real answer before the kill.
+      const deadlineAt = startedAt + GENERATION_BUDGET_MS;
+      const msLeft = () => deadlineAt - Date.now();
+
       // Optional web search first, so the deck is built on current facts.
+      // It only earns its keep if a full deck attempt still fits afterwards.
       let webNotes: string | null = null;
-      if (input.webSearch) {
-        const r = await webResearch(ctx.user?.id, `${topic}${instructions && instructions !== topic ? ` — ${instructions}` : ""}`);
+      if (input.webSearch && msLeft() > WEB_SEARCH_MS + MIN_ATTEMPT_MS + FINISH_RESERVE_MS) {
+        const r = await webResearch(
+          ctx.user?.id,
+          `${topic}${instructions && instructions !== topic ? ` — ${instructions}` : ""}`,
+          WEB_SEARCH_MS,
+        );
         webNotes = r?.text ?? null;
+      } else if (input.webSearch) {
+        console.warn("[generate.slides] skipping web search — not enough time budget left");
       }
       const userPrompt = [
         `TOPIC: ${topic}`,
@@ -819,9 +874,18 @@ export const generateRouter = createRouter({
       const maxAttempts = hasPlan ? 3 : 2;
       try {
         for (let attempt = 0; attempt < maxAttempts && deck === null; attempt++) {
+          // Only start an attempt that can actually finish inside the budget.
+          const attemptMs = Math.min(MAX_ATTEMPT_MS, msLeft() - FINISH_RESERVE_MS);
+          if (attemptMs < MIN_ATTEMPT_MS) {
+            console.warn(
+              `[generate.slides] out of time budget before attempt ${attempt + 1} (${msLeft()}ms left) — using what we have`,
+            );
+            break;
+          }
           try {
             const result = await completeText({
               userId: ctx.user?.id,
+              timeoutMs: attemptMs,
               messages: [
                 { role: "system", content: systemPrompt },
                 {
@@ -903,7 +967,11 @@ export const generateRouter = createRouter({
             // The model sometimes under-delivers (e.g. 3 slides when 8 were
             // asked). Retry (up to maxAttempts) before accepting a miss.
             const tooFewSlides = parsedDeck.slides.length < slideCount;
-            if (attempt < maxAttempts - 1 && (nonConforming || tooFewSlides)) {
+            // A retry is only worth starting if another full attempt fits.
+            const canRetry =
+              attempt < maxAttempts - 1 &&
+              msLeft() - FINISH_RESERVE_MS >= MIN_ATTEMPT_MS;
+            if (canRetry && (nonConforming || tooFewSlides)) {
               console.warn(
                 tooFewSlides
                   ? `[generate.slides] model returned ${parsedDeck.slides.length}/${slideCount} slides — retry ${attempt + 1}/${maxAttempts - 1}`
@@ -941,7 +1009,10 @@ export const generateRouter = createRouter({
 
       if (!deck) {
         if (!mockAiAllowed()) {
-          if (ctx.user && cost > 0) await refundTokens(ctx.user.id, cost, `refund: ${reason}`);
+          if (ctx.user && cost > 0) {
+            await refundTokens(ctx.user.id, cost, `refund: ${reason}`);
+            refunded = true;
+          }
           throw new TRPCError({ code: "PRECONDITION_FAILED", message: AI_UNAVAILABLE_MSG });
         }
         usedMock = true;
@@ -975,7 +1046,8 @@ export const generateRouter = createRouter({
       // A best-attempt deck may have shipped past the retry floors with thin
       // or missing body text — write the real text for those slides now,
       // rather than letting the generic fallback line be the "explanation".
-      if (!usedMock) {
+      // Enhancement only: skipped when the budget can't absorb another call.
+      if (!usedMock && msLeft() >= PROSE_REPAIR_MS + FINISH_RESERVE_MS) {
         deck = await expandThinProse(deck, {
           userId: ctx.user?.id,
           topic,
@@ -985,7 +1057,10 @@ export const generateRouter = createRouter({
           newsPeriod: purpose === "news" ? input.newsPeriod?.trim() || undefined : undefined,
           paraFloor,
           newsMinParas,
+          timeoutMs: Math.min(PROSE_REPAIR_MS, msLeft() - FINISH_RESERVE_MS),
         });
+      } else if (!usedMock) {
+        console.warn("[generate.slides] skipping prose repair — not enough time budget left");
       }
       // Guarantee every slide has explanatory text — no image-only slides ship
       deck = ensureExplanatoryProse(deck, purpose, topic);
@@ -1023,7 +1098,11 @@ export const generateRouter = createRouter({
       // with its picture already in place (no visible wait on the opening
       // slide). Every other slide's image still streams in lazily in the
       // player. Costs one image's latency, not the whole deck's.
-      if (input.imageStyle !== "none" && deck.slides.length > 0) {
+      if (
+        input.imageStyle !== "none" &&
+        deck.slides.length > 0 &&
+        msLeft() >= FIRST_IMAGE_MS + FINISH_RESERVE_MS
+      ) {
         const firstImg = deck.slides[0].components.find((c) => c.type === "image");
         if (firstImg && firstImg.type === "image" && !firstImg.imageUrl) {
           try {
@@ -1103,7 +1182,22 @@ export const generateRouter = createRouter({
           : null;
         if (owner) author = { ownerId: owner.id, name: owner.name };
       }
-      return { deck, usedMock, cost, balance, previouslyTaught, slidePlan, commercial, walkthrough, author };
+        return { deck, usedMock, cost, balance, previouslyTaught, slidePlan, commercial, walkthrough, author };
+      } catch (err) {
+        if (ctx.user && cost > 0 && !refunded) {
+          try {
+            await refundTokens(ctx.user.id, cost, `refund (generation failed): ${reason}`);
+          } catch (refundErr) {
+            console.error(
+              "[generate.slides] REFUND FAILED — user was charged for a deck they did not get:",
+              ctx.user.id,
+              cost,
+              refundErr,
+            );
+          }
+        }
+        throw err;
+      }
     }),
 
   /**
