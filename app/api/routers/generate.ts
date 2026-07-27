@@ -69,20 +69,35 @@ const mockAiAllowed = () => process.env.SKETCHLEARN_ALLOW_MOCK_AI === "1";
 /* Everything below is therefore fitted to the time actually remaining. */
 /* ------------------------------------------------------------------ */
 
-/** Total wall-clock we allow ourselves, leaving headroom under the limit. */
-const GENERATION_BUDGET_MS = Number(process.env.GENERATION_BUDGET_MS ?? 48_000);
+/**
+ * Total wall-clock we allow ourselves, leaving headroom under the platform
+ * limit. Raise both this and vercel.json's maxDuration together if the
+ * hosting plan allows longer functions.
+ */
+const GENERATION_BUDGET_MS = Number(process.env.GENERATION_BUDGET_MS ?? 52_000);
 /** Ceiling for the optional pre-generation web search. */
-const WEB_SEARCH_MS = 14_000;
+const WEB_SEARCH_MS = 12_000;
 /** A deck attempt shorter than this can't realistically return a full deck. */
 const MIN_ATTEMPT_MS = 12_000;
-/** Longest we let a single deck attempt run when the budget is generous. */
-const MAX_ATTEMPT_MS = 25_000;
+/**
+ * Longest a single deck attempt may run. Deliberately generous: writing the
+ * deck is the ONE thing the request exists for, so it gets the lion's share
+ * and every optional extra lives off the leftovers.
+ */
+const MAX_ATTEMPT_MS = 34_000;
 /** Kept aside for saving the deck, auto-naming and sending the response. */
-const FINISH_RESERVE_MS = 4_000;
+const FINISH_RESERVE_MS = 3_000;
 /** The prose-repair pass is an enhancement — only run it if this much is left. */
-const PROSE_REPAIR_MS = 15_000;
+const PROSE_REPAIR_MS = 12_000;
 /** Inline first-slide image; skipped when tight (the player lazy-loads it). */
-const FIRST_IMAGE_MS = 10_000;
+const FIRST_IMAGE_MS = 8_000;
+/**
+ * Embedding the opening slide's image in the deck response saves a moment of
+ * lazy-load on slide 1, but it costs an extra image round-trip inside the
+ * invocation AND ships a multi-megabyte base64 string in the JSON — two ways
+ * for an already-generated deck to be lost. Off unless explicitly enabled.
+ */
+const INLINE_FIRST_IMAGE = process.env.INLINE_FIRST_IMAGE === "1";
 
 const AI_UNAVAILABLE_MSG =
   "AI_UNAVAILABLE: no AI provider produced content — nothing was saved and any tokens were refunded. Check the server .env AI keys (e.g. GEMINI_API_KEY) or add your own key in Settings → API Keys, then try again.";
@@ -882,6 +897,7 @@ export const generateRouter = createRouter({
             );
             break;
           }
+          const attemptStartedAt = Date.now();
           try {
             const result = await completeText({
               userId: ctx.user?.id,
@@ -967,10 +983,13 @@ export const generateRouter = createRouter({
             // The model sometimes under-delivers (e.g. 3 slides when 8 were
             // asked). Retry (up to maxAttempts) before accepting a miss.
             const tooFewSlides = parsedDeck.slides.length < slideCount;
-            // A retry is only worth starting if another full attempt fits.
+            // Only retry when there is room for an attempt that can actually
+            // finish. A model that just took 30s will take ~30s again, so
+            // starting it with 19s left burns the budget and produces
+            // nothing — better to ship the deck we already have.
+            const needForRetry = Math.max(MIN_ATTEMPT_MS, Date.now() - attemptStartedAt);
             const canRetry =
-              attempt < maxAttempts - 1 &&
-              msLeft() - FINISH_RESERVE_MS >= MIN_ATTEMPT_MS;
+              attempt < maxAttempts - 1 && msLeft() - FINISH_RESERVE_MS >= needForRetry;
             if (canRetry && (nonConforming || tooFewSlides)) {
               console.warn(
                 tooFewSlides
@@ -1099,6 +1118,7 @@ export const generateRouter = createRouter({
       // slide). Every other slide's image still streams in lazily in the
       // player. Costs one image's latency, not the whole deck's.
       if (
+        INLINE_FIRST_IMAGE &&
         input.imageStyle !== "none" &&
         deck.slides.length > 0 &&
         msLeft() >= FIRST_IMAGE_MS + FINISH_RESERVE_MS
@@ -1110,6 +1130,10 @@ export const generateRouter = createRouter({
               userId: ctx.user?.id,
               prompt: firstImg.prompt,
               style: input.imageStyle,
+              // Hard-bounded: the deck is already made and paid for, so this
+              // nicety must never be able to outlive the invocation and take
+              // the deck down with it. The player lazy-loads it otherwise.
+              timeoutMs: Math.max(1_500, msLeft() - FINISH_RESERVE_MS),
             });
             if (url) firstImg.imageUrl = url;
           } catch (err) {
