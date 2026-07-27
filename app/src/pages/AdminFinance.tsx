@@ -330,8 +330,156 @@ const TABS = [
   { id: 'models', label: 'Model prices' },
   { id: 'income', label: 'Income' },
   { id: 'credits', label: 'Credits ledger' },
+  { id: 'pricing', label: 'Set prices' },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
+
+/* ------------------------------------------------------------------ */
+/* Set prices: coin packs + ticket price                               */
+/* ------------------------------------------------------------------ */
+
+function PricingEditor({
+  packs,
+  autoPrice,
+  override,
+}: {
+  packs: { tokens: number; priceCents: number }[];
+  autoPrice: number;
+  override: number | null;
+}) {
+  const utils = trpc.useUtils();
+  const [rows, setRows] = useState(
+    packs.map((p) => ({ tokens: String(p.tokens), price: (p.priceCents / 100).toFixed(2) })),
+  );
+  const [mode, setMode] = useState<'auto' | 'custom'>(override ? 'custom' : 'auto');
+  const [ticket, setTicket] = useState(String(override ?? autoPrice));
+
+  const save = trpc.finance.setPricing.useMutation({
+    onSuccess: (r) => {
+      toast.success(`Prices saved — a ticket now sells for ${r.ticketPriceCoins} 🪙`);
+      void utils.finance.overview.invalidate();
+      void utils.tokens.packs.invalidate();
+      void utils.tickets.price.invalidate();
+    },
+    onError: (e) => toast.error(errMsg(e)),
+  });
+
+  const parsed = rows.map((r) => ({
+    tokens: Math.round(Number(r.tokens)),
+    priceCents: Math.round(Number(r.price) * 100),
+  }));
+  const rowsValid = parsed.every(
+    (p) => Number.isFinite(p.tokens) && p.tokens >= 1 && Number.isFinite(p.priceCents) && p.priceCents >= 0,
+  );
+  const ticketValid = mode === 'auto' || (Number.isFinite(Number(ticket)) && Number(ticket) >= 1);
+
+  return (
+    <div className="p-4">
+      <h3 className="mb-1 font-heading text-lg font-semibold text-ink">What you charge</h3>
+      <p className="mb-4 text-xs text-ink-soft">
+        These are live prices: packs are what buyers pay for coins, and the ticket price is what
+        a moderator pays (in coins) for one customization. Every chart on this page recalculates
+        from what you set here.
+      </p>
+
+      <h4 className="mb-2 font-heading font-semibold text-ink">Coin packs</h4>
+      <div className="flex flex-col gap-2">
+        {rows.map((r, i) => (
+          <div key={i} className="flex flex-wrap items-center gap-2">
+            <SketchInput
+              type="number"
+              min={1}
+              className="w-28"
+              value={r.tokens}
+              onChange={(e) => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, tokens: e.target.value } : x)))}
+            />
+            <span className="text-sm text-ink-soft">🪙 for $</span>
+            <SketchInput
+              className="w-24"
+              value={r.price}
+              onChange={(e) => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))}
+            />
+            <span className="font-mono text-xs text-ink-faint">
+              {Number(r.tokens) > 0 && Number(r.price) >= 0
+                ? `= ${((Number(r.price) * 100) / Number(r.tokens)).toFixed(1)}¢ per coin`
+                : ''}
+            </span>
+            {rows.length > 1 && (
+              <button
+                onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}
+                className="rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-0.5 text-xs font-bold text-ink-soft hover:border-red hover:text-red"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      {rows.length < 6 && (
+        <button
+          onClick={() => setRows((rs) => [...rs, { tokens: '100', price: '5.00' }])}
+          className="mt-2 rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-xs font-bold text-ink-soft hover:border-ink hover:text-ink"
+        >
+          + Add pack
+        </button>
+      )}
+
+      <h4 className="mb-2 mt-5 font-heading font-semibold text-ink">Ticket price</h4>
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-sm text-ink">
+          <input
+            type="radio"
+            name="ticket-mode"
+            checked={mode === 'auto'}
+            onChange={() => setMode('auto')}
+          />
+          Automatic — always covers the priciest deck (currently {autoPrice} 🪙)
+        </label>
+        <label className="flex items-center gap-2 text-sm text-ink">
+          <input
+            type="radio"
+            name="ticket-mode"
+            checked={mode === 'custom'}
+            onChange={() => setMode('custom')}
+          />
+          Fixed:
+        </label>
+        <SketchInput
+          type="number"
+          min={1}
+          className="w-24"
+          aria-label="Ticket price in coins"
+          value={ticket}
+          disabled={mode === 'auto'}
+          onChange={(e) => setTicket(e.target.value)}
+        />
+        <span className="text-sm text-ink-soft">🪙</span>
+      </div>
+      {mode === 'custom' && Number(ticket) < autoPrice && (
+        <p className="mt-1 text-xs font-bold text-orange">
+          Below the automatic price ({autoPrice} 🪙) a maxed-out deck earns you less than a
+          coin-paid one would — check the Per-generation tab's guarantee after saving.
+        </p>
+      )}
+
+      <div className="mt-4">
+        <SketchButton
+          variant="accent"
+          loading={save.isPending}
+          disabled={!rowsValid || !ticketValid}
+          onClick={() =>
+            save.mutate({
+              packs: parsed,
+              ticketPriceOverride: mode === 'auto' ? null : Math.round(Number(ticket)),
+            })
+          }
+        >
+          Save prices
+        </SketchButton>
+      </div>
+    </div>
+  );
+}
 
 function FinanceBody() {
   const utils = trpc.useUtils();
@@ -343,6 +491,8 @@ function FinanceBody() {
   const [calcSlides, setCalcSlides] = useState(8);
   const [calcImages, setCalcImages] = useState(true);
   const [calcLevel, setCalcLevel] = useState<Level>('B1');
+  // "sell N coins" what-if
+  const [sellCoins, setSellCoins] = useState(100);
 
   const refresh = trpc.finance.refreshPricing.useMutation({
     onSuccess: () => {
@@ -360,7 +510,14 @@ function FinanceBody() {
   );
 
   // What one deck with the calculator's settings charges the user, in coins
-  // (mirrors api/cost.ts estimateCost) and in dollars at the real sale rate.
+  // (mirrors api/cost.ts estimateCost) and in dollars at TODAY'S pack prices
+  // — forward-looking, so editing prices in "Set prices" moves these numbers.
+  const packRate = useMemo(() => {
+    if (!data) return 4;
+    const t = data.packs.reduce((n, p) => n + p.tokens, 0);
+    return t > 0 ? data.packs.reduce((n, p) => n + p.priceCents, 0) / t : 4;
+  }, [data]);
+
   const calc = useMemo(() => {
     if (!data) return null;
     const mult = data.prices.levelMultiplier[calcLevel] ?? 1;
@@ -372,10 +529,10 @@ function FinanceBody() {
           mult,
       ),
     );
-    const chargeUsd = (coins * data.centsPerCoin) / 100;
-    const ticketUsd = (data.ticketPriceCoins * data.centsPerCoin) / 100;
+    const chargeUsd = (coins * packRate) / 100;
+    const ticketUsd = (data.ticketPriceCoins * packRate) / 100;
     return { coins, chargeUsd, ticketUsd };
-  }, [data, calcSlides, calcImages, calcLevel]);
+  }, [data, packRate, calcSlides, calcImages, calcLevel]);
 
   // Estimated dollar cost of generating ONE deck's text on each model —
   // measured average tokens per call when we have real usage, else a
@@ -396,6 +553,18 @@ function FinanceBody() {
       };
     });
   }, [data]);
+
+  // Guarantee check: the most expensive possible deck (what a ticket must
+  // cover) on the priciest model, with a conservative output-token bound.
+  const worstCase = useMemo(() => {
+    if (!data) return null;
+    const cost = (m: { inPerM: number; outPerM: number }) =>
+      (6000 / 1e6) * m.inPerM + (14000 / 1e6) * m.outPerM;
+    const priciest = [...data.pricing.models].sort((a, b) => cost(b) - cost(a))[0];
+    if (!priciest) return null;
+    const ticketUsd = (data.ticketPriceCoins * packRate) / 100;
+    return { model: priciest.label, costUsd: cost(priciest), profit: ticketUsd - cost(priciest) };
+  }, [data, packRate]);
 
   if (overview.isLoading) {
     return (
@@ -501,13 +670,13 @@ function FinanceBody() {
         {tab === 'generation' && (
           <div className="p-4">
             <h3 className="font-heading text-lg font-semibold text-ink">
-              What one presentation costs you vs what it earns
+              Profit on one presentation, by model
             </h3>
             <p className="mb-3 text-xs text-ink-soft">
-              Orange bars: the estimated AI text bill for generating one deck on each model
-              (measured from real calls when available, else a typical deck).
-              The dashed lines are what YOU collect for that same deck: the blue line is a
-              coin-paid generation, the green line is one ticket. Bars left of a line = profit.
+              For the deck configured below, each bar is your PROFIT after paying that model's
+              estimated AI bill: blue = the user paid with coins, green = they used a ticket.
+              A bar reaching left of zero would mean a loss. Change what you charge in the
+              "Set prices" tab.
             </p>
 
             {/* calculator */}
@@ -535,6 +704,18 @@ function FinanceBody() {
                   ))}
                 </SketchSelect>
               </LabeledField>
+              <SketchButton
+                variant="secondary"
+                size="sm"
+                className="mb-0.5"
+                onClick={() => {
+                  setCalcSlides(15);
+                  setCalcImages(true);
+                  setCalcLevel('C2');
+                }}
+              >
+                Max deck (what a ticket covers)
+              </SketchButton>
               <p className="pb-1 text-sm text-ink">
                 This deck charges{' '}
                 <span className="font-bold text-orange">{calc.coins} 🪙</span> ≈{' '}
@@ -544,19 +725,44 @@ function FinanceBody() {
               </p>
             </div>
 
-            <div style={{ height: perModel.length * 42 + 70 }}>
+            {/* ticket guarantee */}
+            {worstCase && (
+              <div
+                className={`mb-4 rounded-wobble-sm border-2 px-4 py-2.5 ${
+                  worstCase.profit >= 0 ? 'border-green bg-green-soft' : 'border-red bg-red-soft'
+                }`}
+              >
+                <p className="text-sm text-ink">
+                  <span className="font-heading font-bold">
+                    {worstCase.profit >= 0 ? 'Ticket guarantee holds ✓' : 'Ticket guarantee BROKEN ✗'}
+                  </span>{' '}
+                  The biggest deck we offer (15 slides, images, top level) on the priciest model
+                  ({worstCase.model}, generously estimated at ~{fmtUsd(worstCase.costUsd)}) vs a
+                  ticket at {fmtUsd(calc.ticketUsd)} →{' '}
+                  <span className={`font-bold ${worstCase.profit >= 0 ? 'text-green' : 'text-red'}`}>
+                    {worstCase.profit >= 0 ? 'at least ' : ''}
+                    {fmtUsd(worstCase.profit)} {worstCase.profit >= 0 ? 'profit per ticket' : 'LOSS per ticket'}
+                  </span>
+                  {worstCase.profit < 0 && ' — raise the ticket price in "Set prices".'}
+                </p>
+              </div>
+            )}
+
+            <div style={{ height: perModel.length * 52 + 70 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={perModel.map((m) => ({ name: m.name, 'Costs you': Number(m.costUsd.toFixed(4)) }))}
+                  data={perModel.map((m) => ({
+                    name: m.name,
+                    'Coin-paid deck': Number((calc.chargeUsd - m.costUsd).toFixed(3)),
+                    'Ticketed deck': Number((calc.ticketUsd - m.costUsd).toFixed(3)),
+                  }))}
                   layout="vertical"
-                  margin={{ top: 4, right: 40, bottom: 0, left: 8 }}
+                  margin={{ top: 4, right: 56, bottom: 0, left: 8 }}
+                  barGap={2}
                 >
                   <CartesianGrid stroke="#C9BFA9" strokeDasharray="4 6" horizontal={false} />
                   <XAxis
                     type="number"
-                    // include the two income lines in the scale — the empty
-                    // space between a bar and its line IS the profit
-                    domain={[0, Math.max(calc.chargeUsd, calc.ticketUsd) * 1.15]}
                     tick={AXIS_TICK}
                     axisLine={AXIS_LINE}
                     tickLine={false}
@@ -571,25 +777,21 @@ function FinanceBody() {
                     tickLine={false}
                   />
                   <Tooltip content={<CostTooltip unit="$" />} cursor={{ fill: '#F4EBD6' }} />
-                  <ReferenceLine
-                    x={Number(calc.chargeUsd.toFixed(4))}
-                    stroke="#3F74D6"
-                    strokeWidth={2}
-                    strokeDasharray="6 4"
-                    label={{ value: `coin-paid ${fmtUsd(calc.chargeUsd)}`, position: 'top', fill: '#3F74D6', fontSize: 12 }}
-                  />
-                  <ReferenceLine
-                    x={Number(calc.ticketUsd.toFixed(4))}
-                    stroke="#4C9A5C"
-                    strokeWidth={2}
-                    strokeDasharray="6 4"
-                    label={{ value: `ticket ${fmtUsd(calc.ticketUsd)}`, position: 'insideTopRight', fill: '#4C9A5C', fontSize: 12 }}
-                  />
-                  <Bar dataKey="Costs you" fill="#EF8A3C" fillOpacity={0.9} stroke="#2E2820" strokeWidth={1.5} radius={[0, 4, 4, 0]}>
+                  <Legend wrapperStyle={{ fontSize: 13 }} />
+                  <ReferenceLine x={0} stroke="#2E2820" strokeWidth={2} />
+                  <Bar dataKey="Coin-paid deck" fill="#3F74D6" fillOpacity={0.85} stroke="#2E2820" strokeWidth={1.5} radius={[0, 4, 4, 0]}>
                     <LabelList
-                      dataKey="Costs you"
+                      dataKey="Coin-paid deck"
                       position="right"
-                      formatter={(v: number) => `~${fmtUsd(v)}`}
+                      formatter={(v: number) => fmtUsd(v)}
+                      style={{ fill: '#5C5347', fontSize: 11, fontFamily: 'monospace' }}
+                    />
+                  </Bar>
+                  <Bar dataKey="Ticketed deck" fill="#4C9A5C" fillOpacity={0.85} stroke="#2E2820" strokeWidth={1.5} radius={[0, 4, 4, 0]}>
+                    <LabelList
+                      dataKey="Ticketed deck"
+                      position="right"
+                      formatter={(v: number) => fmtUsd(v)}
                       style={{ fill: '#5C5347', fontSize: 11, fontFamily: 'monospace' }}
                     />
                   </Bar>
@@ -633,9 +835,48 @@ function FinanceBody() {
             </div>
             <p className="micro mt-2 text-ink-faint">
               Text cost only — image generation isn't metered yet, so decks with images cost a
-              little more than shown. Coin value uses your real blended sale rate
-              ({data.centsPerCoin.toFixed(1)}¢ per coin).
+              little more than shown. Coin value uses today's pack prices
+              ({packRate.toFixed(1)}¢ per coin).
             </p>
+
+            {/* what-if: sell N coins */}
+            <div className="mt-5 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper p-4">
+              <p className="mb-1 font-heading font-semibold text-ink">What if I sell…</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <SketchInput
+                  type="number"
+                  min={1}
+                  className="w-28"
+                  value={String(sellCoins)}
+                  onChange={(e) => setSellCoins(Math.max(1, Math.min(1000000, Number(e.target.value) || 1)))}
+                />
+                <span className="text-sm text-ink">
+                  coins — and every one of them gets spent on decks like the one above?
+                </span>
+              </div>
+              {(() => {
+                const revenue = (sellCoins * packRate) / 100;
+                const decks = calc.coins > 0 ? Math.floor(sellCoins / calc.coins) : 0;
+                const costs = perModel.map((m) => m.costUsd);
+                const cheap = decks * Math.min(...costs);
+                const dear = decks * Math.max(...costs);
+                const bestProfit = revenue - cheap;
+                const worstProfit = revenue - dear;
+                return (
+                  <p className="mt-2 text-sm text-ink">
+                    You collect <span className="font-bold text-green">{fmtUsd(revenue)}</span>. Those
+                    coins buy <span className="font-bold">{decks}</span> generations, costing you{' '}
+                    {fmtUsd(cheap)}–{fmtUsd(dear)} depending on which model answers →{' '}
+                    <span className={`font-bold ${worstProfit >= 0 ? 'text-green' : 'text-red'}`}>
+                      {worstProfit >= 0
+                        ? `${fmtUsd(worstProfit)}–${fmtUsd(bestProfit)} profit`
+                        : `between ${fmtUsd(worstProfit)} and ${fmtUsd(bestProfit)} — you'd be at a loss on pricier models`}
+                    </span>
+                    . Every unspent coin is pure margin.
+                  </p>
+                );
+              })()}
+            </div>
           </div>
         )}
 
@@ -796,6 +1037,16 @@ function FinanceBody() {
             </div>
             <BalanceFixForm />
           </div>
+        )}
+
+        {/* ---------------- tab 5: set prices ---------------- */}
+        {tab === 'pricing' && (
+          <PricingEditor
+            key={`${JSON.stringify(data.packs)}|${String(data.ticketPriceOverride)}`}
+            packs={data.packs}
+            autoPrice={data.ticketAutoPrice}
+            override={data.ticketPriceOverride}
+          />
         )}
       </SketchCard>
 

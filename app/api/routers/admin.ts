@@ -31,6 +31,9 @@ const settingsSchema = z.object({
       C1: z.number().min(0),
       C2: z.number().min(0),
     }),
+    // carried through so a Platform-page save never drops the Finance-set
+    // ticket price (null/absent = automatic pricing)
+    ticketPriceOverride: z.number().int().min(1).max(1000000).nullable().optional(),
   }),
   googleSheetUrl: z.string().max(500),
   platformAiKeys: z.object({
