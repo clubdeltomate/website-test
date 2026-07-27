@@ -42,6 +42,7 @@ import {
 import { isStemTopic } from "../../contracts/stem.js";
 import { typedOverlapCorrect } from "../../contracts/grade.js";
 import { repoPurpose, templateFilterPurpose, type CoachReply, type SlideDeck } from "../../contracts/types.js";
+import { GenTrace } from "../generation-trace.js";
 
 export const GUEST_MAX_SLIDES = 6;
 const MAX_SLIDES = 15;
@@ -583,6 +584,14 @@ export const generateRouter = createRouter({
     }> => {
       // Clock starts the moment the invocation does — see GENERATION_BUDGET_MS.
       const startedAt = Date.now();
+      const trace = new GenTrace(startedAt, {
+        toolSlug: input.toolSlug,
+        userId: ctx.user?.id ?? null,
+        slideCount: input.slideCount,
+        imageStyle: input.imageStyle,
+        webSearch: !!input.webSearch,
+      });
+      await trace.mark("start");
       const db = getDb();
       const tool = await db.query.slideTools.findFirst({
         where: eq(slideTools.slug, input.toolSlug),
@@ -731,6 +740,7 @@ export const generateRouter = createRouter({
           await applyTokenDelta(ctx.user.id, -cost, reason);
         }
       }
+      await trace.mark("charged", `${cost} coins`);
 
       // From here on the user has already paid. ANY failure — a provider
       // error, a bad DB write, a validation slip — must hand the coins back
@@ -859,8 +869,10 @@ export const generateRouter = createRouter({
           WEB_SEARCH_MS,
         );
         webNotes = r?.text ?? null;
+        await trace.mark("websearch:done", webNotes ? "notes received" : "no web-capable provider");
       } else if (input.webSearch) {
         console.warn("[generate.slides] skipping web search — not enough time budget left");
+        await trace.mark("websearch:skipped", "not enough budget");
       }
       const userPrompt = [
         `TOPIC: ${topic}`,
@@ -901,6 +913,7 @@ export const generateRouter = createRouter({
             break;
           }
           const attemptStartedAt = Date.now();
+          await trace.mark(`attempt${attempt + 1}:start`, `${attemptMs}ms allowed`);
           try {
             const result = await completeText({
               userId: ctx.user?.id,
@@ -921,7 +934,17 @@ export const generateRouter = createRouter({
               // this to their own per-model maximums).
               maxTokens: 16384,
             });
-            if (!result) break; // no key configured → mock
+            if (!result) {
+              await trace.mark(
+                `attempt${attempt + 1}:noprovider`,
+                providerErrors.slice(-2).join(" | ").slice(0, 200) || "all candidates failed",
+              );
+              break; // no key configured → mock
+            }
+            await trace.mark(
+              `attempt${attempt + 1}:replied`,
+              `${result.provider} in ${Date.now() - attemptStartedAt}ms`,
+            );
             textProvider = result.provider;
             const repaired = repairDeckDraft(JSON.parse(extractJson(result.text)), {
               level: input.level,
@@ -1015,6 +1038,7 @@ export const generateRouter = createRouter({
                   ? err.message
                   : String(err);
             console.warn(`[generate.slides] LLM parse attempt ${attempt + 1} failed:`, detail);
+            await trace.mark(`attempt${attempt + 1}:unusable`, detail.slice(0, 200));
           }
         }
       } catch (err) {
@@ -1030,6 +1054,7 @@ export const generateRouter = createRouter({
         deck = lastAttempt;
       }
 
+      await trace.mark(deck ? "deck:ready" : "deck:none");
       if (!deck) {
         if (!mockAiAllowed()) {
           if (ctx.user && cost > 0) {
@@ -1090,8 +1115,10 @@ export const generateRouter = createRouter({
           newsMinParas,
           timeoutMs: Math.min(PROSE_REPAIR_MS, msLeft() - FINISH_RESERVE_MS),
         });
+        await trace.mark("prose-repair:done");
       } else if (!usedMock) {
         console.warn("[generate.slides] skipping prose repair — not enough time budget left");
+        await trace.mark("prose-repair:skipped", "not enough budget");
       }
       // Guarantee every slide has explanatory text — no image-only slides ship
       deck = ensureExplanatoryProse(deck, purpose, topic);
@@ -1218,8 +1245,10 @@ export const generateRouter = createRouter({
           : null;
         if (owner) author = { ownerId: owner.id, name: owner.name };
       }
+        await trace.finish("deck", `${deck.slides.length} slides`);
         return { deck, usedMock, cost, balance, previouslyTaught, slidePlan, commercial, walkthrough, author };
       } catch (err) {
+        await trace.finish("error", err instanceof Error ? err.message.slice(0, 200) : String(err));
         if (ctx.user && cost > 0 && !refunded) {
           try {
             await refundTokens(ctx.user.id, cost, `refund (generation failed): ${reason}`);

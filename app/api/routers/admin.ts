@@ -6,6 +6,7 @@ import { getDb } from "../queries/connection.js";
 import { payments, repos, runs, slideTools, tokenLedger, users } from "../../db/schema.js";
 import { getSettings, saveSettings } from "../settings.js";
 import { diagnoseTextProviders } from "../ai/provider.js";
+import { readGenerationTrace } from "../generation-trace.js";
 import type { AdminDashboard, AiProvider, AppSettings, RunRow } from "../../contracts/types.js";
 
 const settingsSchema = z.object({
@@ -168,6 +169,15 @@ export const adminRouter = createRouter({
   aiStatus: adminProcedure.mutation(async ({ ctx }) => {
     const results = await diagnoseTextProviders(ctx.user.id);
     return { results, checkedAt: new Date() };
+  }),
+
+  /**
+   * The phase-by-phase record of the most recent slide generation, written to
+   * the database as it ran. If the invocation was killed, the last phase here
+   * is the step that never returned.
+   */
+  lastGenerationTrace: adminProcedure.query(async () => {
+    return { trace: await readGenerationTrace() };
   }),
 
   getSettings: adminProcedure.query(async () => {
