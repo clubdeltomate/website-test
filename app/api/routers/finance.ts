@@ -6,8 +6,8 @@ import { adminProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
 import { payments, tokenLedger, users } from "../../db/schema.js";
 import { applyTokenDelta } from "../tokens.js";
-import { getSettings } from "../settings.js";
-import { ticketPrice } from "../cost.js";
+import { getSettings, saveSettings } from "../settings.js";
+import { autoTicketPrice, ticketPrice } from "../cost.js";
 import {
   estimateUsd,
   getPricing,
@@ -114,6 +114,8 @@ export const financeRouter = createRouter({
       packs,
       prices: settings.prices,
       ticketPriceCoins,
+      ticketAutoPrice: autoTicketPrice(settings.prices),
+      ticketPriceOverride: settings.prices.ticketPriceOverride ?? null,
       centsPerCoin,
       revenueCents,
       purchasedTokens,
@@ -123,6 +125,42 @@ export const financeRouter = createRouter({
       ledger,
     };
   }),
+
+  /**
+   * Set what the platform charges: the coin packs (what a coin sells for)
+   * and the ticket price (a fixed override, or null for automatic — the
+   * price of the most expensive possible customization).
+   */
+  setPricing: adminProcedure
+    .input(
+      z.object({
+        packs: z
+          .array(
+            z.object({
+              tokens: z.number().int().min(1).max(1000000),
+              priceCents: z.number().int().min(0).max(10000000),
+            }),
+          )
+          .min(1)
+          .max(6),
+        ticketPriceOverride: z.number().int().min(1).max(1000000).nullable(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const settings = await getSettings();
+      const packs = input.packs.map((p) => ({
+        id: `pack-${p.tokens}`,
+        tokens: p.tokens,
+        priceCents: p.priceCents,
+        label: `${p.tokens} tokens — $${(p.priceCents / 100).toFixed(p.priceCents % 100 === 0 ? 0 : 2)}`,
+      }));
+      await saveSettings({
+        ...settings,
+        tokenPacks: packs,
+        prices: { ...settings.prices, ticketPriceOverride: input.ticketPriceOverride },
+      });
+      return { ok: true as const, ticketPriceCoins: await ticketPrice() };
+    }),
 
   /** Re-fetch model prices from the maintained public feed (LiteLLM). */
   refreshPricing: adminProcedure.mutation(async () => {

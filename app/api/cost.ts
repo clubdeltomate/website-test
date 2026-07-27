@@ -9,18 +9,32 @@ import { getSettings } from "./settings.js";
  */
 export const TICKET_MAX_SLIDES = 15;
 
-/**
- * Credit price of ONE customization ticket: the cost of the most expensive
- * customization — MAX_SLIDES slides, an image on every slide, at the highest
- * level multiplier. Moderators pay this (in credits) to the admin per ticket.
- * Computed from live settings so it tracks any price change.
- */
-export async function ticketPrice(): Promise<number> {
-  const { prices } = await getSettings();
+/** The automatic ticket price for a given price config: the cost of the most
+ *  expensive customization — MAX_SLIDES slides, an image on every slide, at
+ *  the highest level multiplier. */
+export function autoTicketPrice(prices: {
+  perSlideBase: number;
+  perImageSlide: number;
+  levelMultiplier: Record<string, number>;
+}): number {
   const mults = Object.values(prices.levelMultiplier);
   const maxMult = mults.length ? Math.max(...mults) : 1;
   const perSlide = prices.perSlideBase + prices.perImageSlide;
   return Math.max(1, Math.ceil(perSlide * TICKET_MAX_SLIDES * maxMult));
+}
+
+/**
+ * Credit price of ONE customization ticket. The admin can pin an exact price
+ * from Finance → Set prices; otherwise it's the auto price above. Moderators
+ * pay this (in credits) to the admin per ticket. Computed from live settings
+ * so it tracks any price change.
+ */
+export async function ticketPrice(): Promise<number> {
+  const { prices } = await getSettings();
+  if (prices.ticketPriceOverride && prices.ticketPriceOverride > 0) {
+    return Math.ceil(prices.ticketPriceOverride);
+  }
+  return autoTicketPrice(prices);
 }
 
 /**
