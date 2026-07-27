@@ -135,6 +135,63 @@ function parseSeed(raw: string | null): LessonSeed | null {
 /* ------------------------------------------------------------------ */
 /* Seed banner (slide-tool.md §A1)                                     */
 /* ------------------------------------------------------------------ */
+/**
+ * Why a generation failed, shown where the user lands rather than as a toast.
+ * The server sends a machine-prefixed reason plus, for provider failures, the
+ * exact upstream complaint — so we translate the prefix into plain language and
+ * keep the raw detail available underneath instead of throwing it away.
+ */
+function GenerationErrorBanner({
+  message,
+  onDismiss,
+}: {
+  message: string;
+  onDismiss: () => void;
+}) {
+  const [headline, blurb] = message.startsWith('AI_UNAVAILABLE')
+    ? [
+        'No deck was generated — your tokens were refunded',
+        'Every AI provider the server tried refused the request. The details below say which one and why.',
+      ]
+    : message.startsWith('NEED_TICKET')
+      ? [
+          'You need a customization ticket for this repo',
+          "Ask the repo's owner for a ticket to generate your own version. You can still watch the free preset any time.",
+        ]
+      : ['That generation did not finish', ''];
+  // Provider diagnostics arrive after a blank line; keep them, but secondary.
+  const [, ...detailParts] = message.split('\n\n');
+  const detail = detailParts.join('\n\n').trim();
+
+  return (
+    <section
+      className="relative mb-6 rounded-wobble-2 border-2 border-ink bg-red-soft p-5 shadow-offset"
+      role="alert"
+      aria-label="Generation failed"
+    >
+      <button
+        onClick={onDismiss}
+        aria-label="Dismiss error"
+        className="absolute right-3 top-3 rounded-wobble-sm p-1 text-ink-soft transition-colors hover:bg-paper-3 hover:text-ink"
+      >
+        <X className="h-4 w-4" />
+      </button>
+      <div className="flex items-start gap-3 pr-8">
+        <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-red" />
+        <div className="min-w-0">
+          <p className="font-heading font-semibold text-ink">{headline}</p>
+          {blurb && <p className="mt-1 text-sm text-ink-soft">{blurb}</p>}
+          {detail && (
+            <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-wobble-sm border-2 border-dotted border-ink/40 bg-paper-3/60 p-2 font-mono text-xs text-ink-soft">
+              {detail}
+            </pre>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function SeedBanner({
   seed,
   repoTitle,
@@ -349,6 +406,15 @@ function ToolStudio({
     author?: { ownerId: number | null; name: string } | null;
   } | null>(null);
   const canceledRef = useRef(false);
+  /**
+   * A failed generation used to report itself with a toast fired from the
+   * theater view — but the theater renders no <Toaster/>, and sonner drops any
+   * toast published while none is mounted (subscribers get it live; there is no
+   * replay). The settings page therefore reappeared with no explanation at all.
+   * Keeping the reason in state means it renders with the config view that owns
+   * the Toaster, and it stays on screen instead of timing out.
+   */
+  const [genError, setGenError] = useState<string | null>(null);
   // Captured when the owner presses "Generate & set preset" so the completion
   // handoff never depends on repoQuery having re-resolved by then.
   const setFlowRef = useRef(false);
@@ -482,6 +548,7 @@ function ToolStudio({
 
   const runGenerate = () => {
     canceledRef.current = false;
+    setGenError(null);
     // Remember this user's choices so they become the defaults next time.
     saveGenDefaults(user?.id, { slideCount, level, imageStyle, textDensity });
     const isSet = canPublishPreset && !!seed;
@@ -534,21 +601,7 @@ function ToolStudio({
         onError: (err) => {
           if (canceledRef.current) return;
           setMode('config');
-          if (err.message.startsWith('AI_UNAVAILABLE')) {
-            toast.error('AI provider not responding — no deck was generated', {
-              description:
-                'Tokens refunded. Check the server .env AI keys or add your own key in Settings → API Keys, then try again.',
-              duration: 12000,
-            });
-          } else if (err.message.startsWith('NEED_TICKET')) {
-            toast.error('You need a customization ticket for this repo', {
-              description:
-                "Ask the repo's owner for a ticket to generate your own version. You can still watch the free preset any time.",
-              duration: 12000,
-            });
-          } else {
-            toast.error(err.message);
-          }
+          setGenError(err.message);
         },
       },
     );
@@ -697,6 +750,7 @@ function ToolStudio({
   return (
     <div className="mx-auto w-full max-w-[960px] px-4 py-8 lg:px-8">
       <Toaster position="bottom-right" />
+      {genError && <GenerationErrorBanner message={genError} onDismiss={() => setGenError(null)} />}
       <AnimatePresence>{seed && (
         <SeedBanner
           seed={seed}

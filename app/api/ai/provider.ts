@@ -295,8 +295,15 @@ async function callGemini(
   const models = key.model
     ? [key.model, ...GEMINI_TEXT_MODELS.filter((m) => m !== key.model)]
     : GEMINI_TEXT_MODELS;
-  let notFound: Error | null = null;
+  let lastError: Error | null = null;
   for (const model of models) {
+    // Gemini 2.5 "thinks" before answering, and those thinking tokens are
+    // billed against maxOutputTokens — on a long JSON deck the model can spend
+    // the whole budget reasoning and return finishReason MAX_TOKENS with an
+    // EMPTY body, which looks exactly like a dead provider. Turning thinking
+    // off buys the deck instead of the monologue. Only 2.5 accepts the field:
+    // older models reject the whole request with a 400, so never send it there.
+    const supportsThinking = /gemini-2\.5/.test(model);
     const res = await fetch(
       `${base}/models/${model}:generateContent?key=${encodeURIComponent(key.apiKey)}`,
       {
@@ -308,24 +315,21 @@ async function callGemini(
           generationConfig: {
             maxOutputTokens: maxTokens,
             responseMimeType: "application/json",
-            // Gemini 2.5 "thinks" before answering by default, and those
-            // thinking tokens are billed against maxOutputTokens. On a long
-            // JSON deck the model can spend the entire budget reasoning and
-            // return finishReason MAX_TOKENS with an EMPTY body — which
-            // arrives here as "returned no content" and looks exactly like a
-            // dead provider. We want the deck, not the monologue.
-            thinkingConfig: { thinkingBudget: 0 },
+            ...(supportsThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
           },
         }),
         signal: AbortSignal.timeout(timeoutMs),
       },
     );
-    if (res.status === 404) {
-      notFound = new Error(`Gemini model ${model} not found (404)`);
-      console.warn(`[ai/text] gemini model ${model} not found, trying next model`);
+    // Any failure on ONE model is a reason to try the NEXT model, not to
+    // abandon Gemini entirely. Previously only 404 fell through, so a single
+    // 400 (unsupported field) or 429 (quota on that model) killed the whole
+    // provider in milliseconds and looked like "no AI configured".
+    if (!res.ok) {
+      lastError = new Error(`Gemini API ${res.status} on ${model}: ${(await res.text()).slice(0, 200)}`);
+      console.warn(`[ai/text] ${lastError.message} — trying next model`);
       continue;
     }
-    if (!res.ok) throw new Error(`Gemini API ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const data = (await res.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
     };
@@ -335,13 +339,17 @@ async function callGemini(
     }
     const text = candidate?.content?.parts?.map((p) => p.text ?? "").join("");
     if (!text) {
-      throw new Error(
-        `Gemini returned no content (finishReason: ${candidate?.finishReason ?? "unknown"})`,
+      // An empty body is a reason to try the next model too — a thinking model
+      // that burned its budget may have a sibling that answers fine.
+      lastError = new Error(
+        `Gemini ${model} returned no content (finishReason: ${candidate?.finishReason ?? "unknown"})`,
       );
+      console.warn(`[ai/text] ${lastError.message} — trying next model`);
+      continue;
     }
     return text;
   }
-  throw notFound ?? new Error("No Gemini text model available");
+  throw lastError ?? new Error("No Gemini text model available");
 }
 
 /**
