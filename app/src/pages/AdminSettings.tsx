@@ -403,6 +403,63 @@ function PaymentsTab({
 /* ------------------------------------------------------------------ */
 
 /**
+ * Phase-by-phase record of the last generation, written to the database as it
+ * ran. When the hosting platform kills a too-long request nothing comes back
+ * to the browser — but these rows survive, and the final phase is the step
+ * that never returned.
+ */
+function LastGenerationTrace() {
+  const q = trpc.admin.lastGenerationTrace.useQuery();
+  const trace = q.data?.trace;
+  if (!trace) return null;
+
+  const killed = !trace.outcome;
+  const last = trace.phases[trace.phases.length - 1];
+
+  return (
+    <div
+      className={`rounded-wobble-sm border-2 p-3 ${
+        killed ? 'border-red bg-red-soft' : 'border-pencil bg-paper'
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="font-heading font-semibold text-ink">Last generation</p>
+        <span className="text-xs text-ink-soft">
+          {new Date(trace.startedAtIso).toLocaleString()} · {trace.slideCount} slides ·{' '}
+          {trace.imageStyle}
+          {trace.webSearch ? ' · web search on' : ''}
+        </span>
+        <SketchButton variant="ghost" size="sm" className="ml-auto" onClick={() => q.refetch()}>
+          Refresh
+        </SketchButton>
+      </div>
+
+      {killed ? (
+        <p className="mt-1 text-sm font-bold text-red">
+          Never finished — it stopped during “{last?.name}” at {((last?.atMs ?? 0) / 1000).toFixed(1)}s.
+          That step is what timed out.
+        </p>
+      ) : (
+        <p className="mt-1 text-sm text-ink-soft">
+          Finished as <span className="font-bold">{trace.outcome}</span> in{' '}
+          {((trace.totalMs ?? 0) / 1000).toFixed(1)}s.
+        </p>
+      )}
+
+      <ol className="mt-2 flex flex-col gap-0.5 font-mono text-[0.7rem] text-ink-soft">
+        {trace.phases.map((p, i) => (
+          <li key={i}>
+            <span className="text-ink-faint">{(p.atMs / 1000).toFixed(1)}s</span>{' '}
+            <span className="font-bold text-ink">{p.name}</span>
+            {p.detail ? ` — ${p.detail}` : ''}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/**
  * Live provider check. When a generation fails with "no AI provider produced
  * content", this says which key the server actually tried, whether it
  * answered, how long it took, and the exact error if it didn't.
@@ -440,6 +497,8 @@ function ProviderHealth() {
           of them answers.
         </p>
       )}
+
+      <LastGenerationTrace />
 
       {results.length > 0 && (
         <ul className="flex flex-col gap-2">
