@@ -44,6 +44,9 @@ export function resolvedKeyId(k: ResolvedKey): string {
 /** Providers with a chat/completion API (ElevenLabs is speech-only). */
 type TextProvider = Exclude<AiProvider, "elevenlabs">;
 
+/** Least time worth handing a fallback provider for a real generation. */
+const MIN_CANDIDATE_MS = 15_000;
+
 /** The ids of every text key currently available to this user — the size of
  *  the rotation pool for provider-cycling callers. */
 export async function textKeyIdPool(userId: number | undefined): Promise<string[]> {
@@ -361,6 +364,10 @@ export async function completeText(opts: {
   shuffleProviders?: boolean;
   /** Skip these resolvedKeyId()s — used to rotate providers without repeats. */
   excludeKeyIds?: string[];
+  /** Callers can pass an array to collect per-candidate failure reasons, so a
+   *  total failure can explain WHICH provider refused and why instead of a
+   *  bare "no provider produced content". */
+  collectErrors?: string[];
 }): Promise<CompletionResult | null> {
   const capability = opts.capability ?? "text";
   let candidates = await resolveKeyCandidates(opts.userId, capability);
@@ -384,31 +391,39 @@ export async function completeText(opts: {
   const maxTokens = opts.maxTokens ?? 4096;
   const timeoutMs = Math.max(2_000, opts.timeoutMs ?? Number(process.env.AI_TEXT_TIMEOUT_MS ?? 25_000));
   const keys = candidates.slice(0, Math.max(1, opts.maxCandidates ?? candidates.length));
-  // timeoutMs bounds the WHOLE call, not each key. There can be seven
-  // configured providers; giving every one of them the full timeout let a
-  // cascade of slow or failing keys run for minutes and outlive the request
-  // that was waiting on it (the caller then loses work it had already paid
-  // for). Each candidate now runs on whatever time the previous ones left.
+  // timeoutMs bounds the WHOLE call, not each key: seven configured providers
+  // each given the full timeout ran for minutes and outlived the request
+  // waiting on it. But the fallback itself is the point of having several
+  // keys — one slow provider must not swallow the entire budget and leave a
+  // working one untried. So the budget is SHARED: each candidate gets a fair
+  // slice (enough for a real generation), and whatever earlier candidates
+  // didn't use rolls forward to the next.
   const deadline = Date.now() + timeoutMs;
-  for (const key of keys) {
+  for (const [index, key] of keys.entries()) {
     const left = deadline - Date.now();
     if (left < 2_000) {
-      console.warn(
-        `[ai/text] out of time after ${keys.indexOf(key)} candidate(s) — not starting another`,
-      );
+      console.warn(`[ai/text] out of time after ${index} candidate(s) — not starting another`);
       break;
     }
+    // The first key is the one expected to answer, so it gets the lion's
+    // share — never cut short a provider that would have succeeded. Later
+    // keys exist as fallback and run on the remainder. A lone configured key
+    // gets the entire budget, since there is nothing to fall back to.
+    const slice =
+      keys.length === 1
+        ? left
+        : Math.min(left, Math.max(MIN_CANDIDATE_MS, Math.floor(timeoutMs * 0.6)));
     try {
       let out: CallOutcome;
       switch (key.provider) {
         case "openai":
-          out = await callOpenAICompatible(key, opts.messages, maxTokens, left);
+          out = await callOpenAICompatible(key, opts.messages, maxTokens, slice);
           break;
         case "anthropic":
-          out = await callAnthropic(key, opts.messages, maxTokens, left);
+          out = await callAnthropic(key, opts.messages, maxTokens, slice);
           break;
         case "gemini":
-          out = await callGemini(key, opts.messages, maxTokens, left);
+          out = await callGemini(key, opts.messages, maxTokens, slice);
           break;
         default:
           continue; // e.g. an elevenlabs (tts-only) key can't do text
@@ -418,10 +433,10 @@ export async function completeText(opts: {
       return { text: out.text, provider: key.provider, source: key.source, keyId: resolvedKeyId(key) };
     } catch (err) {
       // Bad key, quota, timeout, unreachable host — log and try the next key.
-      console.warn(
-        `[ai/text] ${key.provider} (${key.source}${key.model ? `, ${key.model}` : ""}) failed, trying next candidate:`,
-        err instanceof Error ? err.message : err,
-      );
+      const detail = err instanceof Error ? err.message : String(err);
+      const label = `${key.provider}${key.model ? `/${key.model}` : ""} (${key.source})`;
+      opts.collectErrors?.push(`${label}: ${detail.slice(0, 160)}`);
+      console.warn(`[ai/text] ${label} failed, trying next candidate:`, detail);
     }
   }
   console.warn(`[ai/text] all ${keys.length} ${capability} key candidate(s) failed`);
@@ -710,6 +725,67 @@ export async function completeVision(opts: {
     }
   }
   return null;
+}
+
+export interface ProviderDiagnosis {
+  provider: AiProvider;
+  source: "byok" | "platform" | "env";
+  model: string | null;
+  endpoint: string | null;
+  ok: boolean;
+  ms: number;
+  error: string | null;
+}
+
+/**
+ * Ping every configured TEXT provider, in parallel, with a real (tiny)
+ * generation. This is the answer to "generation failed but I can't see why":
+ * it names each key the server would actually use and reports whether it
+ * answers, how fast, and the exact error when it doesn't.
+ */
+export async function diagnoseTextProviders(
+  userId?: number,
+  timeoutMs = 12_000,
+): Promise<ProviderDiagnosis[]> {
+  const candidates = await resolveKeyCandidates(userId, "text").catch(() => [] as ResolvedKey[]);
+  const messages: ChatMessage[] = [
+    { role: "system", content: 'Reply with only this JSON: {"ok":true}' },
+    { role: "user", content: "ping" },
+  ];
+  return Promise.all(
+    candidates.map(async (key): Promise<ProviderDiagnosis> => {
+      const at = Date.now();
+      const base: Omit<ProviderDiagnosis, "ok" | "ms" | "error"> = {
+        provider: key.provider,
+        source: key.source,
+        model: key.model ?? DEFAULT_MODELS[key.provider as TextProvider] ?? null,
+        endpoint: key.baseUrl ?? null,
+      };
+      try {
+        switch (key.provider) {
+          case "openai":
+            await callOpenAICompatible(key, messages, 16, timeoutMs);
+            break;
+          case "anthropic":
+            await callAnthropic(key, messages, 16, timeoutMs);
+            break;
+          case "gemini":
+            await callGemini(key, messages, 16, timeoutMs);
+            break;
+          default:
+            throw new Error("not a text provider");
+        }
+        return { ...base, ok: true, ms: Date.now() - at, error: null };
+      } catch (err) {
+        return {
+          ...base,
+          ok: false,
+          ms: Date.now() - at,
+          error: (err instanceof Error ? err.message : String(err)).slice(0, 240),
+        };
+      }
+    }),
+  );
 }
 
 /**
