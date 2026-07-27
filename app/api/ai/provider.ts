@@ -100,32 +100,54 @@ function envKeyCandidates(capability: AiCapability): ResolvedKey[] {
   }
 
   if (capability === "text") {
-    const gemini = val("GEMINI_API_KEY");
-    if (gemini) {
-      out.push({ provider: "gemini", apiKey: gemini, model: val("GEMINI_TEXT_MODEL") ?? undefined, source: "env" });
-    }
-    const anthropic = val("ANTHROPIC_API_KEY");
-    if (anthropic) {
-      out.push({ provider: "anthropic", apiKey: anthropic, model: val("ANTHROPIC_MODEL") ?? undefined, source: "env" });
-    }
-    const openai = val("OPENAI_API_KEY");
-    if (openai) out.push({ provider: "openai", apiKey: openai, source: "env" });
-    // xAI Grok — OpenAI-compatible API (either env spelling works)
-    const grok = val("GROK_API_KEY") ?? val("Grok_API_KEY");
-    if (grok) {
-      out.push({ provider: "openai", apiKey: grok, baseUrl: "https://api.x.ai/v1", model: val("GROK_MODEL") ?? "grok-2-latest", source: "env" });
-    }
-    const deepseek = val("DEEPSEEK_API_KEY");
-    if (deepseek) {
-      out.push({ provider: "openai", apiKey: deepseek, baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat", source: "env" });
-    }
-    const openrouter = val("OPENROUTER_API_KEY");
-    if (openrouter) {
-      out.push({ provider: "openai", apiKey: openrouter, baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini", source: "env" });
-    }
-    const kimi = val("KIMI_API_KEY");
-    if (kimi) {
-      out.push({ provider: "openai", apiKey: kimi, baseUrl: "https://api.moonshot.ai/v1", model: "moonshot-v1-8k", source: "env" });
+    // Each entry is built only when its key is present. The ORDER here is the
+    // fallback order, and it matters a lot: the first provider that answers
+    // wins, and a provider that is slow or sick delays everything behind it.
+    // Override without a code change by setting AI_TEXT_PRIORITY to a comma
+    // separated list of the ids below, e.g. "gemini,grok,openai".
+    const builders: Record<string, () => ResolvedKey | null> = {
+      grok: () => {
+        // xAI Grok — OpenAI-compatible API (either env spelling works)
+        const k = val("GROK_API_KEY") ?? val("Grok_API_KEY");
+        return k
+          ? { provider: "openai", apiKey: k, baseUrl: "https://api.x.ai/v1", model: val("GROK_MODEL") ?? "grok-2-latest", source: "env" }
+          : null;
+      },
+      gemini: () => {
+        const k = val("GEMINI_API_KEY");
+        return k ? { provider: "gemini", apiKey: k, model: val("GEMINI_TEXT_MODEL") ?? undefined, source: "env" } : null;
+      },
+      anthropic: () => {
+        const k = val("ANTHROPIC_API_KEY");
+        return k ? { provider: "anthropic", apiKey: k, model: val("ANTHROPIC_MODEL") ?? undefined, source: "env" } : null;
+      },
+      openai: () => {
+        const k = val("OPENAI_API_KEY");
+        return k ? { provider: "openai", apiKey: k, source: "env" } : null;
+      },
+      deepseek: () => {
+        const k = val("DEEPSEEK_API_KEY");
+        return k ? { provider: "openai", apiKey: k, baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat", source: "env" } : null;
+      },
+      openrouter: () => {
+        const k = val("OPENROUTER_API_KEY");
+        return k ? { provider: "openai", apiKey: k, baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini", source: "env" } : null;
+      },
+      kimi: () => {
+        const k = val("KIMI_API_KEY");
+        return k ? { provider: "openai", apiKey: k, baseUrl: "https://api.moonshot.ai/v1", model: "moonshot-v1-8k", source: "env" } : null;
+      },
+    };
+    // Grok leads by default.
+    const DEFAULT_ORDER = ["grok", "gemini", "anthropic", "openai", "deepseek", "openrouter", "kimi"];
+    const requested = (val("AI_TEXT_PRIORITY") ?? "")
+      .split(",")
+      .map((x) => x.trim().toLowerCase())
+      .filter((x) => x in builders);
+    const order = [...requested, ...DEFAULT_ORDER.filter((id) => !requested.includes(id))];
+    for (const id of order) {
+      const key = builders[id]();
+      if (key) out.push(key);
     }
   }
   return out;

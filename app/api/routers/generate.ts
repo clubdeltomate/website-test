@@ -679,6 +679,14 @@ export const generateRouter = createRouter({
           try {
             const result = await completeText({
               userId: ctx.user?.id,
+              // The whole request lives inside one serverless invocation
+              // (vercel.json caps it at 60s). Seven configured keys tried at
+              // 25s each is over two minutes, so a single sick provider used
+              // to take the request past the ceiling: the browser got a
+              // dropped connection and the deck was lost. Two candidates at
+              // 22s is a real fallback that still fits.
+              maxCandidates: 2,
+              timeoutMs: 22_000,
               messages: [
                 { role: "system", content: systemPrompt },
                 {
