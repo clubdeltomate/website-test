@@ -2,6 +2,7 @@ import { getDb } from "../queries/connection.js";
 import { apiKeys } from "../../db/schema.js";
 import { and, eq } from "drizzle-orm";
 import { getSettings } from "../settings.js";
+import { recordAiUsage } from "../finance.js";
 import type { AiCapability, AiProvider } from "../../contracts/types.js";
 
 /* ------------------------------------------------------------------ */
@@ -186,16 +187,26 @@ export async function userHasKey(userId: number, capability: AiCapability): Prom
   return rows.length > 0;
 }
 
+/** One successful raw completion: text plus the model that answered and the
+ *  token usage the provider reported (when it reports any) — consumed by the
+ *  finance expense tracker. */
+interface CallOutcome {
+  text: string;
+  model: string;
+  usage?: { input: number; output: number };
+}
+
 async function callOpenAICompatible(
   key: ResolvedKey,
   messages: ChatMessage[],
   maxTokens: number,
   timeoutMs: number,
-): Promise<string> {
+): Promise<CallOutcome> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.openai).replace(/\/$/, "");
   // DeepSeek/Moonshot reject max_tokens above 8k; gpt-4o-mini tops out at 16k.
   const cap = /deepseek|moonshot/.test(base) ? 8192 : 16384;
   maxTokens = Math.min(maxTokens, cap);
+  const model = key.model || DEFAULT_MODELS.openai;
   const res = await fetch(`${base}/chat/completions`, {
     method: "POST",
     headers: {
@@ -203,7 +214,7 @@ async function callOpenAICompatible(
       authorization: `Bearer ${key.apiKey}`,
     },
     body: JSON.stringify({
-      model: key.model || DEFAULT_MODELS.openai,
+      model,
       messages,
       max_tokens: maxTokens,
       temperature: 0.7,
@@ -214,10 +225,17 @@ async function callOpenAICompatible(
   if (!res.ok) throw new Error(`OpenAI-compatible API ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const data = (await res.json()) as {
     choices?: { message?: { content?: string } }[];
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
   const text = data.choices?.[0]?.message?.content;
   if (!text) throw new Error("OpenAI-compatible API returned no content");
-  return text;
+  return {
+    text,
+    model,
+    usage: data.usage
+      ? { input: data.usage.prompt_tokens ?? 0, output: data.usage.completion_tokens ?? 0 }
+      : undefined,
+  };
 }
 
 async function callAnthropic(
@@ -225,7 +243,7 @@ async function callAnthropic(
   messages: ChatMessage[],
   maxTokens: number,
   timeoutMs: number,
-): Promise<string> {
+): Promise<CallOutcome> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.anthropic).replace(/\/$/, "");
   maxTokens = Math.min(maxTokens, 8192); // haiku's per-request output ceiling
   const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
@@ -246,10 +264,19 @@ async function callAnthropic(
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new Error(`Anthropic API ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const data = (await res.json()) as { content?: { type: string; text?: string }[] };
+  const data = (await res.json()) as {
+    content?: { type: string; text?: string }[];
+    usage?: { input_tokens?: number; output_tokens?: number };
+  };
   const text = data.content?.find((c) => c.type === "text")?.text;
   if (!text) throw new Error("Anthropic API returned no text");
-  return text;
+  return {
+    text,
+    model: key.model || DEFAULT_MODELS.anthropic,
+    usage: data.usage
+      ? { input: data.usage.input_tokens ?? 0, output: data.usage.output_tokens ?? 0 }
+      : undefined,
+  };
 }
 
 async function callGemini(
@@ -257,7 +284,7 @@ async function callGemini(
   messages: ChatMessage[],
   maxTokens: number,
   timeoutMs: number,
-): Promise<string> {
+): Promise<CallOutcome> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.gemini).replace(/\/$/, "");
   const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
   const contents = messages
@@ -292,6 +319,7 @@ async function callGemini(
     if (!res.ok) throw new Error(`Gemini API ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const data = (await res.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
+      usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
     };
     const candidate = data.candidates?.[0];
     if (candidate?.finishReason === "MAX_TOKENS") {
@@ -299,7 +327,16 @@ async function callGemini(
     }
     const text = candidate?.content?.parts?.map((p) => p.text ?? "").join("");
     if (!text) throw new Error("Gemini API returned no content");
-    return text;
+    return {
+      text,
+      model,
+      usage: data.usageMetadata
+        ? {
+            input: data.usageMetadata.promptTokenCount ?? 0,
+            output: data.usageMetadata.candidatesTokenCount ?? 0,
+          }
+        : undefined,
+    };
   }
   throw notFound ?? new Error("No Gemini text model available");
 }
@@ -349,21 +386,23 @@ export async function completeText(opts: {
   const keys = candidates.slice(0, Math.max(1, opts.maxCandidates ?? candidates.length));
   for (const key of keys) {
     try {
-      let text: string;
+      let out: CallOutcome;
       switch (key.provider) {
         case "openai":
-          text = await callOpenAICompatible(key, opts.messages, maxTokens, timeoutMs);
+          out = await callOpenAICompatible(key, opts.messages, maxTokens, timeoutMs);
           break;
         case "anthropic":
-          text = await callAnthropic(key, opts.messages, maxTokens, timeoutMs);
+          out = await callAnthropic(key, opts.messages, maxTokens, timeoutMs);
           break;
         case "gemini":
-          text = await callGemini(key, opts.messages, maxTokens, timeoutMs);
+          out = await callGemini(key, opts.messages, maxTokens, timeoutMs);
           break;
         default:
           continue; // e.g. an elevenlabs (tts-only) key can't do text
       }
-      return { text, provider: key.provider, source: key.source, keyId: resolvedKeyId(key) };
+      // Finance expense tracker — fire-and-forget, never blocks the reply.
+      if (out.usage) void recordAiUsage(key, out.model, out.usage);
+      return { text: out.text, provider: key.provider, source: key.source, keyId: resolvedKeyId(key) };
     } catch (err) {
       // Bad key, quota, timeout, unreachable host — log and try the next key.
       console.warn(

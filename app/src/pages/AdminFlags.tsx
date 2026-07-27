@@ -54,10 +54,10 @@ function FlagsBody() {
     <div className="mx-auto flex w-full max-w-content flex-col gap-6 px-4 py-8 lg:px-8">
       <div>
         <Link
-          to="/admin"
+          to="/admin/controls"
           className="inline-flex items-center gap-1.5 font-heading text-sm font-semibold text-blue no-underline hover:underline"
         >
-          <ArrowLeft className="h-4 w-4" strokeWidth={2.5} /> Control panel
+          <ArrowLeft className="h-4 w-4" strokeWidth={2.5} /> Controls
         </Link>
         <h2 className="mt-1 flex items-center gap-3 font-display text-4xl font-bold text-ink">
           <ShieldAlert className="h-8 w-8 text-red" strokeWidth={2} />
