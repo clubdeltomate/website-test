@@ -73,9 +73,25 @@ export const SEED_PRICING: PricingTable = {
 
 /* -------------------- settings-table JSON helpers ------------------ */
 
+/** Bookkeeping queries get a hard ceiling: they run inside requests that the
+ *  hosting platform will terminate, so they must never wait indefinitely on a
+ *  slow connection or a row another writer is holding. */
+function withCap<T>(work: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms).unref?.(),
+    ),
+  ]);
+}
+
 async function readJson<T>(key: string): Promise<T | null> {
   try {
-    const row = await getDb().query.settings.findFirst({ where: eq(settings.key, key) });
+    const row = await withCap(
+      getDb().query.settings.findFirst({ where: eq(settings.key, key) }),
+      2_000,
+      `read ${key}`,
+    );
     return row ? (row.valueJson as T) : null;
   } catch (err) {
     console.error(`[finance] failed to read ${key}:`, err);
@@ -158,15 +174,28 @@ export function providerIdForKey(key: Pick<ResolvedKey, "provider" | "baseUrl">)
   return key.provider; // gemini | anthropic | openai
 }
 
+/** Metering is bookkeeping: it may never be the reason a generation is lost. */
+const USAGE_WRITE_TIMEOUT_MS = 1_500;
+const METERING_DISABLED = process.env.DISABLE_USAGE_METERING === "1";
+
 /**
- * Accumulate one completion's token usage. Fire-and-forget from the AI path:
- * never throws, never blocks a generation on finance bookkeeping.
+ * Accumulate one completion's token usage.
+ *
+ * This MUST be awaited by callers, and it bounds itself. It used to be fired
+ * off with `void` from the AI path, which looked free but was the opposite:
+ * a serverless invocation cannot finish while a promise is still pending, so
+ * this write — a read-modify-write against a row every generation touches,
+ * and that other apps on the same database touch too — could hold a request
+ * open long after its deck was ready, until the platform killed the function
+ * and the finished deck was thrown away. Now it either completes quickly or
+ * is abandoned, and either way generation moves on.
  */
 export async function recordAiUsage(
   key: Pick<ResolvedKey, "provider" | "baseUrl">,
   model: string,
   usage: { input: number; output: number },
 ): Promise<void> {
+  if (METERING_DISABLED) return;
   try {
     if (!usage.input && !usage.output) return;
     const providerId = providerIdForKey(key);
@@ -181,9 +210,17 @@ export async function recordAiUsage(
       calls: (prev?.calls ?? 0) + 1,
       lastAt: new Date().toISOString(),
     };
-    await writeJson("finance.usage", all);
+    await Promise.race([
+      writeJson("finance.usage", all),
+      new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error("usage write timed out")), USAGE_WRITE_TIMEOUT_MS).unref?.(),
+      ),
+    ]);
   } catch (err) {
-    console.warn("[finance] usage record failed (ignored):", err);
+    console.warn(
+      "[finance] usage not recorded (generation unaffected):",
+      err instanceof Error ? err.message : err,
+    );
   }
 }
 

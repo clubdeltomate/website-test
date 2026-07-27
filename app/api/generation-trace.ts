@@ -63,10 +63,18 @@ export class GenTrace {
   private async flush(): Promise<void> {
     try {
       const value: GenerationTrace = { ...this.base, phases: this.phases };
-      await getDb()
+      const write = getDb()
         .insert(settings)
         .values({ key: TRACE_KEY, valueJson: value })
         .onConflictDoUpdate({ target: settings.key, set: { valueJson: value } });
+      // Capped for the same reason the generation itself is: a diagnostic
+      // write must never be what holds a request open until it is killed.
+      await Promise.race([
+        write,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("trace write timed out")), 1_500).unref?.(),
+        ),
+      ]);
     } catch (err) {
       // Diagnostics must never be the reason a generation fails.
       console.warn("[trace] could not persist:", err instanceof Error ? err.message : err);
