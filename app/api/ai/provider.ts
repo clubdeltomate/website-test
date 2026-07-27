@@ -428,8 +428,11 @@ export async function completeText(opts: {
         default:
           continue; // e.g. an elevenlabs (tts-only) key can't do text
       }
-      // Finance expense tracker — fire-and-forget, never blocks the reply.
-      if (out.usage) void recordAiUsage(key, out.model, out.usage);
+      // Finance expense tracker. Awaited on purpose: a stray promise cannot
+      // be left running here — the invocation would stay open waiting for it
+      // and the deck could die with the function. recordAiUsage bounds its
+      // own time and swallows its own errors.
+      if (out.usage) await recordAiUsage(key, out.model, out.usage);
       return { text: out.text, provider: key.provider, source: key.source, keyId: resolvedKeyId(key) };
     } catch (err) {
       // Bad key, quota, timeout, unreachable host — log and try the next key.
