@@ -167,7 +167,13 @@ function ReceiptModal({ receipt, onClose }: { receipt: Receipt; onClose: () => v
 /* Grant coins form (unchanged behavior)                               */
 /* ------------------------------------------------------------------ */
 
-function GrantForm({ onReceipt }: { onReceipt: (r: Receipt) => void }) {
+function GrantForm({
+  onReceipt,
+  costPerCoinUsd,
+}: {
+  onReceipt: (r: Receipt) => void;
+  costPerCoinUsd: number;
+}) {
   const utils = trpc.useUtils();
   const usersList = trpc.users.list.useQuery({ limit: 200 });
   const [userId, setUserId] = useState<number | ''>('');
@@ -193,8 +199,11 @@ function GrantForm({ onReceipt }: { onReceipt: (r: Receipt) => void }) {
     grant.mutate({ userId, tokens, amountCents: cents, note: note.trim() || undefined });
   };
 
+  const estCost = tokens * costPerCoinUsd;
+  const estProfit = (Number(amount) || 0) - estCost;
+
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid gap-3 sm:grid-cols-2">
       <LabeledField label="Who paid">
         <SketchSelect
           value={String(userId)}
@@ -223,6 +232,13 @@ function GrantForm({ onReceipt }: { onReceipt: (r: Receipt) => void }) {
       <LabeledField label="Note (on the receipt)">
         <SketchInput value={note} onChange={(e) => setNote(e.target.value)} placeholder="Bank transfer ref…" />
       </LabeledField>
+      <p className="self-end pb-1 text-xs text-ink-faint">
+        those coins cost you ~{fmtUsd(estCost)} to honor →{' '}
+        <span className={estProfit >= 0 ? 'font-bold text-green' : 'font-bold text-red'}>
+          {fmtUsd(estProfit)} profit
+        </span>{' '}
+        (private)
+      </p>
       <div className="flex items-end">
         <SketchButton variant="accent" loading={grant.isPending} onClick={submit} className="w-full">
           <ReceiptText className="h-4 w-4" strokeWidth={2} /> Credit + receipt
@@ -327,12 +343,181 @@ function BalanceFixForm() {
 
 const TABS = [
   { id: 'generation', label: 'Per generation' },
+  { id: 'sales', label: 'Sales desk' },
   { id: 'models', label: 'Model prices' },
   { id: 'income', label: 'Income' },
   { id: 'credits', label: 'Credits ledger' },
   { id: 'pricing', label: 'Set prices' },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
+
+type TicketSale = Overview['ticketSales'][number];
+
+/* ------------------------------------------------------------------ */
+/* Ticket receipt — what the moderator gets; never shows your cost     */
+/* ------------------------------------------------------------------ */
+
+function printTicketReceipt(s: TicketSale) {
+  const w = window.open('', '_blank', 'width=420,height=640');
+  if (!w) return;
+  const date = new Date(s.createdAt).toLocaleString();
+  w.document.write(`<!doctype html><html><head><title>Ticket receipt T-${s.ledgerId}</title>
+<style>
+  body { font-family: Georgia, serif; color: #2E2820; background: #FFFDF6; margin: 0; padding: 28px; }
+  .box { border: 2px solid #2E2820; border-radius: 10px; padding: 20px 24px; max-width: 360px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 2px; } .muted { color: #8B8071; font-size: 12px; }
+  hr { border: none; border-top: 2px dashed #C9BFA9; margin: 14px 0; }
+  table { width: 100%; font-size: 14px; border-collapse: collapse; }
+  td { padding: 3px 0; } td:last-child { text-align: right; font-weight: bold; }
+  .total td { font-size: 17px; padding-top: 8px; }
+</style></head><body><div class="box">
+  <h1>SketchLearn ✎</h1>
+  <p class="muted">Ticket receipt · T-${String(s.ledgerId).padStart(5, '0')} · ${date}</p>
+  <hr/>
+  <table>
+    <tr><td>Billed to</td><td>${s.userName}</td></tr>
+    <tr><td class="muted">${s.userEmail}</td><td></td></tr>
+    <tr><td>Customization tickets</td><td>${s.tickets}</td></tr>
+    <tr class="total"><td>Total paid</td><td>${s.coinsPaid} 🪙</td></tr>
+  </table>
+  <hr/>
+  <p class="muted">One ticket = one custom generation on the issuing repo · thank you for sketching with us</p>
+</div><script>window.print()</script></body></html>`);
+  w.document.close();
+}
+
+function TicketReceiptModal({ sale, onClose }: { sale: TicketSale; onClose: () => void }) {
+  return (
+    <SketchModal
+      open
+      onClose={onClose}
+      title={`Ticket receipt T-${String(sale.ledgerId).padStart(5, '0')}`}
+      maxWidth="max-w-[420px]"
+    >
+      <div className="rounded-wobble-sm border-2 border-ink bg-paper-3 p-4">
+        <p className="font-display text-2xl text-ink">SketchLearn ✎</p>
+        <p className="micro text-ink-faint">
+          Ticket receipt · {new Date(sale.createdAt).toLocaleString()}
+        </p>
+        <div className="my-3 border-t-2 border-dashed border-pencil" />
+        <dl className="space-y-1 text-sm text-ink">
+          <div className="flex justify-between">
+            <dt>Billed to</dt>
+            <dd className="font-bold">{sale.userName}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-ink-faint">{sale.userEmail}</dt>
+            <dd />
+          </div>
+          <div className="flex justify-between">
+            <dt>Customization tickets</dt>
+            <dd className="font-bold text-green">{sale.tickets}</dd>
+          </div>
+          <div className="flex justify-between pt-2 font-heading text-lg">
+            <dt>Total paid</dt>
+            <dd className="font-bold text-orange">{sale.coinsPaid} 🪙</dd>
+          </div>
+        </dl>
+        <div className="my-3 border-t-2 border-dashed border-pencil" />
+        <p className="micro text-ink-faint">One ticket = one custom generation on the issuing repo</p>
+      </div>
+      <div className="mt-4 flex gap-2">
+        <SketchButton onClick={() => printTicketReceipt(sale)}>
+          <Printer className="h-4 w-4" strokeWidth={2} /> Print / save PDF
+        </SketchButton>
+        <SketchButton variant="ghost" onClick={onClose}>
+          Close
+        </SketchButton>
+      </div>
+    </SketchModal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Sell tickets to a moderator (with a private profit preview)         */
+/* ------------------------------------------------------------------ */
+
+function SellTicketsForm({
+  ticketPriceCoins,
+  packRate,
+  estCostPerTicket,
+}: {
+  ticketPriceCoins: number;
+  packRate: number;
+  estCostPerTicket: number;
+}) {
+  const utils = trpc.useUtils();
+  const usersList = trpc.users.list.useQuery({ limit: 200 });
+  const [userId, setUserId] = useState<number | ''>('');
+  const [count, setCount] = useState(5);
+
+  const sell = trpc.tickets.sellToModerator.useMutation({
+    onSuccess: (r) => {
+      toast.success(`Sold ${count} ticket${count === 1 ? '' : 's'} — ${r.tokenBalance} 🪙 left on their balance`);
+      void utils.finance.overview.invalidate();
+      void utils.users.list.invalidate();
+    },
+    onError: (e) => toast.error(errMsg(e)),
+  });
+
+  const mods = (usersList.data ?? []).filter((u) => u.role === 'moderator' || u.role === 'admin');
+  const target = mods.find((u) => u.id === userId);
+  const totalCoins = count * ticketPriceCoins;
+  const valueUsd = (totalCoins * packRate) / 100;
+  const estProfit = valueUsd - count * estCostPerTicket;
+  const short = !!target && totalCoins > target.tokenBalance;
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <LabeledField label="Moderator">
+        <SketchSelect
+          value={String(userId)}
+          onChange={(e) => setUserId(e.target.value ? Number(e.target.value) : '')}
+        >
+          <option value="">Pick a moderator…</option>
+          {mods.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.name} — {u.tokenBalance} 🪙
+            </option>
+          ))}
+        </SketchSelect>
+      </LabeledField>
+      <LabeledField label="Tickets">
+        <SketchInput
+          type="number"
+          min={1}
+          max={500}
+          value={String(count)}
+          onChange={(e) => setCount(Math.max(1, Math.min(500, Number(e.target.value) || 1)))}
+        />
+      </LabeledField>
+      <div className="flex flex-col justify-end pb-1 text-sm text-ink">
+        <p>
+          They pay <span className="font-bold text-orange">{totalCoins} 🪙</span> ≈ {fmtUsd(valueUsd)}
+        </p>
+        <p className="text-xs text-ink-faint">
+          your est. profit: <span className={estProfit >= 0 ? 'font-bold text-green' : 'font-bold text-red'}>{fmtUsd(estProfit)}</span> (private)
+        </p>
+      </div>
+      <div className="flex items-end">
+        <SketchButton
+          variant="accent"
+          className="w-full"
+          loading={sell.isPending}
+          disabled={userId === '' || short}
+          onClick={() => userId !== '' && sell.mutate({ userId, count })}
+        >
+          Sell {count} ticket{count === 1 ? '' : 's'}
+        </SketchButton>
+      </div>
+      {short && (
+        <p className="col-span-full -mt-2 text-xs font-bold text-red">
+          {target?.name} only holds {target?.tokenBalance} 🪙 — that's not enough for {totalCoins} 🪙 of tickets.
+        </p>
+      )}
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /* Set prices: coin packs + ticket price                               */
@@ -485,6 +670,7 @@ function FinanceBody() {
   const utils = trpc.useUtils();
   const overview = trpc.finance.overview.useQuery();
   const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [ticketReceipt, setTicketReceipt] = useState<TicketSale | null>(null);
   const [tab, setTab] = useState<TabId>('generation');
 
   // per-generation calculator
@@ -534,25 +720,57 @@ function FinanceBody() {
     return { coins, chargeUsd, ticketUsd };
   }, [data, packRate, calcSlides, calcImages, calcLevel]);
 
-  // Estimated dollar cost of generating ONE deck's text on each model —
+  // Estimated dollar cost of generating ONE deck's text on a model —
   // measured average tokens per call when we have real usage, else a
-  // typical deck (4k prompt + 6k written) as the assumption.
+  // typical 8-slide deck (4k prompt + 6k written). The written half scales
+  // with the slide count, so "Max deck" shows the true 15-slide cost.
+  const modelCostAt = useMemo(() => {
+    return (m: { id: string; inPerM: number; outPerM: number }, slides: number) => {
+      const u = data?.usage.find((x) => x.priceId === m.id && x.calls > 0);
+      const inTok = u ? u.inputTokens / u.calls : 4000;
+      const outTok = ((u ? u.outputTokens / u.calls : 6000) * slides) / 8;
+      return {
+        costUsd: (inTok / 1e6) * m.inPerM + (outTok / 1e6) * m.outPerM,
+        tokens: Math.round(inTok + outTok),
+        measured: !!u,
+      };
+    };
+  }, [data]);
+
   const perModel = useMemo(() => {
     if (!data) return [];
     return data.pricing.models.map((m) => {
-      const u = data.usage.find((x) => x.priceId === m.id && x.calls > 0);
-      const inTok = u ? u.inputTokens / u.calls : 4000;
-      const outTok = u ? u.outputTokens / u.calls : 6000;
-      const costUsd = (inTok / 1e6) * m.inPerM + (outTok / 1e6) * m.outPerM;
+      const c = modelCostAt(m, calcSlides);
       return {
         name: m.label,
         provider: m.provider,
-        measured: !!u,
-        tokensPerDeck: Math.round(inTok + outTok),
-        costUsd,
+        measured: c.measured,
+        tokensPerDeck: c.tokens,
+        costUsd: c.costUsd,
+        // the ceiling reference: the biggest deck a ticket has to cover
+        maxDeckUsd: modelCostAt(m, 15).costUsd,
       };
     });
-  }, [data]);
+  }, [data, modelCostAt, calcSlides]);
+
+  // Private cost bases for the Sales desk: the average model cost of a
+  // reference deck (8 slides, images, B1) spread over its coin charge, and
+  // the average cost of the maxed-out deck a ticket must cover.
+  const salesBasis = useMemo(() => {
+    if (!data || data.pricing.models.length === 0) return null;
+    const avgAt = (slides: number) =>
+      data.pricing.models.reduce((n, m) => n + modelCostAt(m, slides).costUsd, 0) /
+      data.pricing.models.length;
+    const multB1 = data.prices.levelMultiplier.B1 ?? 1;
+    const refCoins = Math.max(
+      1,
+      Math.ceil((data.prices.perSlideBase * 8 + data.prices.perImageSlide * 8) * multB1),
+    );
+    return {
+      costPerCoinUsd: avgAt(8) / refCoins,
+      maxDeckCostUsd: avgAt(15),
+    };
+  }, [data, modelCostAt]);
 
   // Guarantee check: the most expensive possible deck (what a ticket must
   // cover) on the priciest model, with a conservative output-token bound.
@@ -585,6 +803,43 @@ function FinanceBody() {
       </div>
     );
   }
+
+  // One list of every transfer — coin sales and ticket sales together, with
+  // the private cost/profit basis attached to each row.
+  const transfers = salesBasis
+    ? [
+        ...data.recentReceipts.map((r) => {
+          const costUsd = r.tokens * salesBasis.costPerCoinUsd;
+          return {
+            key: `c${r.receiptNo}`,
+            ref: `#${String(r.receiptNo).padStart(5, '0')}`,
+            kind: 'coins' as const,
+            userName: r.userName,
+            what: `${r.tokens} 🪙 coins`,
+            soldFor: formatMoney(r.amountCents),
+            costUsd,
+            profitUsd: r.amountCents / 100 - costUsd,
+            createdAt: r.createdAt,
+            openReceipt: () => setReceipt(r),
+          };
+        }),
+        ...data.ticketSales.map((s) => {
+          const costUsd = s.tickets * salesBasis.maxDeckCostUsd;
+          return {
+            key: `t${s.ledgerId}`,
+            ref: `T-${String(s.ledgerId).padStart(5, '0')}`,
+            kind: 'tickets' as const,
+            userName: s.userName,
+            what: `${s.tickets} ticket${s.tickets === 1 ? '' : 's'}`,
+            soldFor: `${s.coinsPaid} 🪙`,
+            costUsd,
+            profitUsd: (s.coinsPaid * packRate) / 100 - costUsd,
+            createdAt: s.createdAt,
+            openReceipt: () => setTicketReceipt(s),
+          };
+        }),
+      ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    : [];
 
   const pricingAge = formatRelative(new Date(data.pricing.updatedAt));
   const liabilityUsd = (data.circulationTokens * data.centsPerCoin) / 100;
@@ -805,7 +1060,8 @@ function FinanceBody() {
                   <tr className="border-b-2 border-ink text-left font-heading text-xs uppercase tracking-wider text-ink-soft">
                     <th className="py-1.5 pr-3">Model</th>
                     <th className="py-1.5 pr-3 text-right">Tokens / deck</th>
-                    <th className="py-1.5 pr-3 text-right">Costs you</th>
+                    <th className="py-1.5 pr-3 text-right">Costs you ({calcSlides} sl.)</th>
+                    <th className="py-1.5 pr-3 text-right">Max deck (15 sl.)</th>
                     <th className="py-1.5 pr-3 text-right">Margin (coin-paid)</th>
                     <th className="py-1.5 text-right">Margin (ticketed)</th>
                   </tr>
@@ -822,6 +1078,7 @@ function FinanceBody() {
                       </td>
                       <td className="py-1.5 pr-3 text-right font-mono">{m.tokensPerDeck.toLocaleString()}</td>
                       <td className="py-1.5 pr-3 text-right font-mono">~{fmtUsd(m.costUsd)}</td>
+                      <td className="py-1.5 pr-3 text-right font-mono text-ink-soft">~{fmtUsd(m.maxDeckUsd)}</td>
                       <td className={`py-1.5 pr-3 text-right font-mono font-bold ${calc.chargeUsd - m.costUsd >= 0 ? 'text-green' : 'text-red'}`}>
                         {fmtUsd(calc.chargeUsd - m.costUsd)}
                       </td>
@@ -1039,7 +1296,117 @@ function FinanceBody() {
           </div>
         )}
 
-        {/* ---------------- tab 5: set prices ---------------- */}
+        {/* ---------------- tab 2: sales desk ---------------- */}
+        {tab === 'sales' && salesBasis && (
+          <div className="p-4">
+            <h3 className="font-heading text-lg font-semibold text-ink">
+              Sales desk — coins and tickets
+            </h3>
+            <p className="mb-4 text-xs text-ink-soft">
+              Every transfer you've made, what it cost you, and what you kept. The cost and profit
+              columns are yours alone — a receipt printed from any row shows the buyer only what
+              they bought and what they paid.
+            </p>
+
+            {/* the two things you can sell */}
+            <div className="mb-5 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper p-3">
+                <p className="mb-2 font-heading font-semibold text-ink">Sell coins (against a payment)</p>
+                <GrantForm onReceipt={setReceipt} costPerCoinUsd={salesBasis.costPerCoinUsd} />
+              </div>
+              <div className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper p-3">
+                <p className="mb-2 font-heading font-semibold text-ink">
+                  Sell tickets{' '}
+                  <span className="text-xs font-normal text-ink-soft">
+                    (paid from the moderator's coins, {data.ticketPriceCoins} 🪙 each)
+                  </span>
+                </p>
+                <SellTicketsForm
+                  ticketPriceCoins={data.ticketPriceCoins}
+                  packRate={packRate}
+                  estCostPerTicket={salesBasis.maxDeckCostUsd}
+                />
+              </div>
+            </div>
+
+            {/* one table of every transfer */}
+            <h4 className="mb-2 font-heading font-semibold text-ink">Transfers</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b-2 border-ink text-left font-heading text-xs uppercase tracking-wider text-ink-soft">
+                    <th className="py-1.5 pr-3">Ref</th>
+                    <th className="py-1.5 pr-3">Buyer</th>
+                    <th className="py-1.5 pr-3">What</th>
+                    <th className="py-1.5 pr-3 text-right">Sold for</th>
+                    <th className="py-1.5 pr-3 text-right">Cost to me</th>
+                    <th className="py-1.5 pr-3 text-right">I earned</th>
+                    <th className="py-1.5 pr-3 text-right">When</th>
+                    <th className="py-1.5 text-right">Receipt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transfers.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="py-4 text-center font-display text-2xl text-ink-faint">
+                        No transfers yet 🧾
+                      </td>
+                    </tr>
+                  )}
+                  {transfers.map((t) => (
+                    <tr key={t.key} className="border-b border-dashed border-pencil text-ink">
+                      <td className="py-1.5 pr-3 font-mono text-xs text-ink-faint">{t.ref}</td>
+                      <td className="py-1.5 pr-3 font-heading font-semibold">{t.userName}</td>
+                      <td className="py-1.5 pr-3">
+                        <Chip kind={t.kind === 'coins' ? 'neutral' : 'moderator'}>{t.what}</Chip>
+                      </td>
+                      <td className="py-1.5 pr-3 text-right font-mono">{t.soldFor}</td>
+                      <td className="py-1.5 pr-3 text-right font-mono text-red">~{fmtUsd(t.costUsd)}</td>
+                      <td
+                        className={`py-1.5 pr-3 text-right font-mono font-bold ${
+                          t.profitUsd >= 0 ? 'text-green' : 'text-red'
+                        }`}
+                      >
+                        {fmtUsd(t.profitUsd)}
+                      </td>
+                      <td className="py-1.5 pr-3 text-right font-mono text-xs text-ink-faint">
+                        {formatRelative(new Date(t.createdAt))}
+                      </td>
+                      <td className="py-1.5 text-right">
+                        <SketchButton variant="ghost" size="sm" onClick={t.openReceipt}>
+                          <ReceiptText className="h-3.5 w-3.5" strokeWidth={2} /> Receipt
+                        </SketchButton>
+                      </td>
+                    </tr>
+                  ))}
+                  {transfers.length > 0 && (
+                    <tr className="text-ink">
+                      <td className="pt-2 font-heading font-bold" colSpan={4}>
+                        Total
+                      </td>
+                      <td className="pt-2 text-right font-mono font-bold text-red">
+                        ~{fmtUsd(transfers.reduce((n, t) => n + t.costUsd, 0))}
+                      </td>
+                      <td className="pt-2 text-right font-mono font-bold text-green">
+                        {fmtUsd(transfers.reduce((n, t) => n + t.profitUsd, 0))}
+                      </td>
+                      <td colSpan={2} />
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <p className="micro mt-2 text-ink-faint">
+              Cost basis: a coin is costed at {(salesBasis.costPerCoinUsd * 100).toFixed(3)}¢ — the
+              average model's AI bill for a reference deck spread over what that deck charges. A
+              ticket is costed at ~{fmtUsd(salesBasis.maxDeckCostUsd)}, the average model's bill for
+              the biggest deck it must cover (15 slides, images, top level). Both move with the
+              live model prices.
+            </p>
+          </div>
+        )}
+
+        {/* ---------------- tab 6: set prices ---------------- */}
         {tab === 'pricing' && (
           <PricingEditor
             key={`${JSON.stringify(data.packs)}|${String(data.ticketPriceOverride)}`}
@@ -1109,50 +1476,10 @@ function FinanceBody() {
         </p>
       </section>
 
-      {/* grant coins with a receipt */}
-      <SketchCard borderStyle="solid" className="p-0">
-        <div className="border-b-2 border-ink bg-yellow px-4 py-3">
-          <h3 className="font-heading text-lg font-semibold text-ink">
-            Credit coins — always with a receipt
-          </h3>
-          <p className="text-xs text-ink-soft">
-            When someone pays you for tokens, credit them here: the coins land on their balance,
-            the sale is recorded as revenue, and a printable receipt comes out.
-          </p>
-        </div>
-        <div className="p-4">
-          <GrantForm onReceipt={setReceipt} />
-
-          <h4 className="mb-2 mt-6 font-heading font-semibold text-ink">Receipt history</h4>
-          {data.recentReceipts.length === 0 ? (
-            <p className="text-sm text-ink-faint">No credited sales yet.</p>
-          ) : (
-            <ul className="divide-y divide-dashed divide-pencil">
-              {data.recentReceipts.map((r) => (
-                <li key={r.receiptNo} className="flex flex-wrap items-center gap-3 py-2">
-                  <span className="font-mono text-xs text-ink-faint">
-                    #{String(r.receiptNo).padStart(5, '0')}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate font-heading font-semibold text-ink">
-                    {r.userName}
-                    {r.isGrant ? '' : ' · sheet purchase'}
-                  </span>
-                  <span className="font-mono text-sm font-bold text-orange">{r.tokens} 🪙</span>
-                  <span className="font-mono text-sm text-ink">{formatMoney(r.amountCents)}</span>
-                  <span className="font-mono text-xs text-ink-faint">
-                    {formatRelative(new Date(r.createdAt))}
-                  </span>
-                  <SketchButton variant="ghost" size="sm" onClick={() => setReceipt(r)}>
-                    <ReceiptText className="h-3.5 w-3.5" strokeWidth={2} /> Receipt
-                  </SketchButton>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </SketchCard>
-
       {receipt && <ReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />}
+      {ticketReceipt && (
+        <TicketReceiptModal sale={ticketReceipt} onClose={() => setTicketReceipt(null)} />
+      )}
     </div>
   );
 }

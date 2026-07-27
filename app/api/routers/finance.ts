@@ -108,6 +108,35 @@ export const financeRouter = createRouter({
       .select({ total: sql<string>`COALESCE(SUM(${users.tokenBalance}), 0)` })
       .from(users);
 
+    // Ticket sales for the Sales desk: parsed from the ledger rows the
+    // sell-to-moderator path writes ("bought N customization ticket(s) @ P 🪙")
+    const ticketRows = await db
+      .select({
+        id: tokenLedger.id,
+        userId: tokenLedger.userId,
+        delta: tokenLedger.delta,
+        reason: tokenLedger.reason,
+        createdAt: tokenLedger.createdAt,
+      })
+      .from(tokenLedger)
+      .where(sql`${tokenLedger.delta} < 0 AND ${tokenLedger.reason} ILIKE 'bought %ticket%'`)
+      .orderBy(desc(tokenLedger.id))
+      .limit(50);
+    const ticketSales = await Promise.all(
+      ticketRows.map(async (r) => {
+        const buyer = await db.query.users.findFirst({ where: eq(users.id, r.userId) });
+        const m = /^bought (\d+)/.exec(r.reason);
+        return {
+          ledgerId: r.id,
+          userName: buyer?.name ?? "Deleted user",
+          userEmail: buyer?.email ?? "—",
+          tickets: m ? Number(m[1]) : 1,
+          coinsPaid: -r.delta,
+          createdAt: r.createdAt,
+        };
+      }),
+    );
+
     return {
       pricing,
       usage,
@@ -121,6 +150,7 @@ export const financeRouter = createRouter({
       purchasedTokens,
       monthlyRevenue,
       recentReceipts,
+      ticketSales,
       circulationTokens: Number(circ.total),
       ledger,
     };
