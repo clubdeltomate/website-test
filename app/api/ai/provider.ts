@@ -384,18 +384,31 @@ export async function completeText(opts: {
   const maxTokens = opts.maxTokens ?? 4096;
   const timeoutMs = Math.max(2_000, opts.timeoutMs ?? Number(process.env.AI_TEXT_TIMEOUT_MS ?? 25_000));
   const keys = candidates.slice(0, Math.max(1, opts.maxCandidates ?? candidates.length));
+  // timeoutMs bounds the WHOLE call, not each key. There can be seven
+  // configured providers; giving every one of them the full timeout let a
+  // cascade of slow or failing keys run for minutes and outlive the request
+  // that was waiting on it (the caller then loses work it had already paid
+  // for). Each candidate now runs on whatever time the previous ones left.
+  const deadline = Date.now() + timeoutMs;
   for (const key of keys) {
+    const left = deadline - Date.now();
+    if (left < 2_000) {
+      console.warn(
+        `[ai/text] out of time after ${keys.indexOf(key)} candidate(s) — not starting another`,
+      );
+      break;
+    }
     try {
       let out: CallOutcome;
       switch (key.provider) {
         case "openai":
-          out = await callOpenAICompatible(key, opts.messages, maxTokens, timeoutMs);
+          out = await callOpenAICompatible(key, opts.messages, maxTokens, left);
           break;
         case "anthropic":
-          out = await callAnthropic(key, opts.messages, maxTokens, timeoutMs);
+          out = await callAnthropic(key, opts.messages, maxTokens, left);
           break;
         case "gemini":
-          out = await callGemini(key, opts.messages, maxTokens, timeoutMs);
+          out = await callGemini(key, opts.messages, maxTokens, left);
           break;
         default:
           continue; // e.g. an elevenlabs (tts-only) key can't do text
@@ -880,7 +893,7 @@ const GEMINI_IMAGE_MODELS = [
   "gemini-2.0-flash-preview-image-generation",
 ];
 
-async function callGeminiImage(key: ResolvedKey, prompt: string): Promise<string> {
+async function callGeminiImage(key: ResolvedKey, prompt: string, timeoutMs = 60_000): Promise<string> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.gemini).replace(/\/$/, "");
   let notFound: Error | null = null;
   const models = key.model ? [key.model, ...GEMINI_IMAGE_MODELS] : GEMINI_IMAGE_MODELS;
@@ -895,7 +908,7 @@ async function callGeminiImage(key: ResolvedKey, prompt: string): Promise<string
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { responseModalities: ["IMAGE"] },
       }),
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (res.status === 404) {
       notFound = new Error(`Gemini image model ${model} not found (404)`);
@@ -913,7 +926,7 @@ async function callGeminiImage(key: ResolvedKey, prompt: string): Promise<string
   throw notFound ?? new Error("No Gemini image model available");
 }
 
-async function callOpenAIImage(key: ResolvedKey, prompt: string): Promise<string> {
+async function callOpenAIImage(key: ResolvedKey, prompt: string, timeoutMs = 60_000): Promise<string> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.openai).replace(/\/$/, "");
   const request = (body: Record<string, unknown>) =>
     fetch(`${base}/images/generations`, {
@@ -923,7 +936,7 @@ async function callOpenAIImage(key: ResolvedKey, prompt: string): Promise<string
         authorization: `Bearer ${key.apiKey}`,
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
 
   let res = await request({
@@ -942,7 +955,7 @@ async function callOpenAIImage(key: ResolvedKey, prompt: string): Promise<string
   const item = data.data?.[0];
   if (item?.b64_json) return `data:image/png;base64,${item.b64_json}`;
   if (item?.url) {
-    const img = await fetch(item.url, { signal: AbortSignal.timeout(60_000) });
+    const img = await fetch(item.url, { signal: AbortSignal.timeout(timeoutMs) });
     if (!img.ok) throw new Error(`OpenAI image URL fetch failed: ${img.status}`);
     const mime = img.headers.get("content-type")?.split(";")[0] || "image/png";
     const buf = Buffer.from(await img.arrayBuffer());
@@ -973,18 +986,32 @@ export async function generateImage(opts: {
   userId?: number;
   prompt: string;
   style?: string;
+  /** Hard ceiling for the WHOLE attempt, shared across every candidate key.
+   *  Callers running inside a request with a deadline (e.g. the inline first
+   *  slide image) must pass this: without it a slow image provider — or two
+   *  of them in sequence — can outlive the serverless invocation and throw
+   *  away a deck that was already generated. */
+  timeoutMs?: number;
 }): Promise<string | null> {
   const candidates = await resolveKeyCandidates(opts.userId, "image").catch(() => [] as ResolvedKey[]);
   if (candidates.length === 0) return null;
   const directive = opts.style ? IMAGE_STYLE_DIRECTIVES[opts.style] : undefined;
   const prompt = directive ? `${opts.prompt}\n\nStyle: ${directive}.` : opts.prompt;
+  const imageDeadline = opts.timeoutMs ? Date.now() + opts.timeoutMs : null;
   for (const key of candidates) {
+    // Budget is for the whole call, not per key: a second candidate only runs
+    // with whatever time the first one left behind.
+    const left = imageDeadline ? imageDeadline - Date.now() : 60_000;
+    if (left < 1_500) {
+      console.warn("[ai/image] out of time budget — leaving the rest to the player's lazy load");
+      return null;
+    }
     try {
       switch (key.provider) {
         case "gemini":
-          return await callGeminiImage(key, prompt);
+          return await callGeminiImage(key, prompt, left);
         case "openai":
-          return await callOpenAIImage(key, prompt);
+          return await callOpenAIImage(key, prompt, left);
         case "anthropic":
           console.warn("[ai/image] Anthropic has no image generation API — skipping");
           continue;
