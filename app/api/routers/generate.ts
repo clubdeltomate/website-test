@@ -62,6 +62,146 @@ const mockAiAllowed = () => process.env.SKETCHLEARN_ALLOW_MOCK_AI === "1";
 const AI_UNAVAILABLE_MSG =
   "AI_UNAVAILABLE: no AI provider produced content — nothing was saved and any tokens were refunded. Check the server .env AI keys (e.g. GEMINI_API_KEY) or add your own key in Settings → API Keys, then try again.";
 
+/* ------------------------------------------------------------------ */
+/* Prose repair. The density floors above only gate RETRIES — a deck    */
+/* accepted as "best attempt" can still carry thin or missing body      */
+/* text, which then gets padded with a generic fallback line ("the      */
+/* image below carries the key facts…"). Users read that as a broken    */
+/* lesson. This pass finds exactly those slides and asks the AI to      */
+/* write their REAL body text in the deck's own register (era-voiced    */
+/* news article, menu copy, walkthrough step, lesson prose), so the     */
+/* canned fallback is a true last resort, not the shipped content.      */
+/* ------------------------------------------------------------------ */
+
+function slideProseStats(s: SlideDeck["slides"][number]): { words: number; paras: number } {
+  let words = 0;
+  let paras = 0;
+  for (const c of s.components) {
+    if (c.type !== "prose") continue;
+    paras += c.paragraphs.length;
+    words += c.paragraphs.join(" ").split(/\s+/).filter(Boolean).length;
+  }
+  return { words, paras };
+}
+
+export async function expandThinProse(
+  deck: SlideDeck,
+  opts: {
+    userId?: number;
+    topic: string;
+    purpose: string;
+    level: string;
+    textDensity: "minimal" | "brief" | "standard" | "detailed";
+    newsPeriod?: string;
+    paraFloor: number;
+    newsMinParas: number;
+  },
+  // injectable for tests — production always uses the real provider cascade
+  complete: typeof completeText = completeText,
+): Promise<SlideDeck> {
+  try {
+    const wordFloor =
+      opts.textDensity === "detailed" ? 220 : opts.textDensity === "standard" ? 110 : 0;
+    const needWords = opts.purpose === "commercial" ? 0 : wordFloor;
+    const needParas =
+      opts.purpose === "news"
+        ? opts.newsMinParas
+        : opts.purpose === "commercial"
+          ? 1
+          : opts.paraFloor;
+
+    const targets: { i: number; title: string; existing: string[]; visuals: string[] }[] = [];
+    deck.slides.forEach((s, i) => {
+      // A Wolfram card IS the explanation; a "solve" slide is a problem
+      // statement — neither needs body text written for it.
+      if (s.components.some((c) => c.type === "wolfram")) return;
+      if (s.quiz?.kind === "solve") return;
+      const { words, paras } = slideProseStats(s);
+      if (paras >= Math.max(1, needParas) && words >= needWords) return;
+      targets.push({
+        i,
+        title: s.title,
+        existing: s.components.flatMap((c) => (c.type === "prose" ? c.paragraphs : [])),
+        visuals: s.components
+          .map((c) => {
+            const cap = (c as { caption?: string }).caption;
+            const prompt = (c as { prompt?: string }).prompt;
+            return c.type === "prose" ? null : (cap || prompt ? `${c.type}: ${cap ?? prompt}` : c.type);
+          })
+          .filter((v): v is string => !!v),
+      });
+    });
+    if (targets.length === 0) return deck;
+
+    const era = opts.newsPeriod?.trim();
+    const register =
+      opts.purpose === "news"
+        ? `This deck is a newspaper published in ${era ? `"${era}"` : "its stated era"}. Each slide is one news story about "${opts.topic}"; you are writing the ARTICLE BODY under its headline. Report the story itself — what happened, where, who is involved, how it works, and figures or reactions plausible for ${era ? `"${era}"` : "that era"} — written from INSIDE that time (its knowledge, units and worldview; no anachronisms, no hindsight).`
+        : opts.purpose === "commercial"
+          ? `This deck is a showcase for "${opts.topic}": write genuine copy that sells each slide's own item — what it is, what makes it special, concrete and specific.`
+          : opts.purpose === "walkthrough"
+            ? `This deck is a guided walkthrough of "${opts.topic}": explain each slide's step concretely — what it is, how it works, what to do, and how it connects to the whole.`
+            : `This deck is a lesson on "${opts.topic}" at CEFR level ${opts.level}: teach each slide's concept with real explanations, examples and facts a learner can study.`;
+
+    const lengthRule =
+      opts.textDensity === "minimal"
+        ? "Each requested slide: at most TWO short sentences."
+        : `Each requested slide: at least ${Math.max(1, needParas)} paragraph(s) and at least ${Math.max(needWords, opts.textDensity === "brief" ? 50 : 60)} words in total — write naturally past the minimum, never under it.`;
+
+    const result = await complete({
+      userId: opts.userId,
+      maxTokens: 8192,
+      messages: [
+        {
+          role: "system",
+          content: `You complete unfinished presentation slides by writing their missing body text. Reply with ONLY JSON: {"slides":[{"i":<index exactly as given>,"paragraphs":["...", "..."]}]} — one entry for EVERY requested index, nothing else.
+${register}
+HARD RULES:
+- Write REAL content about each slide's stated subject: concrete facts, names, mechanisms, numbers.
+- NEVER meta-text. Banned: "look at the image", "the image below", "refer to", "study what it shows", "a developing story", "details were coming in", or any sentence about the slide, deck, or picture itself. The text must stand alone as reading.
+- ${lengthRule}
+- If a slide lists existing paragraphs, they were too thin: keep any real facts they contain and rewrite them into the full text.`,
+        },
+        {
+          role: "user",
+          content: JSON.stringify({ topic: opts.topic, era: era ?? undefined, slides: targets }),
+        },
+      ],
+    });
+    if (!result) return deck;
+    const parsed = JSON.parse(extractJson(result.text)) as {
+      slides?: { i?: unknown; paragraphs?: unknown }[];
+    };
+    let repaired = 0;
+    for (const e of parsed.slides ?? []) {
+      const i = Number(e.i);
+      if (!targets.some((t) => t.i === i)) continue;
+      const paras = Array.isArray(e.paragraphs)
+        ? e.paragraphs
+            .map((p) => String(p).trim())
+            .filter(Boolean)
+            .slice(0, 10)
+        : [];
+      if (paras.length === 0) continue;
+      const slide = deck.slides[i];
+      const prose = slide.components.find((c) => c.type === "prose");
+      if (prose && prose.type === "prose") prose.paragraphs = paras;
+      else slide.components.unshift({ type: "prose", paragraphs: paras });
+      repaired++;
+    }
+    if (repaired > 0) {
+      console.warn(`[generate.slides] prose repair rewrote ${repaired}/${targets.length} thin slide(s)`);
+    }
+    return deck;
+  } catch (err) {
+    console.warn(
+      "[generate.slides] prose repair failed (keeping deck as-is):",
+      err instanceof Error ? err.message : err,
+    );
+    return deck;
+  }
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms);
@@ -592,8 +732,11 @@ export const generateRouter = createRouter({
       const densityDelta =
         input.textDensity === "minimal" ? -99 : input.textDensity === "brief" ? -1 : input.textDensity === "detailed" ? 2 : 0;
       const paraFloor = Math.max(1, purposeParaFloor + densityDelta);
-      // News summaries stay concise unless "detailed" is chosen.
-      const newsMinParas = input.textDensity === "detailed" ? 2 : 1;
+      // A news slide carries a real article body: paragraph floor scales with
+      // the requested text amount (standard = a 2-paragraph story, detailed =
+      // a 3+-paragraph feature; brief/minimal stay a single short brief).
+      const newsMinParas =
+        input.textDensity === "detailed" ? 3 : input.textDensity === "standard" ? 2 : 1;
       const layoutTemplates = allowedTemplates.map((t) => ({
         name: t.name,
         tags: t.tags,
@@ -731,15 +874,7 @@ export const generateRouter = createRouter({
                   (n, c) => n + (c.type === "prose" ? c.paragraphs.length : 0),
                   0,
                 );
-                // A news slide is a newspaper clipping: it must carry a written
-                // summary AND (unless images are off) a photo — never a bare
-                // headline, and never a headline with only a picture.
-                if (purpose === "news") {
-                  const hasImage = s.components.some((c) => c.type === "image");
-                  const needsImage = input.imageStyle !== "none";
-                  return !structOk || paraCount < newsMinParas || (needsImage && !hasImage);
-                }
-                // "Detailed" is a promise of a real READING activity: enforce
+                // "Standard"/"Detailed" are promises of real READING: enforce
                 // a hard word floor per teaching slide so the setting visibly
                 // changes the output instead of being advisory.
                 const proseWords = s.components.reduce(
@@ -749,6 +884,20 @@ export const generateRouter = createRouter({
                 );
                 const wordFloor =
                   input.textDensity === "detailed" ? 220 : input.textDensity === "standard" ? 110 : 0;
+                // A news slide is a newspaper clipping: it must carry a written
+                // article body (the word floor applies to news too — a story is
+                // reading, not a caption) AND (unless images are off) a photo —
+                // never a bare headline, never a headline with only a picture.
+                if (purpose === "news") {
+                  const hasImage = s.components.some((c) => c.type === "image");
+                  const needsImage = input.imageStyle !== "none";
+                  return (
+                    !structOk ||
+                    paraCount < newsMinParas ||
+                    (needsImage && !hasImage) ||
+                    proseWords < wordFloor
+                  );
+                }
                 return !structOk || paraCount < paraFloor || proseWords < wordFloor;
               });
             // The model sometimes under-delivers (e.g. 3 slides when 8 were
@@ -822,6 +971,21 @@ export const generateRouter = createRouter({
       // decks keep quizzes.
       if (purpose !== "education") {
         deck = { ...deck, slides: deck.slides.map((s) => ({ ...s, quiz: undefined })) };
+      }
+      // A best-attempt deck may have shipped past the retry floors with thin
+      // or missing body text — write the real text for those slides now,
+      // rather than letting the generic fallback line be the "explanation".
+      if (!usedMock) {
+        deck = await expandThinProse(deck, {
+          userId: ctx.user?.id,
+          topic,
+          purpose,
+          level: input.level,
+          textDensity: input.textDensity,
+          newsPeriod: purpose === "news" ? input.newsPeriod?.trim() || undefined : undefined,
+          paraFloor,
+          newsMinParas,
+        });
       }
       // Guarantee every slide has explanatory text — no image-only slides ship
       deck = ensureExplanatoryProse(deck, purpose, topic);
