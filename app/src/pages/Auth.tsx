@@ -269,7 +269,7 @@ export default function Auth() {
                   transition={{ duration: 0.22 }}
                 >
                   <label className="micro mb-1 block text-ink-soft" htmlFor="auth-name">
-                    Display name
+                    Username (shown publicly — also lets you sign in without email)
                   </label>
                   <input
                     id="auth-name"
