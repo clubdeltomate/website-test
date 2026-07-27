@@ -1,18 +1,13 @@
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import {
-  Coins,
-  Landmark,
-  Printer,
-  ReceiptText,
-  RefreshCw,
-  Wallet,
-} from 'lucide-react';
+import { Landmark, Printer, ReceiptText, RefreshCw, Scale } from 'lucide-react';
 import {
   Bar,
   BarChart,
   CartesianGrid,
+  LabelList,
   Legend,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -20,6 +15,7 @@ import {
 } from 'recharts';
 import type { inferRouterOutputs } from '@trpc/server';
 import type { AppRouter } from '../../api/router';
+import type { Level } from '@contracts/types';
 import { trpc } from '@/providers/trpc';
 import SketchButton from '@/components/sketch/SketchButton';
 import SketchCard from '@/components/sketch/SketchCard';
@@ -48,6 +44,8 @@ const PROVIDER_LABEL: Record<string, string> = {
   kimi: 'Moonshot Kimi',
 };
 
+const LEVELS: Level[] = ['A0', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
 const fmtUsd = (v: number) =>
   v >= 0.01 || v === 0 ? `$${v.toFixed(2)}` : `$${v.toFixed(4)}`;
 
@@ -55,17 +53,19 @@ const AXIS_TICK = { fill: '#5C5347', fontFamily: 'Caveat, cursive', fontSize: 15
 const AXIS_LINE = { stroke: '#2E2820', strokeWidth: 2 };
 
 /* ------------------------------------------------------------------ */
-/* Model-cost chart tooltip (sticky-note style, both series)           */
+/* Sticky-note chart tooltip (any number of series)                    */
 /* ------------------------------------------------------------------ */
 
 function CostTooltip({
   active,
   payload,
   label,
+  unit,
 }: {
   active?: boolean;
   payload?: { name?: string; value?: number }[];
   label?: string;
+  unit?: string;
 }) {
   if (!active || !payload?.length) return null;
   return (
@@ -73,7 +73,7 @@ function CostTooltip({
       <p className="font-display text-lg leading-none text-ink">{label}</p>
       {payload.map((p) => (
         <p key={p.name} className="font-mono text-xs font-bold text-ink">
-          {p.name}: ${p.value?.toFixed(2)} / 1M
+          {p.name}: {unit === '$' ? fmtUsd(p.value ?? 0) : `$${p.value?.toFixed(2)} / 1M`}
         </p>
       ))}
     </div>
@@ -81,7 +81,7 @@ function CostTooltip({
 }
 
 /* ------------------------------------------------------------------ */
-/* Printable receipt                                                   */
+/* Printable receipt (unchanged behavior)                              */
 /* ------------------------------------------------------------------ */
 
 function printReceipt(r: Receipt) {
@@ -164,7 +164,7 @@ function ReceiptModal({ receipt, onClose }: { receipt: Receipt; onClose: () => v
 }
 
 /* ------------------------------------------------------------------ */
-/* Grant coins form                                                    */
+/* Grant coins form (unchanged behavior)                               */
 /* ------------------------------------------------------------------ */
 
 function GrantForm({ onReceipt }: { onReceipt: (r: Receipt) => void }) {
@@ -233,84 +233,89 @@ function GrantForm({ onReceipt }: { onReceipt: (r: Receipt) => void }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Provider wallet (budget vs estimated spend)                         */
+/* Quick balance fix — remove (or add) credits, ledger adapts          */
 /* ------------------------------------------------------------------ */
 
-function WalletRow({
-  providerId,
-  budget,
-  onSaved,
-}: {
-  providerId: string;
-  budget?: { amountUsd: number; setAt: string; spentUsd: number };
-  onSaved: () => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(budget ? String(budget.amountUsd) : '');
+function BalanceFixForm() {
+  const utils = trpc.useUtils();
+  const usersList = trpc.users.list.useQuery({ limit: 200 });
+  const [userId, setUserId] = useState<number | ''>('');
+  const [direction, setDirection] = useState<'credit' | 'deduct'>('deduct');
+  const [amount, setAmount] = useState(100);
+  const [reason, setReason] = useState('balance correction');
 
-  const setBudget = trpc.finance.setBudget.useMutation({
+  const adjust = trpc.users.creditTokens.useMutation({
     onSuccess: () => {
-      toast.success(`${PROVIDER_LABEL[providerId] ?? providerId} wallet updated`);
-      setEditing(false);
-      onSaved();
+      toast.success(direction === 'deduct' ? `Removed ${amount} 🪙 — ledger updated` : `Added ${amount} 🪙 — ledger updated`);
+      void utils.finance.overview.invalidate();
+      void utils.users.list.invalidate();
     },
     onError: (e) => toast.error(errMsg(e)),
   });
 
-  const remaining = budget ? budget.amountUsd - budget.spentUsd : 0;
-  const pct = budget && budget.amountUsd > 0 ? Math.min(100, (budget.spentUsd / budget.amountUsd) * 100) : 0;
+  const target = (usersList.data ?? []).find((u) => u.id === userId);
 
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b-2 border-dashed border-pencil py-3 last:border-b-0">
-      <span className="w-36 shrink-0 font-heading font-semibold text-ink">
-        {PROVIDER_LABEL[providerId] ?? providerId}
-      </span>
-      {budget && !editing ? (
-        <>
-          <div className="min-w-[160px] flex-1">
-            <div className="relative h-3 overflow-hidden rounded-full border-2 border-ink bg-paper-2">
-              <div
-                className={pct > 85 ? 'h-full bg-red' : 'h-full bg-green'}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <p className="micro mt-1 text-ink-faint">
-              ~{fmtUsd(budget.spentUsd)} spent since {formatRelative(new Date(budget.setAt))} ·{' '}
-              <span className={remaining < 0 ? 'font-bold text-red' : 'font-bold text-green'}>
-                {fmtUsd(Math.max(0, remaining))} left
-              </span>{' '}
-              of {fmtUsd(budget.amountUsd)}
-            </p>
-          </div>
-          <SketchButton variant="ghost" size="sm" onClick={() => { setValue(String(budget.amountUsd)); setEditing(true); }}>
-            Re-enter balance
-          </SketchButton>
-        </>
-      ) : (
-        <>
-          <SketchInput
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder="Balance in USD, e.g. 20"
-            className="max-w-[180px]"
-          />
-          <SketchButton
-            size="sm"
-            loading={setBudget.isPending}
-            onClick={() => {
-              const v = Number(value);
-              if (!Number.isFinite(v) || v < 0) return toast.error('That balance looks smudged');
-              setBudget.mutate({ providerId, amountUsd: v });
-            }}
+    <div className="mt-4 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper p-4">
+      <p className="mb-1 font-heading font-semibold text-ink">Fix a balance</p>
+      <p className="mb-3 text-xs text-ink-soft">
+        Handed out too many coins (even to yourself)? Take them back here — circulation, the
+        liability figure, and the ledger above adapt immediately, so your gains and losses stay honest.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <LabeledField label="Whose balance">
+          <SketchSelect
+            value={String(userId)}
+            onChange={(e) => setUserId(e.target.value ? Number(e.target.value) : '')}
           >
-            <Wallet className="h-4 w-4" strokeWidth={2} /> Set
+            <option value="">Pick a user…</option>
+            {(usersList.data ?? []).map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name} — {u.tokenBalance} 🪙
+              </option>
+            ))}
+          </SketchSelect>
+        </LabeledField>
+        <LabeledField label="Direction">
+          <SketchSelect
+            value={direction}
+            onChange={(e) => setDirection(e.target.value as 'credit' | 'deduct')}
+          >
+            <option value="deduct">− Remove coins</option>
+            <option value="credit">+ Add coins</option>
+          </SketchSelect>
+        </LabeledField>
+        <LabeledField label="Amount 🪙">
+          <SketchInput
+            type="number"
+            min={1}
+            value={String(amount)}
+            onChange={(e) => setAmount(Math.max(1, Math.min(100000, Number(e.target.value) || 1)))}
+          />
+        </LabeledField>
+        <LabeledField label="Reason (ledger)">
+          <SketchInput value={reason} onChange={(e) => setReason(e.target.value)} />
+        </LabeledField>
+        <div className="flex items-end">
+          <SketchButton
+            variant={direction === 'deduct' ? 'danger' : 'accent'}
+            className="w-full"
+            loading={adjust.isPending}
+            disabled={userId === '' || (direction === 'deduct' && !!target && amount > target.tokenBalance)}
+            onClick={() =>
+              userId !== '' &&
+              adjust.mutate({ userId, amount, direction, reason: reason || 'balance correction' })
+            }
+          >
+            <Scale className="h-4 w-4" strokeWidth={2} />
+            {direction === 'deduct' ? `Remove ${amount}` : `Add ${amount}`} 🪙
           </SketchButton>
-          {budget && (
-            <SketchButton variant="ghost" size="sm" onClick={() => setEditing(false)}>
-              Cancel
-            </SketchButton>
-          )}
-        </>
+        </div>
+      </div>
+      {direction === 'deduct' && target && amount > target.tokenBalance && (
+        <p className="mt-2 text-xs font-bold text-red">
+          {target.name} only holds {target.tokenBalance} 🪙.
+        </p>
       )}
     </div>
   );
@@ -320,10 +325,24 @@ function WalletRow({
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
 
+const TABS = [
+  { id: 'generation', label: 'Per generation' },
+  { id: 'models', label: 'Model prices' },
+  { id: 'income', label: 'Income' },
+  { id: 'credits', label: 'Credits ledger' },
+] as const;
+type TabId = (typeof TABS)[number]['id'];
+
 function FinanceBody() {
   const utils = trpc.useUtils();
   const overview = trpc.finance.overview.useQuery();
   const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [tab, setTab] = useState<TabId>('generation');
+
+  // per-generation calculator
+  const [calcSlides, setCalcSlides] = useState(8);
+  const [calcImages, setCalcImages] = useState(true);
+  const [calcLevel, setCalcLevel] = useState<Level>('B1');
 
   const refresh = trpc.finance.refreshPricing.useMutation({
     onSuccess: () => {
@@ -335,20 +354,48 @@ function FinanceBody() {
 
   const data = overview.data;
 
-  const chartData = useMemo(
-    () =>
-      (data?.pricing.models ?? []).map((m) => ({
-        name: m.label,
-        Input: m.inPerM,
-        Output: m.outPerM,
-      })),
-    [data],
-  );
-
   const totalEstUsd = useMemo(
     () => (data?.usage ?? []).reduce((n, u) => n + u.estUsd, 0),
     [data],
   );
+
+  // What one deck with the calculator's settings charges the user, in coins
+  // (mirrors api/cost.ts estimateCost) and in dollars at the real sale rate.
+  const calc = useMemo(() => {
+    if (!data) return null;
+    const mult = data.prices.levelMultiplier[calcLevel] ?? 1;
+    const coins = Math.max(
+      0,
+      Math.ceil(
+        (data.prices.perSlideBase * calcSlides +
+          (calcImages ? data.prices.perImageSlide * calcSlides : 0)) *
+          mult,
+      ),
+    );
+    const chargeUsd = (coins * data.centsPerCoin) / 100;
+    const ticketUsd = (data.ticketPriceCoins * data.centsPerCoin) / 100;
+    return { coins, chargeUsd, ticketUsd };
+  }, [data, calcSlides, calcImages, calcLevel]);
+
+  // Estimated dollar cost of generating ONE deck's text on each model —
+  // measured average tokens per call when we have real usage, else a
+  // typical deck (4k prompt + 6k written) as the assumption.
+  const perModel = useMemo(() => {
+    if (!data) return [];
+    return data.pricing.models.map((m) => {
+      const u = data.usage.find((x) => x.priceId === m.id && x.calls > 0);
+      const inTok = u ? u.inputTokens / u.calls : 4000;
+      const outTok = u ? u.outputTokens / u.calls : 6000;
+      const costUsd = (inTok / 1e6) * m.inPerM + (outTok / 1e6) * m.outPerM;
+      return {
+        name: m.label,
+        provider: m.provider,
+        measured: !!u,
+        tokensPerDeck: Math.round(inTok + outTok),
+        costUsd,
+      };
+    });
+  }, [data]);
 
   if (overview.isLoading) {
     return (
@@ -358,7 +405,7 @@ function FinanceBody() {
     );
   }
 
-  if (overview.isError || !data) {
+  if (overview.isError || !data || !calc) {
     return (
       <div className="mx-auto w-full max-w-content px-4 py-16 text-center lg:px-8">
         <p className="font-display text-3xl text-ink">The ledger smudged itself.</p>
@@ -371,6 +418,19 @@ function FinanceBody() {
   }
 
   const pricingAge = formatRelative(new Date(data.pricing.updatedAt));
+  const liabilityUsd = (data.circulationTokens * data.centsPerCoin) / 100;
+  const led = data.ledger;
+  const ledgerRows = [
+    { label: 'Purchased (money in)', coins: led.purchased, dir: 'in' as const },
+    { label: 'Admin-granted (free)', coins: led.adminGranted, dir: 'in' as const },
+    { label: 'Starting balances', coins: led.starting, dir: 'in' as const },
+    { label: 'Refunds', coins: led.refunds, dir: 'in' as const },
+    { label: 'Other credits', coins: led.otherCredits, dir: 'in' as const },
+    { label: 'Spent on generations', coins: led.spentOnGenerations, dir: 'out' as const },
+    { label: 'Spent on tickets', coins: led.ticketCoins, dir: 'out' as const },
+    { label: 'Admin-removed', coins: led.adminRemoved, dir: 'out' as const },
+  ].filter((r) => r.coins > 0);
+  const ledgerMax = Math.max(1, ...ledgerRows.map((r) => r.coins));
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-8 px-4 py-8 lg:px-8">
@@ -378,7 +438,7 @@ function FinanceBody() {
         backTo="/admin/projects"
         backLabel="Projects"
         title="Finance"
-        blurb="What the AI models cost, what the coins earn, and where your API money goes."
+        blurb="Your income, your expenses, and what every generation really costs."
         chip={
           <span className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-ink bg-green-soft">
             <Landmark className="h-4 w-4 text-ink" strokeWidth={2} />
@@ -386,8 +446,8 @@ function FinanceBody() {
         }
       />
 
-      {/* 1 — money in vs money out */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* headline: money in, money out, margin, outstanding promise */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <SketchCard borderStyle="dashed" className="p-4 text-center">
           <p className="font-display text-3xl font-bold text-green">{formatMoney(data.revenueCents)}</p>
           <p className="micro text-ink-faint">collected from coin sales</p>
@@ -402,17 +462,30 @@ function FinanceBody() {
           </p>
           <p className="micro text-ink-faint">margin so far</p>
         </SketchCard>
+        <SketchCard borderStyle="dashed" index={3} className="p-4 text-center">
+          <p className="font-display text-3xl font-bold text-orange">
+            {data.circulationTokens.toLocaleString()} 🪙
+          </p>
+          <p className="micro text-ink-faint">in circulation ≈ {fmtUsd(liabilityUsd)} of unused generations</p>
+        </SketchCard>
       </div>
 
-      {/* 2 — model costs */}
+      {/* paginated analytics */}
       <SketchCard borderStyle="solid" className="p-0">
-        <div className="flex flex-wrap items-center gap-3 border-b-2 border-ink bg-yellow px-4 py-3">
-          <h3 className="font-heading text-lg font-semibold text-ink">
-            What each model costs <span className="text-sm font-normal">(USD per 1M tokens)</span>
-          </h3>
-          <Chip kind="neutral" className="border-ink bg-paper-3">
-            {data.pricing.source === 'web' ? `refreshed ${pricingAge}` : `seed prices · ${pricingAge}`}
-          </Chip>
+        <div className="flex flex-wrap items-center gap-2 border-b-2 border-ink bg-yellow px-4 py-3">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={
+                tab === t.id
+                  ? 'rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-1 text-xs font-bold uppercase tracking-wider text-ink shadow-offset'
+                  : 'rounded-wobble-sm border-2 border-dashed border-ink/40 px-3 py-1 text-xs font-bold uppercase tracking-wider text-ink/70 hover:border-ink hover:text-ink'
+              }
+            >
+              {t.label}
+            </button>
+          ))}
           <SketchButton
             variant="secondary"
             size="sm"
@@ -420,78 +493,313 @@ function FinanceBody() {
             loading={refresh.isPending}
             onClick={() => refresh.mutate()}
           >
-            <RefreshCw className="h-3.5 w-3.5" strokeWidth={2} /> Refresh from the web
+            <RefreshCw className="h-3.5 w-3.5" strokeWidth={2} /> Refresh prices
           </SketchButton>
         </div>
-        <div className="p-4">
-          <div style={{ height: chartData.length * 44 + 60 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 24, bottom: 0, left: 8 }} barGap={2}>
-                <CartesianGrid stroke="#C9BFA9" strokeDasharray="4 6" horizontal={false} />
-                <XAxis type="number" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} unit="$" />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  width={170}
-                  tick={{ ...AXIS_TICK, fontSize: 14, fontFamily: 'inherit' }}
-                  axisLine={AXIS_LINE}
-                  tickLine={false}
+
+        {/* ---------------- tab 1: per generation ---------------- */}
+        {tab === 'generation' && (
+          <div className="p-4">
+            <h3 className="font-heading text-lg font-semibold text-ink">
+              What one presentation costs you vs what it earns
+            </h3>
+            <p className="mb-3 text-xs text-ink-soft">
+              Orange bars: the estimated AI text bill for generating one deck on each model
+              (measured from real calls when available, else a typical deck).
+              The dashed lines are what YOU collect for that same deck: the blue line is a
+              coin-paid generation, the green line is one ticket. Bars left of a line = profit.
+            </p>
+
+            {/* calculator */}
+            <div className="mb-4 flex flex-wrap items-end gap-3 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper p-3">
+              <LabeledField label="Slides">
+                <SketchInput
+                  type="number"
+                  min={1}
+                  max={15}
+                  className="w-20"
+                  value={String(calcSlides)}
+                  onChange={(e) => setCalcSlides(Math.max(1, Math.min(15, Number(e.target.value) || 1)))}
                 />
-                <Tooltip content={<CostTooltip />} cursor={{ fill: '#F4EBD6' }} />
-                <Legend wrapperStyle={{ fontSize: 13 }} />
-                <Bar dataKey="Input" fill="#EF8A3C" fillOpacity={0.8} stroke="#2E2820" strokeWidth={2} radius={[0, 4, 4, 0]} />
-                <Bar dataKey="Output" fill="#3F74D6" fillOpacity={0.8} stroke="#2E2820" strokeWidth={2} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b-2 border-ink text-left font-heading text-xs uppercase tracking-wider text-ink-soft">
-                  <th className="py-1.5 pr-3">Model</th>
-                  <th className="py-1.5 pr-3">Provider</th>
-                  <th className="py-1.5 pr-3 text-right">Input / 1M</th>
-                  <th className="py-1.5 text-right">Output / 1M</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.pricing.models.map((m) => (
-                  <tr key={m.id} className="border-b border-dashed border-pencil text-ink">
-                    <td className="py-1.5 pr-3 font-heading font-semibold">{m.label}</td>
-                    <td className="py-1.5 pr-3 text-ink-soft">{m.provider}</td>
-                    <td className="py-1.5 pr-3 text-right font-mono">${m.inPerM.toFixed(2)}</td>
-                    <td className="py-1.5 text-right font-mono">${m.outPerM.toFixed(2)}</td>
+              </LabeledField>
+              <LabeledField label="Images">
+                <SketchSelect value={calcImages ? 'yes' : 'no'} onChange={(e) => setCalcImages(e.target.value === 'yes')}>
+                  <option value="yes">With images</option>
+                  <option value="no">Text only</option>
+                </SketchSelect>
+              </LabeledField>
+              <LabeledField label="Level">
+                <SketchSelect value={calcLevel} onChange={(e) => setCalcLevel(e.target.value as Level)}>
+                  {LEVELS.map((l) => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </SketchSelect>
+              </LabeledField>
+              <p className="pb-1 text-sm text-ink">
+                This deck charges{' '}
+                <span className="font-bold text-orange">{calc.coins} 🪙</span> ≈{' '}
+                <span className="font-bold">{fmtUsd(calc.chargeUsd)}</span>
+                <span className="text-ink-faint"> · one ticket sells for </span>
+                <span className="font-bold text-green">{data.ticketPriceCoins} 🪙 ≈ {fmtUsd(calc.ticketUsd)}</span>
+              </p>
+            </div>
+
+            <div style={{ height: perModel.length * 42 + 70 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={perModel.map((m) => ({ name: m.name, 'Costs you': Number(m.costUsd.toFixed(4)) }))}
+                  layout="vertical"
+                  margin={{ top: 4, right: 40, bottom: 0, left: 8 }}
+                >
+                  <CartesianGrid stroke="#C9BFA9" strokeDasharray="4 6" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    // include the two income lines in the scale — the empty
+                    // space between a bar and its line IS the profit
+                    domain={[0, Math.max(calc.chargeUsd, calc.ticketUsd) * 1.15]}
+                    tick={AXIS_TICK}
+                    axisLine={AXIS_LINE}
+                    tickLine={false}
+                    tickFormatter={(v: number) => `$${Number(v).toFixed(2)}`}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={170}
+                    tick={{ ...AXIS_TICK, fontSize: 14, fontFamily: 'inherit' }}
+                    axisLine={AXIS_LINE}
+                    tickLine={false}
+                  />
+                  <Tooltip content={<CostTooltip unit="$" />} cursor={{ fill: '#F4EBD6' }} />
+                  <ReferenceLine
+                    x={Number(calc.chargeUsd.toFixed(4))}
+                    stroke="#3F74D6"
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                    label={{ value: `coin-paid ${fmtUsd(calc.chargeUsd)}`, position: 'top', fill: '#3F74D6', fontSize: 12 }}
+                  />
+                  <ReferenceLine
+                    x={Number(calc.ticketUsd.toFixed(4))}
+                    stroke="#4C9A5C"
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                    label={{ value: `ticket ${fmtUsd(calc.ticketUsd)}`, position: 'insideTopRight', fill: '#4C9A5C', fontSize: 12 }}
+                  />
+                  <Bar dataKey="Costs you" fill="#EF8A3C" fillOpacity={0.9} stroke="#2E2820" strokeWidth={1.5} radius={[0, 4, 4, 0]}>
+                    <LabelList
+                      dataKey="Costs you"
+                      position="right"
+                      formatter={(v: number) => `~${fmtUsd(v)}`}
+                      style={{ fill: '#5C5347', fontSize: 11, fontFamily: 'monospace' }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b-2 border-ink text-left font-heading text-xs uppercase tracking-wider text-ink-soft">
+                    <th className="py-1.5 pr-3">Model</th>
+                    <th className="py-1.5 pr-3 text-right">Tokens / deck</th>
+                    <th className="py-1.5 pr-3 text-right">Costs you</th>
+                    <th className="py-1.5 pr-3 text-right">Margin (coin-paid)</th>
+                    <th className="py-1.5 text-right">Margin (ticketed)</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {perModel.map((m) => (
+                    <tr key={m.name} className="border-b border-dashed border-pencil text-ink">
+                      <td className="py-1.5 pr-3">
+                        <span className="font-heading font-semibold">{m.name}</span>{' '}
+                        <span className="text-xs text-ink-faint">
+                          {m.provider}
+                          {m.measured ? ' · measured' : ' · typical deck'}
+                        </span>
+                      </td>
+                      <td className="py-1.5 pr-3 text-right font-mono">{m.tokensPerDeck.toLocaleString()}</td>
+                      <td className="py-1.5 pr-3 text-right font-mono">~{fmtUsd(m.costUsd)}</td>
+                      <td className={`py-1.5 pr-3 text-right font-mono font-bold ${calc.chargeUsd - m.costUsd >= 0 ? 'text-green' : 'text-red'}`}>
+                        {fmtUsd(calc.chargeUsd - m.costUsd)}
+                      </td>
+                      <td className={`py-1.5 text-right font-mono font-bold ${calc.ticketUsd - m.costUsd >= 0 ? 'text-green' : 'text-red'}`}>
+                        {fmtUsd(calc.ticketUsd - m.costUsd)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="micro mt-2 text-ink-faint">
+              Text cost only — image generation isn't metered yet, so decks with images cost a
+              little more than shown. Coin value uses your real blended sale rate
+              ({data.centsPerCoin.toFixed(1)}¢ per coin).
+            </p>
           </div>
-        </div>
+        )}
+
+        {/* ---------------- tab 2: model prices ---------------- */}
+        {tab === 'models' && (
+          <div className="p-4">
+            <div className="mb-1 flex flex-wrap items-center gap-2">
+              <h3 className="font-heading text-lg font-semibold text-ink">
+                Raw model prices <span className="text-sm font-normal text-ink-faint">(USD per 1M tokens)</span>
+              </h3>
+              <Chip kind="neutral" className="border-ink bg-paper-3">
+                {data.pricing.source === 'web' ? `refreshed ${pricingAge}` : `seed prices · ${pricingAge}`}
+              </Chip>
+            </div>
+            <p className="mb-3 text-xs text-ink-soft">
+              "Input" is the prompt we send the model; "output" is the text it writes back.
+              Prices are per one million tokens (≈ 750,000 words) — one deck uses only a tiny
+              slice of that; see the Per-generation tab for what a single deck costs.
+            </p>
+            <div style={{ height: data.pricing.models.length * 44 + 60 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={data.pricing.models.map((m) => ({ name: m.label, Input: m.inPerM, Output: m.outPerM }))}
+                  layout="vertical"
+                  margin={{ top: 4, right: 24, bottom: 0, left: 8 }}
+                  barGap={2}
+                >
+                  <CartesianGrid stroke="#C9BFA9" strokeDasharray="4 6" horizontal={false} />
+                  <XAxis type="number" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={(v: number) => `$${v}`} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={170}
+                    tick={{ ...AXIS_TICK, fontSize: 14, fontFamily: 'inherit' }}
+                    axisLine={AXIS_LINE}
+                    tickLine={false}
+                  />
+                  <Tooltip content={<CostTooltip />} cursor={{ fill: '#F4EBD6' }} />
+                  <Legend wrapperStyle={{ fontSize: 13 }} />
+                  <Bar dataKey="Input" fill="#EF8A3C" fillOpacity={0.8} stroke="#2E2820" strokeWidth={2} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="Output" fill="#3F74D6" fillOpacity={0.8} stroke="#2E2820" strokeWidth={2} radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b-2 border-ink text-left font-heading text-xs uppercase tracking-wider text-ink-soft">
+                    <th className="py-1.5 pr-3">Model</th>
+                    <th className="py-1.5 pr-3">Provider</th>
+                    <th className="py-1.5 pr-3 text-right">Input / 1M</th>
+                    <th className="py-1.5 text-right">Output / 1M</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.pricing.models.map((m) => (
+                    <tr key={m.id} className="border-b border-dashed border-pencil text-ink">
+                      <td className="py-1.5 pr-3 font-heading font-semibold">{m.label}</td>
+                      <td className="py-1.5 pr-3 text-ink-soft">{m.provider}</td>
+                      <td className="py-1.5 pr-3 text-right font-mono">${m.inPerM.toFixed(2)}</td>
+                      <td className="py-1.5 text-right font-mono">${m.outPerM.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ---------------- tab 3: income ---------------- */}
+        {tab === 'income' && (
+          <div className="p-4">
+            <h3 className="mb-3 font-heading text-lg font-semibold text-ink">Money coming in</h3>
+            <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <SketchCard borderStyle="dashed" className="p-3 text-center">
+                <p className="font-display text-2xl font-bold text-green">{formatMoney(data.revenueCents)}</p>
+                <p className="micro text-ink-faint">from coin sales</p>
+              </SketchCard>
+              <SketchCard borderStyle="dashed" index={1} className="p-3 text-center">
+                <p className="font-display text-2xl font-bold text-orange">{data.purchasedTokens.toLocaleString()} 🪙</p>
+                <p className="micro text-ink-faint">coins sold</p>
+              </SketchCard>
+              <SketchCard borderStyle="dashed" index={2} className="p-3 text-center">
+                <p className="font-display text-2xl font-bold text-ink">{led.ticketCoins.toLocaleString()} 🪙</p>
+                <p className="micro text-ink-faint">
+                  collected from tickets ≈ {fmtUsd((led.ticketCoins * data.centsPerCoin) / 100)}
+                </p>
+              </SketchCard>
+              <SketchCard borderStyle="dashed" index={3} className="p-3 text-center">
+                <p className="font-display text-2xl font-bold text-ink">{data.recentReceipts.length}</p>
+                <p className="micro text-ink-faint">recent receipts (below)</p>
+              </SketchCard>
+            </div>
+            {data.monthlyRevenue.length === 0 ? (
+              <p className="py-6 text-center font-display text-2xl text-ink-faint">No credited sales yet 🪙</p>
+            ) : (
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={data.monthlyRevenue.map((m) => ({ month: m.month, USD: m.cents / 100 }))}
+                    margin={{ top: 8, right: 12, bottom: 0, left: -14 }}
+                  >
+                    <CartesianGrid stroke="#C9BFA9" strokeDasharray="4 6" vertical={false} />
+                    <XAxis dataKey="month" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
+                    <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={(v: number) => `$${v}`} />
+                    <Tooltip content={<CostTooltip unit="$" />} cursor={{ fill: '#F4EBD6' }} />
+                    <Bar dataKey="USD" fill="#4C9A5C" fillOpacity={0.75} stroke="#2E2820" strokeWidth={2} radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            <p className="micro mt-2 text-ink-faint">
+              Coin sales are real dollars (credited payments + Finance receipts). Ticket income is
+              collected in coins moderators already bought, valued at your blended sale rate — it's
+              not counted twice as dollars.
+            </p>
+          </div>
+        )}
+
+        {/* ---------------- tab 4: credits ledger ---------------- */}
+        {tab === 'credits' && (
+          <div className="p-4">
+            <h3 className="mb-1 font-heading text-lg font-semibold text-ink">
+              Every coin, accounted for
+            </h3>
+            <p className="mb-4 text-xs text-ink-soft">
+              {data.circulationTokens.toLocaleString()} 🪙 are sitting in user balances right now —
+              about {fmtUsd(liabilityUsd)} of generations you've promised but not yet paid API costs
+              for. Coins granted free (including to yourself) create that obligation without
+              matching income, so they're tracked separately below.
+            </p>
+            <div className="flex flex-col gap-2">
+              {ledgerRows.map((r) => (
+                <div key={r.label} className="flex items-center gap-3">
+                  <span className="w-48 shrink-0 text-sm font-heading font-semibold text-ink">
+                    {r.label}
+                  </span>
+                  <div className="h-5 flex-1 overflow-hidden rounded-full border-2 border-ink bg-paper-2">
+                    <div
+                      className={r.dir === 'in' ? 'h-full bg-green/70' : 'h-full bg-orange/80'}
+                      style={{ width: `${Math.max(2, (r.coins / ledgerMax) * 100)}%` }}
+                    />
+                  </div>
+                  <span className="w-40 shrink-0 text-right font-mono text-sm text-ink">
+                    {r.coins.toLocaleString()} 🪙
+                    <span className="text-xs text-ink-faint"> ≈ {fmtUsd((r.coins * data.centsPerCoin) / 100)}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex gap-4 text-xs text-ink-soft">
+              <span className="flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded-full border-2 border-ink bg-green/70" /> coins entering circulation
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded-full border-2 border-ink bg-orange/80" /> coins leaving circulation
+              </span>
+            </div>
+            <BalanceFixForm />
+          </div>
+        )}
       </SketchCard>
 
-      {/* 3 — coin prices */}
-      <section>
-        <h3 className="mb-3 flex items-center gap-2 font-heading text-xl font-semibold text-ink">
-          <Coins className="h-5 w-5 text-orange" strokeWidth={2} />
-          What the coins sell for
-        </h3>
-        <div className="grid gap-4 sm:grid-cols-3">
-          {data.packs.map((p, i) => (
-            <SketchCard key={p.id} index={i} className="p-4 text-center">
-              <p className="font-display text-3xl font-bold text-orange">{p.tokens} 🪙</p>
-              <p className="font-heading text-lg text-ink">{formatMoney(p.priceCents)}</p>
-              <p className="micro mt-1 text-ink-faint">
-                {(p.priceCents / p.tokens).toFixed(1)}¢ per coin
-              </p>
-            </SketchCard>
-          ))}
-        </div>
-        <p className="micro mt-2 text-ink-faint">
-          Pack prices are set in Controls → Platform; this is what buyers currently pay.
-        </p>
-      </section>
-
-      {/* 4 — usage & estimated spend */}
+      {/* usage detail (the expense receipts) */}
       <section>
         <h3 className="mb-3 font-heading text-xl font-semibold text-ink">
           Where the API money goes
@@ -501,7 +809,7 @@ function FinanceBody() {
             <p className="font-heading text-ink">No AI calls metered yet.</p>
             <p className="text-sm text-ink-soft">
               From now on every text generation records the tokens the provider reports, priced
-              with the table above. Generate a deck and this fills in.
+              with the current table. Generate a deck and this fills in.
             </p>
           </div>
         ) : (
@@ -550,32 +858,7 @@ function FinanceBody() {
         </p>
       </section>
 
-      {/* 5 — provider wallets */}
-      <SketchCard borderStyle="solid" className="p-0">
-        <div className="border-b-2 border-ink bg-green-soft px-4 py-3">
-          <h3 className="font-heading text-lg font-semibold text-ink">Provider wallets</h3>
-          <p className="text-xs text-ink-soft">
-            Enter what's loaded on each API account. Spend is estimated from that moment, so when
-            generation switches providers or stops, you can check the "left" figure against the
-            provider's own balance and see whether they coincide.
-          </p>
-        </div>
-        <div className="px-4 py-1">
-          {Object.keys(PROVIDER_LABEL).map((pid) => {
-            const b = data.providers.find((p) => p.providerId === pid);
-            return (
-              <WalletRow
-                key={pid}
-                providerId={pid}
-                budget={b ? { amountUsd: b.amountUsd, setAt: b.setAt, spentUsd: b.spentUsd } : undefined}
-                onSaved={() => void utils.finance.overview.invalidate()}
-              />
-            );
-          })}
-        </div>
-      </SketchCard>
-
-      {/* 6 — grant coins with a receipt */}
+      {/* grant coins with a receipt */}
       <SketchCard borderStyle="solid" className="p-0">
         <div className="border-b-2 border-ink bg-yellow px-4 py-3">
           <h3 className="font-heading text-lg font-semibold text-ink">
