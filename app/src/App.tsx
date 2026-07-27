@@ -22,13 +22,6 @@ import About from './pages/About';
 import Settings from './pages/Settings';
 import Auth from './pages/Auth';
 import AdminDashboard from './pages/AdminDashboard';
-import AdminStats from './pages/AdminStats';
-import AdminControls from './pages/AdminControls';
-import AdminProjects from './pages/AdminProjects';
-import AdminFinance from './pages/AdminFinance';
-import AdminAnalytics from './pages/AdminAnalytics';
-import AdminPayments from './pages/AdminPayments';
-import AdminFlags from './pages/AdminFlags';
 import AdminUsers from './pages/AdminUsers';
 import AdminModerators from './pages/AdminModerators';
 import AdminSettings from './pages/AdminSettings';
@@ -71,13 +64,6 @@ export default function App() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/auth" element={<Auth />} />
         <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/stats" element={<AdminStats />} />
-        <Route path="/admin/controls" element={<AdminControls />} />
-        <Route path="/admin/projects" element={<AdminProjects />} />
-        <Route path="/admin/projects/finance" element={<AdminFinance />} />
-        <Route path="/admin/analytics" element={<AdminAnalytics />} />
-        <Route path="/admin/payments" element={<AdminPayments />} />
-        <Route path="/admin/flags" element={<AdminFlags />} />
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/moderators" element={<AdminModerators />} />
         <Route path="/admin/settings" element={<AdminSettings />} />

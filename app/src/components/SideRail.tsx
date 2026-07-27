@@ -5,10 +5,14 @@ import {
   MessageCircle,
   Presentation,
   LibraryBig,
+  LayoutTemplate,
+  PlayCircle,
   Info,
   LayoutDashboard,
   Users,
+  ShieldCheck,
   Settings,
+  SlidersHorizontal,
   X,
 } from 'lucide-react';
 import { LogOut } from 'lucide-react';
@@ -34,13 +38,16 @@ const NAV_ITEMS = [
   { to: '/about', label: 'About', icon: Info },
 ];
 
-// Staff-only. The Dashboard is a control panel: every other staff page
-// (Manage users, Moderators, Presentation runs, Slide templates, Platform,
-// Analytics, Payments, Flags) is reached from its launcher tiles, so the
-// rail keeps a single entry.
+// Staff-only. Moderators see the first two (Dashboard + Users); admins see
+// all of them — so Presentation runs, Slide templates, and the platform
+// config stay admin-only.
 const ADMIN_ITEMS = [
-  // no `end` — stays highlighted on /admin/* sub-pages
-  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/admin/users', label: 'Manage users', icon: Users },
+  { to: '/admin/moderators', label: 'Moderators', icon: ShieldCheck },
+  { to: '/runs', label: 'Presentation runs', icon: PlayCircle },
+  { to: '/templates', label: 'Slide templates', icon: LayoutTemplate },
+  { to: '/admin/settings', label: 'Platform', icon: SlidersHorizontal },
 ];
 
 function RailLink({
@@ -86,7 +93,8 @@ function RailLink({
 function RailContent({ onClose }: { onClose?: () => void }) {
   const { user, role, logout } = useAuth();
   const isStaff = role === 'moderator' || role === 'admin';
-  const staffItems = ADMIN_ITEMS;
+  // moderators see Dashboard + Users; admins see all four
+  const staffItems = role === 'admin' ? ADMIN_ITEMS : ADMIN_ITEMS.slice(0, 2);
 
   return (
     <div className="flex h-full flex-col gap-1 p-4">

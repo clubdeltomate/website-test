@@ -2,7 +2,6 @@ import { getDb } from "../queries/connection.js";
 import { apiKeys } from "../../db/schema.js";
 import { and, eq } from "drizzle-orm";
 import { getSettings } from "../settings.js";
-import { recordAiUsage } from "../finance.js";
 import type { AiCapability, AiProvider } from "../../contracts/types.js";
 
 /* ------------------------------------------------------------------ */
@@ -43,9 +42,6 @@ export function resolvedKeyId(k: ResolvedKey): string {
 
 /** Providers with a chat/completion API (ElevenLabs is speech-only). */
 type TextProvider = Exclude<AiProvider, "elevenlabs">;
-
-/** Least time worth handing a fallback provider for a real generation. */
-const MIN_CANDIDATE_MS = 15_000;
 
 /** The ids of every text key currently available to this user — the size of
  *  the rotation pool for provider-cycling callers. */
@@ -190,26 +186,16 @@ export async function userHasKey(userId: number, capability: AiCapability): Prom
   return rows.length > 0;
 }
 
-/** One successful raw completion: text plus the model that answered and the
- *  token usage the provider reported (when it reports any) — consumed by the
- *  finance expense tracker. */
-interface CallOutcome {
-  text: string;
-  model: string;
-  usage?: { input: number; output: number };
-}
-
 async function callOpenAICompatible(
   key: ResolvedKey,
   messages: ChatMessage[],
   maxTokens: number,
   timeoutMs: number,
-): Promise<CallOutcome> {
+): Promise<string> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.openai).replace(/\/$/, "");
   // DeepSeek/Moonshot reject max_tokens above 8k; gpt-4o-mini tops out at 16k.
   const cap = /deepseek|moonshot/.test(base) ? 8192 : 16384;
   maxTokens = Math.min(maxTokens, cap);
-  const model = key.model || DEFAULT_MODELS.openai;
   const res = await fetch(`${base}/chat/completions`, {
     method: "POST",
     headers: {
@@ -217,7 +203,7 @@ async function callOpenAICompatible(
       authorization: `Bearer ${key.apiKey}`,
     },
     body: JSON.stringify({
-      model,
+      model: key.model || DEFAULT_MODELS.openai,
       messages,
       max_tokens: maxTokens,
       temperature: 0.7,
@@ -228,17 +214,10 @@ async function callOpenAICompatible(
   if (!res.ok) throw new Error(`OpenAI-compatible API ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const data = (await res.json()) as {
     choices?: { message?: { content?: string } }[];
-    usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
   const text = data.choices?.[0]?.message?.content;
   if (!text) throw new Error("OpenAI-compatible API returned no content");
-  return {
-    text,
-    model,
-    usage: data.usage
-      ? { input: data.usage.prompt_tokens ?? 0, output: data.usage.completion_tokens ?? 0 }
-      : undefined,
-  };
+  return text;
 }
 
 async function callAnthropic(
@@ -246,7 +225,7 @@ async function callAnthropic(
   messages: ChatMessage[],
   maxTokens: number,
   timeoutMs: number,
-): Promise<CallOutcome> {
+): Promise<string> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.anthropic).replace(/\/$/, "");
   maxTokens = Math.min(maxTokens, 8192); // haiku's per-request output ceiling
   const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
@@ -267,19 +246,10 @@ async function callAnthropic(
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new Error(`Anthropic API ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const data = (await res.json()) as {
-    content?: { type: string; text?: string }[];
-    usage?: { input_tokens?: number; output_tokens?: number };
-  };
+  const data = (await res.json()) as { content?: { type: string; text?: string }[] };
   const text = data.content?.find((c) => c.type === "text")?.text;
   if (!text) throw new Error("Anthropic API returned no text");
-  return {
-    text,
-    model: key.model || DEFAULT_MODELS.anthropic,
-    usage: data.usage
-      ? { input: data.usage.input_tokens ?? 0, output: data.usage.output_tokens ?? 0 }
-      : undefined,
-  };
+  return text;
 }
 
 async function callGemini(
@@ -287,7 +257,7 @@ async function callGemini(
   messages: ChatMessage[],
   maxTokens: number,
   timeoutMs: number,
-): Promise<CallOutcome> {
+): Promise<string> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.gemini).replace(/\/$/, "");
   const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
   const contents = messages
@@ -322,7 +292,6 @@ async function callGemini(
     if (!res.ok) throw new Error(`Gemini API ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const data = (await res.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
-      usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
     };
     const candidate = data.candidates?.[0];
     if (candidate?.finishReason === "MAX_TOKENS") {
@@ -330,16 +299,7 @@ async function callGemini(
     }
     const text = candidate?.content?.parts?.map((p) => p.text ?? "").join("");
     if (!text) throw new Error("Gemini API returned no content");
-    return {
-      text,
-      model,
-      usage: data.usageMetadata
-        ? {
-            input: data.usageMetadata.promptTokenCount ?? 0,
-            output: data.usageMetadata.candidatesTokenCount ?? 0,
-          }
-        : undefined,
-    };
+    return text;
   }
   throw notFound ?? new Error("No Gemini text model available");
 }
@@ -364,10 +324,6 @@ export async function completeText(opts: {
   shuffleProviders?: boolean;
   /** Skip these resolvedKeyId()s — used to rotate providers without repeats. */
   excludeKeyIds?: string[];
-  /** Callers can pass an array to collect per-candidate failure reasons, so a
-   *  total failure can explain WHICH provider refused and why instead of a
-   *  bare "no provider produced content". */
-  collectErrors?: string[];
 }): Promise<CompletionResult | null> {
   const capability = opts.capability ?? "text";
   let candidates = await resolveKeyCandidates(opts.userId, capability);
@@ -391,55 +347,29 @@ export async function completeText(opts: {
   const maxTokens = opts.maxTokens ?? 4096;
   const timeoutMs = Math.max(2_000, opts.timeoutMs ?? Number(process.env.AI_TEXT_TIMEOUT_MS ?? 25_000));
   const keys = candidates.slice(0, Math.max(1, opts.maxCandidates ?? candidates.length));
-  // timeoutMs bounds the WHOLE call, not each key: seven configured providers
-  // each given the full timeout ran for minutes and outlived the request
-  // waiting on it. But the fallback itself is the point of having several
-  // keys — one slow provider must not swallow the entire budget and leave a
-  // working one untried. So the budget is SHARED: each candidate gets a fair
-  // slice (enough for a real generation), and whatever earlier candidates
-  // didn't use rolls forward to the next.
-  const deadline = Date.now() + timeoutMs;
-  for (const [index, key] of keys.entries()) {
-    const left = deadline - Date.now();
-    if (left < 2_000) {
-      console.warn(`[ai/text] out of time after ${index} candidate(s) — not starting another`);
-      break;
-    }
-    // The first key is the one expected to answer, so it gets the lion's
-    // share — never cut short a provider that would have succeeded. Later
-    // keys exist as fallback and run on the remainder. A lone configured key
-    // gets the entire budget, since there is nothing to fall back to.
-    const slice =
-      keys.length === 1
-        ? left
-        : Math.min(left, Math.max(MIN_CANDIDATE_MS, Math.floor(timeoutMs * 0.6)));
+  for (const key of keys) {
     try {
-      let out: CallOutcome;
+      let text: string;
       switch (key.provider) {
         case "openai":
-          out = await callOpenAICompatible(key, opts.messages, maxTokens, slice);
+          text = await callOpenAICompatible(key, opts.messages, maxTokens, timeoutMs);
           break;
         case "anthropic":
-          out = await callAnthropic(key, opts.messages, maxTokens, slice);
+          text = await callAnthropic(key, opts.messages, maxTokens, timeoutMs);
           break;
         case "gemini":
-          out = await callGemini(key, opts.messages, maxTokens, slice);
+          text = await callGemini(key, opts.messages, maxTokens, timeoutMs);
           break;
         default:
           continue; // e.g. an elevenlabs (tts-only) key can't do text
       }
-      // Finance expense tracker. Awaited on purpose: a stray promise cannot
-      // be left running here — the invocation would stay open waiting for it
-      // and the deck could die with the function. recordAiUsage bounds its
-      // own time and swallows its own errors.
-      if (out.usage) await recordAiUsage(key, out.model, out.usage);
-      return { text: out.text, provider: key.provider, source: key.source, keyId: resolvedKeyId(key) };
+      return { text, provider: key.provider, source: key.source, keyId: resolvedKeyId(key) };
     } catch (err) {
       // Bad key, quota, timeout, unreachable host — log and try the next key.
-      const detail = err instanceof Error ? err.message : String(err);
-      const label = `${key.provider}${key.model ? `/${key.model}` : ""} (${key.source})`;
-      opts.collectErrors?.push(`${label}: ${detail.slice(0, 160)}`);
-      console.warn(`[ai/text] ${label} failed, trying next candidate:`, detail);
+      console.warn(
+        `[ai/text] ${key.provider} (${key.source}${key.model ? `, ${key.model}` : ""}) failed, trying next candidate:`,
+        err instanceof Error ? err.message : err,
+      );
     }
   }
   console.warn(`[ai/text] all ${keys.length} ${capability} key candidate(s) failed`);
@@ -451,11 +381,7 @@ export async function completeText(opts: {
 /* news, etc. are accurate. Uses Gemini's Google-Search grounding or an  */
 /* OpenRouter ":online" model — providers without a web path are skipped.*/
 
-async function callGeminiGrounded(
-  key: ResolvedKey,
-  prompt: string,
-  timeoutMs = 60_000,
-): Promise<string> {
+async function callGeminiGrounded(key: ResolvedKey, prompt: string): Promise<string> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.gemini).replace(/\/$/, "");
   const models = key.model
     ? [key.model, ...GEMINI_TEXT_MODELS.filter((m) => m !== key.model)]
@@ -472,7 +398,7 @@ async function callGeminiGrounded(
           tools: [{ google_search: {} }],
           generationConfig: { maxOutputTokens: 1200 },
         }),
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: AbortSignal.timeout(60_000),
       },
     );
     if (res.status === 404) {
@@ -490,11 +416,7 @@ async function callGeminiGrounded(
   throw notFound ?? new Error("No Gemini model available for grounding");
 }
 
-async function callOpenRouterOnline(
-  key: ResolvedKey,
-  prompt: string,
-  timeoutMs = 60_000,
-): Promise<string> {
+async function callOpenRouterOnline(key: ResolvedKey, prompt: string): Promise<string> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.openai).replace(/\/$/, "");
   const model = `${key.model || "openai/gpt-4o-mini"}:online`;
   const res = await fetch(`${base}/chat/completions`, {
@@ -506,7 +428,7 @@ async function callOpenRouterOnline(
       max_tokens: 1200,
       temperature: 0.3,
     }),
-    signal: AbortSignal.timeout(timeoutMs),
+    signal: AbortSignal.timeout(60_000),
   });
   if (!res.ok) throw new Error(`OpenRouter online ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
@@ -524,7 +446,6 @@ async function callOpenRouterOnline(
 export async function webResearch(
   userId: number | undefined,
   query: string,
-  timeoutMs = 60_000,
 ): Promise<{ text: string; provider: AiProvider } | null> {
   const candidates = await resolveKeyCandidates(userId, "text").catch(() => [] as ResolvedKey[]);
   const prompt = `Search the web for CURRENT, ACCURATE information about: ${query}
@@ -533,10 +454,10 @@ Return concise factual notes an author can rely on for an accurate presentation:
   for (const key of candidates) {
     try {
       if (key.provider === "gemini") {
-        const text = await callGeminiGrounded(key, prompt, timeoutMs);
+        const text = await callGeminiGrounded(key, prompt);
         if (text.trim()) return { text: text.trim(), provider: "gemini" };
       } else if (key.provider === "openai" && /openrouter\.ai/.test(key.baseUrl ?? "")) {
-        const text = await callOpenRouterOnline(key, prompt, timeoutMs);
+        const text = await callOpenRouterOnline(key, prompt);
         if (text.trim()) return { text: text.trim(), provider: "openai" };
       }
       // providers without a web-search path are skipped
@@ -730,67 +651,6 @@ export async function completeVision(opts: {
   return null;
 }
 
-export interface ProviderDiagnosis {
-  provider: AiProvider;
-  source: "byok" | "platform" | "env";
-  model: string | null;
-  endpoint: string | null;
-  ok: boolean;
-  ms: number;
-  error: string | null;
-}
-
-/**
- * Ping every configured TEXT provider, in parallel, with a real (tiny)
- * generation. This is the answer to "generation failed but I can't see why":
- * it names each key the server would actually use and reports whether it
- * answers, how fast, and the exact error when it doesn't.
- */
-export async function diagnoseTextProviders(
-  userId?: number,
-  timeoutMs = 12_000,
-): Promise<ProviderDiagnosis[]> {
-  const candidates = await resolveKeyCandidates(userId, "text").catch(() => [] as ResolvedKey[]);
-  const messages: ChatMessage[] = [
-    { role: "system", content: 'Reply with only this JSON: {"ok":true}' },
-    { role: "user", content: "ping" },
-  ];
-  return Promise.all(
-    candidates.map(async (key): Promise<ProviderDiagnosis> => {
-      const at = Date.now();
-      const base: Omit<ProviderDiagnosis, "ok" | "ms" | "error"> = {
-        provider: key.provider,
-        source: key.source,
-        model: key.model ?? DEFAULT_MODELS[key.provider as TextProvider] ?? null,
-        endpoint: key.baseUrl ?? null,
-      };
-      try {
-        switch (key.provider) {
-          case "openai":
-            await callOpenAICompatible(key, messages, 16, timeoutMs);
-            break;
-          case "anthropic":
-            await callAnthropic(key, messages, 16, timeoutMs);
-            break;
-          case "gemini":
-            await callGemini(key, messages, 16, timeoutMs);
-            break;
-          default:
-            throw new Error("not a text provider");
-        }
-        return { ...base, ok: true, ms: Date.now() - at, error: null };
-      } catch (err) {
-        return {
-          ...base,
-          ok: false,
-          ms: Date.now() - at,
-          error: (err instanceof Error ? err.message : String(err)).slice(0, 240),
-        };
-      }
-    }),
-  );
-}
-
 /**
  * Minimal provider ping used by keys.test. Text/tts keys get a one-token
  * round trip; image keys get a cheap endpoint check against the image model
@@ -972,7 +832,7 @@ const GEMINI_IMAGE_MODELS = [
   "gemini-2.0-flash-preview-image-generation",
 ];
 
-async function callGeminiImage(key: ResolvedKey, prompt: string, timeoutMs = 60_000): Promise<string> {
+async function callGeminiImage(key: ResolvedKey, prompt: string): Promise<string> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.gemini).replace(/\/$/, "");
   let notFound: Error | null = null;
   const models = key.model ? [key.model, ...GEMINI_IMAGE_MODELS] : GEMINI_IMAGE_MODELS;
@@ -987,7 +847,7 @@ async function callGeminiImage(key: ResolvedKey, prompt: string, timeoutMs = 60_
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { responseModalities: ["IMAGE"] },
       }),
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: AbortSignal.timeout(60_000),
     });
     if (res.status === 404) {
       notFound = new Error(`Gemini image model ${model} not found (404)`);
@@ -1005,7 +865,7 @@ async function callGeminiImage(key: ResolvedKey, prompt: string, timeoutMs = 60_
   throw notFound ?? new Error("No Gemini image model available");
 }
 
-async function callOpenAIImage(key: ResolvedKey, prompt: string, timeoutMs = 60_000): Promise<string> {
+async function callOpenAIImage(key: ResolvedKey, prompt: string): Promise<string> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.openai).replace(/\/$/, "");
   const request = (body: Record<string, unknown>) =>
     fetch(`${base}/images/generations`, {
@@ -1015,7 +875,7 @@ async function callOpenAIImage(key: ResolvedKey, prompt: string, timeoutMs = 60_
         authorization: `Bearer ${key.apiKey}`,
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: AbortSignal.timeout(60_000),
     });
 
   let res = await request({
@@ -1034,7 +894,7 @@ async function callOpenAIImage(key: ResolvedKey, prompt: string, timeoutMs = 60_
   const item = data.data?.[0];
   if (item?.b64_json) return `data:image/png;base64,${item.b64_json}`;
   if (item?.url) {
-    const img = await fetch(item.url, { signal: AbortSignal.timeout(timeoutMs) });
+    const img = await fetch(item.url, { signal: AbortSignal.timeout(60_000) });
     if (!img.ok) throw new Error(`OpenAI image URL fetch failed: ${img.status}`);
     const mime = img.headers.get("content-type")?.split(";")[0] || "image/png";
     const buf = Buffer.from(await img.arrayBuffer());
@@ -1065,32 +925,18 @@ export async function generateImage(opts: {
   userId?: number;
   prompt: string;
   style?: string;
-  /** Hard ceiling for the WHOLE attempt, shared across every candidate key.
-   *  Callers running inside a request with a deadline (e.g. the inline first
-   *  slide image) must pass this: without it a slow image provider — or two
-   *  of them in sequence — can outlive the serverless invocation and throw
-   *  away a deck that was already generated. */
-  timeoutMs?: number;
 }): Promise<string | null> {
   const candidates = await resolveKeyCandidates(opts.userId, "image").catch(() => [] as ResolvedKey[]);
   if (candidates.length === 0) return null;
   const directive = opts.style ? IMAGE_STYLE_DIRECTIVES[opts.style] : undefined;
   const prompt = directive ? `${opts.prompt}\n\nStyle: ${directive}.` : opts.prompt;
-  const imageDeadline = opts.timeoutMs ? Date.now() + opts.timeoutMs : null;
   for (const key of candidates) {
-    // Budget is for the whole call, not per key: a second candidate only runs
-    // with whatever time the first one left behind.
-    const left = imageDeadline ? imageDeadline - Date.now() : 60_000;
-    if (left < 1_500) {
-      console.warn("[ai/image] out of time budget — leaving the rest to the player's lazy load");
-      return null;
-    }
     try {
       switch (key.provider) {
         case "gemini":
-          return await callGeminiImage(key, prompt, left);
+          return await callGeminiImage(key, prompt);
         case "openai":
-          return await callOpenAIImage(key, prompt, left);
+          return await callOpenAIImage(key, prompt);
         case "anthropic":
           console.warn("[ai/image] Anthropic has no image generation API — skipping");
           continue;

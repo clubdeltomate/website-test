@@ -13,7 +13,6 @@ import { tokensRouter } from "./routers/tokens.js";
 import { paymentsRouter } from "./routers/payments.js";
 import { usersRouter } from "./routers/users.js";
 import { adminRouter } from "./routers/admin.js";
-import { financeRouter } from "./routers/finance.js";
 import { templatesRouter } from "./routers/templates.js";
 import { ordersRouter } from "./routers/orders.js";
 import { ticketsRouter } from "./routers/tickets.js";
@@ -65,7 +64,6 @@ export const appRouter = createRouter({
   payments: paymentsRouter,
   users: usersRouter,
   admin: adminRouter,
-  finance: financeRouter,
   templates: templatesRouter,
   orders: ordersRouter,
   tickets: ticketsRouter,

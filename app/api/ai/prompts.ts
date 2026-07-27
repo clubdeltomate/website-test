@@ -305,16 +305,8 @@ TIME TRAVEL NEWS MODE — this is a slide-format NEWS BRIEFING about "${opts.sub
 - EVERY slide is a newspaper clipping with THREE parts, always present together:
   (1) HEADLINE — the slide TITLE.
   (2) PHOTO — an image component with a specific, relevant news photo prompt${opts.imageStyle === "none" ? " (SKIP only because image style is 'none')" : " (REQUIRED on every slide)"}.
-  (3) ARTICLE BODY — the written story under the headline: ${
-      opts.textDensity === "minimal"
-        ? "at most TWO short sentences"
-        : opts.textDensity === "brief"
-          ? "3 to 5 sentences"
-          : opts.textDensity === "detailed"
-            ? "a FULL FEATURE ARTICLE of AT LEAST 250 words across 3+ paragraphs"
-            : "a REAL ARTICLE BODY of AT LEAST 120 words in 2-3 paragraphs"
-    }, reporting what happened, who is involved, where and when, how it works, and why it matters (inverted pyramid: most important facts first). The text must TELL the story itself — never describe the photo, never say "the image shows/carries the details", never a caption in place of reporting.
-- NEVER ship a slide that is just a headline, and NEVER a headline with only a picture and no words. The written article body is mandatory on every slide — the reader is flipping through a paper and reading each story, not looking at captions.
+  (3) SUMMARY — a written prose summary of the story, 2 to 4 sentences, reporting what happened, who is involved, where and when, and why it matters (inverted pyramid: most important facts first).
+- NEVER ship a slide that is just a headline, and NEVER a headline with only a picture and no words. The written summary is mandatory on every slide — the reader is flipping through a paper and reading each brief, not looking at captions.
 - Choose layouts that pair an image with prose; add a table or chart when the story has figures (scores, standings, prices, counts). Mix images, tables and charts across the deck, but the photo + written summary are always there.
 - Attribution & accuracy: report only what is supported by the provided facts (and the web-verified facts if given). Do NOT invent quotes, statistics, outlets, or events. If the exact date isn't given, keep timing general ("this week", "recently") rather than fabricating one.
 - NO quizzes and NO evaluations of ANY kind — never test the reader. If a layout lists an evaluation step, SKIP it and end the slide on its reporting.

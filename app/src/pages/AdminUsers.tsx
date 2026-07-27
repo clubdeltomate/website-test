@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { Coins, Plus, Search, ShieldCheck, Ticket, Trash2, UserCog, X } from 'lucide-react';
+import { Coins, Plus, Search, ShieldCheck, Ticket, UserCog, X } from 'lucide-react';
 import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 import SketchButton from '@/components/sketch/SketchButton';
@@ -108,7 +108,7 @@ function useDebounced<T>(value: T, ms: number): T {
 }
 
 /* ------------------------------------------------------------------ */
-/* Adjust tokens modal — add credits or take awarded ones back         */
+/* Credit tokens modal                                                 */
 /* ------------------------------------------------------------------ */
 
 function CreditModal({
@@ -120,71 +120,22 @@ function CreditModal({
   onClose: () => void;
   onCredited: (userId: number, balance: number) => void;
 }) {
-  const [direction, setDirection] = useState<'credit' | 'deduct'>('credit');
   const [amount, setAmount] = useState(100);
   const [reason, setReason] = useState('manual credit');
 
   const credit = trpc.users.creditTokens.useMutation({
     onSuccess: (r) => {
-      toast.success(
-        direction === 'credit'
-          ? `Credited ${amount} 🪙 to ${target.name}`
-          : `Removed ${amount} 🪙 from ${target.name}`,
-      );
+      toast.success(`Credited ${amount} 🪙 to ${target.name}`);
       onCredited(target.id, r.balance);
       onClose();
     },
     onError: (e) => toast.error(errMsg(e)),
   });
 
-  const overdraft = direction === 'deduct' && amount > target.tokenBalance;
-  const resulting =
-    direction === 'credit' ? target.tokenBalance + amount : target.tokenBalance - amount;
-
   return (
-    <SketchModal
-      open
-      onClose={onClose}
-      title={`Adjust ${target.name}'s tokens`}
-      maxWidth="max-w-[440px]"
-    >
+    <SketchModal open onClose={onClose} title={`Credit ${target.name}`} maxWidth="max-w-[440px]">
       <div className="flex flex-col gap-4">
-        <div className="flex gap-2" role="group" aria-label="Add or remove">
-          <button
-            onClick={() => {
-              setDirection('credit');
-              setReason((r) => (r === 'manual deduction' ? 'manual credit' : r));
-            }}
-            className={
-              direction === 'credit'
-                ? 'flex-1 rounded-wobble-sm border-2 border-ink bg-green-soft px-3 py-1.5 text-sm font-bold text-ink shadow-offset'
-                : 'flex-1 rounded-wobble-sm border-2 border-dashed border-pencil px-3 py-1.5 text-sm font-bold text-ink-soft hover:border-ink hover:text-ink'
-            }
-          >
-            + Add
-          </button>
-          <button
-            onClick={() => {
-              setDirection('deduct');
-              setReason((r) => (r === 'manual credit' ? 'manual deduction' : r));
-            }}
-            className={
-              direction === 'deduct'
-                ? 'flex-1 rounded-wobble-sm border-2 border-ink bg-red-soft px-3 py-1.5 text-sm font-bold text-ink shadow-offset'
-                : 'flex-1 rounded-wobble-sm border-2 border-dashed border-pencil px-3 py-1.5 text-sm font-bold text-ink-soft hover:border-ink hover:text-ink'
-            }
-          >
-            − Remove
-          </button>
-        </div>
-        <LabeledField
-          label="Amount 🪙"
-          helper={
-            direction === 'credit'
-              ? 'Added to their balance.'
-              : `Taken back from their balance (they have ${target.tokenBalance} 🪙).`
-          }
-        >
+        <LabeledField label="Amount 🪙" helper="1 – 100,000 tokens, added to their balance.">
           <div className="flex items-center gap-2">
             <SketchButton
               variant="secondary"
@@ -215,80 +166,16 @@ function CreditModal({
         <LabeledField label="Reason" helper="Written to their token ledger.">
           <SketchInput value={reason} onChange={(e) => setReason(e.target.value)} />
         </LabeledField>
-        <p className={overdraft ? 'text-sm font-bold text-red' : 'text-sm text-ink-soft'}>
-          {overdraft
-            ? `They only have ${target.tokenBalance} 🪙 — can't remove ${amount}.`
-            : `New balance: ${resulting} 🪙`}
-        </p>
         <div className="flex gap-2">
           <SketchButton
-            variant={direction === 'credit' ? 'accent' : 'danger'}
+            variant="accent"
             loading={credit.isPending}
-            disabled={overdraft}
-            onClick={() =>
-              credit.mutate({
-                userId: target.id,
-                amount,
-                direction,
-                reason: reason || (direction === 'credit' ? 'manual credit' : 'manual deduction'),
-              })
-            }
+            onClick={() => credit.mutate({ userId: target.id, amount, reason: reason || 'manual credit' })}
           >
-            <Coins className="h-4 w-4" strokeWidth={2} />{' '}
-            {direction === 'credit' ? `Credit ${amount} 🪙` : `Remove ${amount} 🪙`}
+            <Coins className="h-4 w-4" strokeWidth={2} /> Credit {amount} 🪙
           </SketchButton>
           <SketchButton variant="ghost" onClick={onClose}>
             Cancel
-          </SketchButton>
-        </div>
-      </div>
-    </SketchModal>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Delete user confirmation (admin only)                               */
-/* ------------------------------------------------------------------ */
-
-function DeleteModal({
-  target,
-  onClose,
-  onDeleted,
-}: {
-  target: AdminUserRow;
-  onClose: () => void;
-  onDeleted: () => void;
-}) {
-  const del = trpc.users.deleteUser.useMutation({
-    onSuccess: () => {
-      toast.success(`${target.name}'s account was deleted`);
-      onDeleted();
-      onClose();
-    },
-    onError: (e) => toast.error(errMsg(e)),
-  });
-
-  return (
-    <SketchModal open onClose={onClose} title={`Delete ${target.name}?`} maxWidth="max-w-[460px]">
-      <div className="flex flex-col gap-4">
-        <div className="rounded-wobble-sm border-2 border-red bg-red-soft p-3">
-          <p className="text-sm font-bold text-red">This can't be undone.</p>
-          <p className="mt-1 text-sm text-ink-soft">
-            Their account is erased from the platform along with everything they own: slide
-            tools, repositories, runs, favorites, tickets, and their token history
-            ({target.tokenBalance} 🪙).
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <SketchButton
-            variant="danger"
-            loading={del.isPending}
-            onClick={() => del.mutate({ userId: target.id })}
-          >
-            <Trash2 className="h-4 w-4" strokeWidth={2} /> Delete user forever
-          </SketchButton>
-          <SketchButton variant="ghost" onClick={onClose}>
-            Keep the account
           </SketchButton>
         </div>
       </div>
@@ -468,7 +355,6 @@ function UserDrawer({
   const [crediting, setCrediting] = useState(false);
   const [roleEditing, setRoleEditing] = useState(false);
   const [sellingTickets, setSellingTickets] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const utils = trpc.useUtils();
 
   const u = detail.data;
@@ -527,7 +413,7 @@ function UserDrawer({
 
           <div className="flex flex-wrap gap-2 border-t-2 border-dashed border-pencil pt-4">
             <SketchButton variant="accent" onClick={() => setCrediting(true)}>
-              <Coins className="h-4 w-4" strokeWidth={2} /> Adjust tokens
+              <Coins className="h-4 w-4" strokeWidth={2} /> Credit tokens
             </SketchButton>
             {isAdmin && isModerator && (
               <SketchButton variant="secondary" onClick={() => setSellingTickets(true)}>
@@ -537,15 +423,6 @@ function UserDrawer({
             {isAdmin && (
               <SketchButton variant="secondary" onClick={() => setRoleEditing(true)}>
                 <UserCog className="h-4 w-4" strokeWidth={2} /> Set role
-              </SketchButton>
-            )}
-            {isAdmin && u.id !== selfId && (
-              <SketchButton
-                variant="ghost"
-                className="text-red hover:border-red"
-                onClick={() => setDeleting(true)}
-              >
-                <Trash2 className="h-4 w-4" strokeWidth={2} /> Delete user
               </SketchButton>
             )}
           </div>
@@ -582,16 +459,6 @@ function UserDrawer({
               }}
             />
           )}
-          {deleting && (
-            <DeleteModal
-              target={u}
-              onClose={() => setDeleting(false)}
-              onDeleted={() => {
-                onChanged();
-                onClose();
-              }}
-            />
-          )}
         </div>
       )}
     </SketchDrawer>
@@ -613,7 +480,6 @@ function UsersBody() {
   const [drawerId, setDrawerId] = useState<number | null>(null);
   const [crediting, setCrediting] = useState<AdminUserRow | null>(null);
   const [roleEditing, setRoleEditing] = useState<AdminUserRow | null>(null);
-  const [deleting, setDeleting] = useState<AdminUserRow | null>(null);
 
   const isAdmin = myRole === 'admin';
 
@@ -766,9 +632,9 @@ function UsersBody() {
                       setCrediting(r);
                     }}
                     className="rounded-wobble-sm border-2 border-dashed border-pencil px-1.5 py-0.5 text-xs font-bold text-ink-soft hover:border-ink hover:text-ink"
-                    title="Add or remove tokens"
+                    title="Credit tokens"
                   >
-                    ± Credit
+                    + Credit
                   </button>
                 </span>
               ),
@@ -792,30 +658,15 @@ function UsersBody() {
               header: '',
               render: (r) =>
                 isAdmin ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRoleEditing(r);
-                      }}
-                      className="rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-xs font-bold text-ink-soft hover:border-ink hover:text-ink"
-                    >
-                      Set role
-                    </button>
-                    {r.id !== me?.id && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleting(r);
-                        }}
-                        aria-label={`Delete ${r.name}`}
-                        title="Delete user"
-                        className="rounded-wobble-sm border-2 border-dashed border-pencil p-1 text-ink-soft hover:border-red hover:text-red"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
-                      </button>
-                    )}
-                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRoleEditing(r);
+                    }}
+                    className="rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-xs font-bold text-ink-soft hover:border-ink hover:text-ink"
+                  >
+                    Set role
+                  </button>
                 ) : (
                   <span className="text-xs text-ink-faint">view →</span>
                 ),
@@ -853,16 +704,6 @@ function UsersBody() {
           target={roleEditing}
           onClose={() => setRoleEditing(null)}
           onChanged={() => void utils.users.list.invalidate()}
-        />
-      )}
-      {deleting && (
-        <DeleteModal
-          target={deleting}
-          onClose={() => setDeleting(null)}
-          onDeleted={() => {
-            if (drawerId === deleting.id) closeDrawer();
-            void utils.users.list.invalidate();
-          }}
         />
       )}
     </div>
