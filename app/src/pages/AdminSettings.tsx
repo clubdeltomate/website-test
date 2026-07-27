@@ -402,6 +402,75 @@ function PaymentsTab({
 /* Tab 3 — AI providers (system keys)                                  */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Live provider check. When a generation fails with "no AI provider produced
+ * content", this says which key the server actually tried, whether it
+ * answered, how long it took, and the exact error if it didn't.
+ */
+function ProviderHealth() {
+  const check = trpc.admin.aiStatus.useMutation({
+    onError: (e) => toast.error(e.message),
+  });
+  const results = check.data?.results ?? [];
+
+  return (
+    <SketchCard className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <h3 className="font-heading text-lg font-semibold text-ink">Provider health</h3>
+        <span className="text-xs text-ink-soft">
+          Pings every text key the server would use, in order, with a tiny real request.
+        </span>
+        <SketchButton
+          variant="secondary"
+          size="sm"
+          className="ml-auto"
+          loading={check.isPending}
+          onClick={() => check.mutate()}
+        >
+          <Sparkles className="h-3.5 w-3.5" strokeWidth={2} /> Test providers
+        </SketchButton>
+      </div>
+
+      {check.isPending && <p className="text-sm text-ink-soft">Knocking on each door…</p>}
+
+      {!check.isPending && check.data && results.length === 0 && (
+        <p className="rounded-wobble-sm border-2 border-red bg-red-soft px-3 py-2 text-sm font-bold text-ink">
+          No text provider is configured at all — set a system key below, or add server env keys
+          (GEMINI_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY…). Generation cannot work until one
+          of them answers.
+        </p>
+      )}
+
+      {results.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {results.map((r, i) => (
+            <li
+              key={`${r.provider}-${r.source}-${i}`}
+              className={`rounded-wobble-sm border-2 px-3 py-2 text-sm ${
+                r.ok ? 'border-green bg-green-soft' : 'border-red bg-red-soft'
+              }`}
+            >
+              <p className="flex flex-wrap items-center gap-2 font-heading font-semibold text-ink">
+                <span>{r.ok ? '✓' : '✗'}</span>
+                <span>
+                  {i + 1}. {r.provider}
+                  {r.model ? ` · ${r.model}` : ''}
+                </span>
+                <Chip kind="neutral">{r.source}</Chip>
+                <span className="font-mono text-xs font-normal text-ink-soft">{r.ms} ms</span>
+              </p>
+              {r.endpoint && (
+                <p className="pl-6 font-mono text-[0.7rem] text-ink-faint">{r.endpoint}</p>
+              )}
+              {r.error && <p className="pl-6 text-xs text-ink-soft">{r.error}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </SketchCard>
+  );
+}
+
 function ProvidersTab({
   draft,
   patch,
@@ -435,6 +504,8 @@ function ProvidersTab({
         System keys power guests and users without BYOK keys. Users' own keys always
         take precedence for their generations.
       </StickyNote>
+
+      <ProviderHealth />
 
       {CAP_META.map((cap, i) => {
         const entry = draft.platformAiKeys[cap.id];

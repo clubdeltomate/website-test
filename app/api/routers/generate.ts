@@ -881,6 +881,9 @@ export const generateRouter = createRouter({
 
       let deck: SlideDeck | null = null;
       let lastAttempt: SlideDeck | null = null; // best non-conforming try, as a fallback
+      // Why each provider refused, so a total failure can say so out loud
+      // instead of the useless "no provider produced content".
+      const providerErrors: string[] = [];
       let usedMock = false;
       let textProvider: import("../../contracts/types.js").AiProvider | null = null;
       // A pinned SLIDE PLAN is an explicit user request, so give the model
@@ -902,6 +905,7 @@ export const generateRouter = createRouter({
             const result = await completeText({
               userId: ctx.user?.id,
               timeoutMs: attemptMs,
+              collectErrors: providerErrors,
               messages: [
                 { role: "system", content: systemPrompt },
                 {
@@ -1032,7 +1036,15 @@ export const generateRouter = createRouter({
             await refundTokens(ctx.user.id, cost, `refund: ${reason}`);
             refunded = true;
           }
-          throw new TRPCError({ code: "PRECONDITION_FAILED", message: AI_UNAVAILABLE_MSG });
+          // Say which provider refused and why — "no provider produced
+          // content" on its own gives nobody anything to act on.
+          const why = providerErrors.length
+            ? ` Providers tried — ${[...new Set(providerErrors)].slice(0, 3).join(" · ")}`
+            : " Every provider returned an empty or unparseable deck.";
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `${AI_UNAVAILABLE_MSG}${why}`,
+          });
         }
         usedMock = true;
         deck = mockDeck({
