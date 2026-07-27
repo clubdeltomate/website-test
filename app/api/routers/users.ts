@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, like, or } from "drizzle-orm";
+import { and, desc, eq, like, or, sql } from "drizzle-orm";
 import { createRouter, publicQuery } from "../middleware.js";
 import { adminProcedure, authedProcedure, moderatorProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
@@ -177,6 +177,12 @@ export const usersRouter = createRouter({
       const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
       if (existing) {
         throw new TRPCError({ code: "CONFLICT", message: "That email already has an account" });
+      }
+      const nameTaken = await db.query.users.findFirst({
+        where: sql`LOWER(${users.name}) = ${input.name.trim().toLowerCase()}`,
+      });
+      if (nameTaken) {
+        throw new TRPCError({ code: "CONFLICT", message: "That username is already used by another user" });
       }
       const [{ id }] = await db
         .insert(users)

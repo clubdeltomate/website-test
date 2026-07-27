@@ -59,6 +59,14 @@ export const authRouter = createRouter({
       if (existing) {
         throw new TRPCError({ code: "CONFLICT", message: "That email already has a notebook" });
       }
+      // The display name doubles as the unique USERNAME (bare-username sign-in
+      // matches it), so it can't repeat — case-insensitively.
+      const nameTaken = await db.query.users.findFirst({
+        where: sql`LOWER(${users.name}) = ${input.name.trim().toLowerCase()}`,
+      });
+      if (nameTaken) {
+        throw new TRPCError({ code: "CONFLICT", message: "That username is taken — pick another" });
+      }
       const [{ id }] = await db
         .insert(users)
         .values({
@@ -151,6 +159,14 @@ export const authRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       const set: Partial<Pick<User, "name" | "passwordHash" | "whatsapp" | "contactNote" | "socials">> = {};
+      if (input.name && input.name.trim().toLowerCase() !== ctx.user.name.toLowerCase()) {
+        const taken = await db.query.users.findFirst({
+          where: sql`LOWER(${users.name}) = ${input.name.trim().toLowerCase()}`,
+        });
+        if (taken && taken.id !== ctx.user.id) {
+          throw new TRPCError({ code: "CONFLICT", message: "That username is taken — pick another" });
+        }
+      }
       if (input.name) set.name = input.name.trim();
       if (input.whatsapp !== undefined) set.whatsapp = input.whatsapp.trim() || null;
       if (input.contactNote !== undefined) set.contactNote = input.contactNote.trim() || null;

@@ -54,7 +54,7 @@ function AddUserForm({ onDone }: { onDone: () => void }) {
         New account — they can sign in right away with this email and password.
       </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <LabeledField label="Name">
+        <LabeledField label="Username (unique)">
           <SketchInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Sam Sketcher" />
         </LabeledField>
         <LabeledField label="Email">
