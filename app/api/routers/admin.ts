@@ -5,8 +5,6 @@ import { adminProcedure, moderatorProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
 import { payments, repos, runs, slideTools, tokenLedger, users } from "../../db/schema.js";
 import { getSettings, saveSettings } from "../settings.js";
-import { diagnoseTextProviders } from "../ai/provider.js";
-import { readGenerationTrace } from "../generation-trace.js";
 import type { AdminDashboard, AiProvider, AppSettings, RunRow } from "../../contracts/types.js";
 
 const settingsSchema = z.object({
@@ -33,9 +31,6 @@ const settingsSchema = z.object({
       C1: z.number().min(0),
       C2: z.number().min(0),
     }),
-    // carried through so a Platform-page save never drops the Finance-set
-    // ticket price (null/absent = automatic pricing)
-    ticketPriceOverride: z.number().int().min(1).max(1000000).nullable().optional(),
   }),
   googleSheetUrl: z.string().max(500),
   platformAiKeys: z.object({
@@ -161,25 +156,6 @@ export const adminRouter = createRouter({
   }),
 
   /** Settings — platform keys are masked in the response. */
-  /**
-   * Ping every text provider the server would actually use, in the order it
-   * would use them. Answers "generation says no AI provider produced content
-   * — which one is broken?" without needing hosting logs.
-   */
-  aiStatus: adminProcedure.mutation(async ({ ctx }) => {
-    const results = await diagnoseTextProviders(ctx.user.id);
-    return { results, checkedAt: new Date() };
-  }),
-
-  /**
-   * The phase-by-phase record of the most recent slide generation, written to
-   * the database as it ran. If the invocation was killed, the last phase here
-   * is the step that never returned.
-   */
-  lastGenerationTrace: adminProcedure.query(async () => {
-    return { trace: await readGenerationTrace() };
-  }),
-
   getSettings: adminProcedure.query(async () => {
     return maskedSettings(await getSettings());
   }),

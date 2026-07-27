@@ -42,7 +42,6 @@ import {
 import { isStemTopic } from "../../contracts/stem.js";
 import { typedOverlapCorrect } from "../../contracts/grade.js";
 import { repoPurpose, templateFilterPurpose, type CoachReply, type SlideDeck } from "../../contracts/types.js";
-import { GenTrace } from "../generation-trace.js";
 
 export const GUEST_MAX_SLIDES = 6;
 const MAX_SLIDES = 15;
@@ -60,196 +59,8 @@ const RECALIBRATE_COST = 2;
  */
 const mockAiAllowed = () => process.env.SKETCHLEARN_ALLOW_MOCK_AI === "1";
 
-/* ------------------------------------------------------------------ */
-/* Time budget for one slide generation.                                */
-/* The request runs inside a single serverless invocation (vercel.json  */
-/* pins api/server.ts to maxDuration 60). If we overrun it the platform */
-/* kills the function mid-flight: the browser gets no response (so the  */
-/* player bounces back to the settings screen) and the tokens charged   */
-/* up front are never refunded, because no catch block ever runs.       */
-/* Everything below is therefore fitted to the time actually remaining. */
-/* ------------------------------------------------------------------ */
-
-/**
- * Total wall-clock we allow ourselves, leaving headroom under the platform
- * limit. Raise both this and vercel.json's maxDuration together if the
- * hosting plan allows longer functions.
- */
-const GENERATION_BUDGET_MS = Number(process.env.GENERATION_BUDGET_MS ?? 45_000);
-/** Ceiling for the optional pre-generation web search. */
-const WEB_SEARCH_MS = 12_000;
-/** A deck attempt shorter than this can't realistically return a full deck. */
-const MIN_ATTEMPT_MS = 12_000;
-/**
- * Longest a single deck attempt may run. Deliberately generous: writing the
- * deck is the ONE thing the request exists for, so it gets the lion's share
- * and every optional extra lives off the leftovers.
- */
-const MAX_ATTEMPT_MS = 30_000;
-/** Kept aside for saving the deck, auto-naming and sending the response. */
-const FINISH_RESERVE_MS = 3_000;
-/** The prose-repair pass is an enhancement — only run it if this much is left. */
-const PROSE_REPAIR_MS = 10_000;
-/** Inline first-slide image; skipped when tight (the player lazy-loads it). */
-const FIRST_IMAGE_MS = 8_000;
-/**
- * Embedding the opening slide's image in the deck response saves a moment of
- * lazy-load on slide 1, but it costs an extra image round-trip inside the
- * invocation AND ships a multi-megabyte base64 string in the JSON — two ways
- * for an already-generated deck to be lost. Off unless explicitly enabled.
- */
-const INLINE_FIRST_IMAGE = process.env.INLINE_FIRST_IMAGE === "1";
-
 const AI_UNAVAILABLE_MSG =
   "AI_UNAVAILABLE: no AI provider produced content — nothing was saved and any tokens were refunded. Check the server .env AI keys (e.g. GEMINI_API_KEY) or add your own key in Settings → API Keys, then try again.";
-
-/* ------------------------------------------------------------------ */
-/* Prose repair. The density floors above only gate RETRIES — a deck    */
-/* accepted as "best attempt" can still carry thin or missing body      */
-/* text, which then gets padded with a generic fallback line ("the      */
-/* image below carries the key facts…"). Users read that as a broken    */
-/* lesson. This pass finds exactly those slides and asks the AI to      */
-/* write their REAL body text in the deck's own register (era-voiced    */
-/* news article, menu copy, walkthrough step, lesson prose), so the     */
-/* canned fallback is a true last resort, not the shipped content.      */
-/* ------------------------------------------------------------------ */
-
-function slideProseStats(s: SlideDeck["slides"][number]): { words: number; paras: number } {
-  let words = 0;
-  let paras = 0;
-  for (const c of s.components) {
-    if (c.type !== "prose") continue;
-    paras += c.paragraphs.length;
-    words += c.paragraphs.join(" ").split(/\s+/).filter(Boolean).length;
-  }
-  return { words, paras };
-}
-
-export async function expandThinProse(
-  deck: SlideDeck,
-  opts: {
-    userId?: number;
-    topic: string;
-    purpose: string;
-    level: string;
-    textDensity: "minimal" | "brief" | "standard" | "detailed";
-    newsPeriod?: string;
-    paraFloor: number;
-    newsMinParas: number;
-    /** Cap for the single repair call, fitted to the request's time budget. */
-    timeoutMs?: number;
-  },
-  // injectable for tests — production always uses the real provider cascade
-  complete: typeof completeText = completeText,
-): Promise<SlideDeck> {
-  try {
-    const wordFloor =
-      opts.textDensity === "detailed" ? 220 : opts.textDensity === "standard" ? 110 : 0;
-    const needWords = opts.purpose === "commercial" ? 0 : wordFloor;
-    const needParas =
-      opts.purpose === "news"
-        ? opts.newsMinParas
-        : opts.purpose === "commercial"
-          ? 1
-          : opts.paraFloor;
-
-    // Only rescue slides that are genuinely broken — no body text, or a
-    // caption-sized stub where an explanation belongs. Rewriting slides that
-    // are merely a little under target would add an AI round trip to almost
-    // every generation, which is latency the request cannot spare.
-    const rescueWords = needWords > 0 ? Math.max(35, Math.round(needWords * 0.45)) : 0;
-    const targets: { i: number; title: string; existing: string[]; visuals: string[] }[] = [];
-    deck.slides.forEach((s, i) => {
-      // A Wolfram card IS the explanation; a "solve" slide is a problem
-      // statement — neither needs body text written for it.
-      if (s.components.some((c) => c.type === "wolfram")) return;
-      if (s.quiz?.kind === "solve") return;
-      const { words, paras } = slideProseStats(s);
-      if (paras >= 1 && words >= rescueWords) return;
-      targets.push({
-        i,
-        title: s.title,
-        existing: s.components.flatMap((c) => (c.type === "prose" ? c.paragraphs : [])),
-        visuals: s.components
-          .map((c) => {
-            const cap = (c as { caption?: string }).caption;
-            const prompt = (c as { prompt?: string }).prompt;
-            return c.type === "prose" ? null : (cap || prompt ? `${c.type}: ${cap ?? prompt}` : c.type);
-          })
-          .filter((v): v is string => !!v),
-      });
-    });
-    if (targets.length === 0) return deck;
-
-    const era = opts.newsPeriod?.trim();
-    const register =
-      opts.purpose === "news"
-        ? `This deck is a newspaper published in ${era ? `"${era}"` : "its stated era"}. Each slide is one news story about "${opts.topic}"; you are writing the ARTICLE BODY under its headline. Report the story itself — what happened, where, who is involved, how it works, and figures or reactions plausible for ${era ? `"${era}"` : "that era"} — written from INSIDE that time (its knowledge, units and worldview; no anachronisms, no hindsight).`
-        : opts.purpose === "commercial"
-          ? `This deck is a showcase for "${opts.topic}": write genuine copy that sells each slide's own item — what it is, what makes it special, concrete and specific.`
-          : opts.purpose === "walkthrough"
-            ? `This deck is a guided walkthrough of "${opts.topic}": explain each slide's step concretely — what it is, how it works, what to do, and how it connects to the whole.`
-            : `This deck is a lesson on "${opts.topic}" at CEFR level ${opts.level}: teach each slide's concept with real explanations, examples and facts a learner can study.`;
-
-    const lengthRule =
-      opts.textDensity === "minimal"
-        ? "Each requested slide: at most TWO short sentences."
-        : `Each requested slide: at least ${Math.max(1, needParas)} paragraph(s) and at least ${Math.max(needWords, opts.textDensity === "brief" ? 50 : 60)} words in total — write naturally past the minimum, never under it.`;
-
-    const result = await complete({
-      userId: opts.userId,
-      maxTokens: 8192,
-      ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}),
-      messages: [
-        {
-          role: "system",
-          content: `You complete unfinished presentation slides by writing their missing body text. Reply with ONLY JSON: {"slides":[{"i":<index exactly as given>,"paragraphs":["...", "..."]}]} — one entry for EVERY requested index, nothing else.
-${register}
-HARD RULES:
-- Write REAL content about each slide's stated subject: concrete facts, names, mechanisms, numbers.
-- NEVER meta-text. Banned: "look at the image", "the image below", "refer to", "study what it shows", "a developing story", "details were coming in", or any sentence about the slide, deck, or picture itself. The text must stand alone as reading.
-- ${lengthRule}
-- If a slide lists existing paragraphs, they were too thin: keep any real facts they contain and rewrite them into the full text.`,
-        },
-        {
-          role: "user",
-          content: JSON.stringify({ topic: opts.topic, era: era ?? undefined, slides: targets }),
-        },
-      ],
-    });
-    if (!result) return deck;
-    const parsed = JSON.parse(extractJson(result.text)) as {
-      slides?: { i?: unknown; paragraphs?: unknown }[];
-    };
-    let repaired = 0;
-    for (const e of parsed.slides ?? []) {
-      const i = Number(e.i);
-      if (!targets.some((t) => t.i === i)) continue;
-      const paras = Array.isArray(e.paragraphs)
-        ? e.paragraphs
-            .map((p) => String(p).trim())
-            .filter(Boolean)
-            .slice(0, 10)
-        : [];
-      if (paras.length === 0) continue;
-      const slide = deck.slides[i];
-      const prose = slide.components.find((c) => c.type === "prose");
-      if (prose && prose.type === "prose") prose.paragraphs = paras;
-      else slide.components.unshift({ type: "prose", paragraphs: paras });
-      repaired++;
-    }
-    if (repaired > 0) {
-      console.warn(`[generate.slides] prose repair rewrote ${repaired}/${targets.length} thin slide(s)`);
-    }
-    return deck;
-  } catch (err) {
-    console.warn(
-      "[generate.slides] prose repair failed (keeping deck as-is):",
-      err instanceof Error ? err.message : err,
-    );
-    return deck;
-  }
-}
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -587,16 +398,6 @@ export const generateRouter = createRouter({
       walkthrough: import("../../contracts/types.js").WalkthroughInfo | null;
       author: { ownerId: number | null; name: string } | null;
     }> => {
-      // Clock starts the moment the invocation does — see GENERATION_BUDGET_MS.
-      const startedAt = Date.now();
-      const trace = new GenTrace(startedAt, {
-        toolSlug: input.toolSlug,
-        userId: ctx.user?.id ?? null,
-        slideCount: input.slideCount,
-        imageStyle: input.imageStyle,
-        webSearch: !!input.webSearch,
-      });
-      await trace.mark("start");
       const db = getDb();
       const tool = await db.query.slideTools.findFirst({
         where: eq(slideTools.slug, input.toolSlug),
@@ -745,14 +546,6 @@ export const generateRouter = createRouter({
           await applyTokenDelta(ctx.user.id, -cost, reason);
         }
       }
-      await trace.mark("charged", `${cost} coins`);
-
-      // From here on the user has already paid. ANY failure — a provider
-      // error, a bad DB write, a validation slip — must hand the coins back
-      // before the error reaches the client; `refunded` keeps the dedicated
-      // AI-unavailable path below from refunding twice.
-      let refunded = false;
-      try {
 
       // Offer the AI only the layouts that fit this topic's subject area AND
       // this deck's difficulty level (beginner=lighter text, advanced=denser).
@@ -799,8 +592,7 @@ export const generateRouter = createRouter({
       const densityDelta =
         input.textDensity === "minimal" ? -99 : input.textDensity === "brief" ? -1 : input.textDensity === "detailed" ? 2 : 0;
       const paraFloor = Math.max(1, purposeParaFloor + densityDelta);
-      // A news story needs a written body; how LONG it is comes from the
-      // prompt and the repair pass, not from rejecting decks (see above).
+      // News summaries stay concise unless "detailed" is chosen.
       const newsMinParas = input.textDensity === "detailed" ? 2 : 1;
       const layoutTemplates = allowedTemplates.map((t) => ({
         name: t.name,
@@ -851,31 +643,11 @@ export const generateRouter = createRouter({
         previouslyTaught,
         layoutTemplates,
       });
-      // ---- wall-clock budget -------------------------------------------
-      // The whole request runs inside one serverless invocation (Vercel:
-      // maxDuration 60s). Web search + up to 3 deck attempts + the prose
-      // repair pass + the first image can easily exceed that, and a killed
-      // function returns no response at all: the client bounces back to the
-      // settings page AND the pre-charged tokens are never refunded because
-      // no catch block runs. So every AI step below is fitted to the time
-      // actually left, and we always return a real answer before the kill.
-      const deadlineAt = startedAt + GENERATION_BUDGET_MS;
-      const msLeft = () => deadlineAt - Date.now();
-
       // Optional web search first, so the deck is built on current facts.
-      // It only earns its keep if a full deck attempt still fits afterwards.
       let webNotes: string | null = null;
-      if (input.webSearch && msLeft() > WEB_SEARCH_MS + MIN_ATTEMPT_MS + FINISH_RESERVE_MS) {
-        const r = await webResearch(
-          ctx.user?.id,
-          `${topic}${instructions && instructions !== topic ? ` — ${instructions}` : ""}`,
-          WEB_SEARCH_MS,
-        );
+      if (input.webSearch) {
+        const r = await webResearch(ctx.user?.id, `${topic}${instructions && instructions !== topic ? ` — ${instructions}` : ""}`);
         webNotes = r?.text ?? null;
-        await trace.mark("websearch:done", webNotes ? "notes received" : "no web-capable provider");
-      } else if (input.webSearch) {
-        console.warn("[generate.slides] skipping web search — not enough time budget left");
-        await trace.mark("websearch:skipped", "not enough budget");
       }
       const userPrompt = [
         `TOPIC: ${topic}`,
@@ -896,9 +668,6 @@ export const generateRouter = createRouter({
 
       let deck: SlideDeck | null = null;
       let lastAttempt: SlideDeck | null = null; // best non-conforming try, as a fallback
-      // Why each provider refused, so a total failure can say so out loud
-      // instead of the useless "no provider produced content".
-      const providerErrors: string[] = [];
       let usedMock = false;
       let textProvider: import("../../contracts/types.js").AiProvider | null = null;
       // A pinned SLIDE PLAN is an explicit user request, so give the model
@@ -907,21 +676,9 @@ export const generateRouter = createRouter({
       const maxAttempts = hasPlan ? 3 : 2;
       try {
         for (let attempt = 0; attempt < maxAttempts && deck === null; attempt++) {
-          // Only start an attempt that can actually finish inside the budget.
-          const attemptMs = Math.min(MAX_ATTEMPT_MS, msLeft() - FINISH_RESERVE_MS);
-          if (attemptMs < MIN_ATTEMPT_MS) {
-            console.warn(
-              `[generate.slides] out of time budget before attempt ${attempt + 1} (${msLeft()}ms left) — using what we have`,
-            );
-            break;
-          }
-          const attemptStartedAt = Date.now();
-          await trace.mark(`attempt${attempt + 1}:start`, `${attemptMs}ms allowed`);
           try {
             const result = await completeText({
               userId: ctx.user?.id,
-              timeoutMs: attemptMs,
-              collectErrors: providerErrors,
               messages: [
                 { role: "system", content: systemPrompt },
                 {
@@ -932,24 +689,12 @@ export const generateRouter = createRouter({
                       : `${userPrompt}\n\nReminder: STRICT JSON ONLY, exactly the requested shape. Return EXACTLY ${slideCount} slides — no fewer. EVERY slide MUST follow one of the SLIDE LAYOUT TEMPLATES exactly — include all of its steps, so any image/chart/table/diagram/formula/code is paired with the text that explains it. Never a slide that is only a visual and a question.${hasPlan ? " Your previous attempt did NOT honor the MANDATORY SLIDE PLAN — for each pinned slide, the 'components' array MUST include the exact table/chart/image/code/formula/diagram it lists, built with real content. Do not drop them." : ""}`,
                 },
               ],
-              // Generous headroom so the model's output is never truncated
-              // mid-object, but scaled to the deck actually asked for: a
-              // blanket 16k invited far longer answers than a 6-slide deck
-              // needs, and every extra token is latency inside a request the
-              // platform will cut off.
-              maxTokens: Math.min(16_384, 1_600 * slideCount + 2_500),
+              // A full deck is a large JSON; leave generous headroom so the
+              // model's output is never truncated mid-object (providers clamp
+              // this to their own per-model maximums).
+              maxTokens: 16384,
             });
-            if (!result) {
-              await trace.mark(
-                `attempt${attempt + 1}:noprovider`,
-                providerErrors.slice(-2).join(" | ").slice(0, 200) || "all candidates failed",
-              );
-              break; // no key configured → mock
-            }
-            await trace.mark(
-              `attempt${attempt + 1}:replied`,
-              `${result.provider} in ${Date.now() - attemptStartedAt}ms`,
-            );
+            if (!result) break; // no key configured → mock
             textProvider = result.provider;
             const repaired = repairDeckDraft(JSON.parse(extractJson(result.text)), {
               level: input.level,
@@ -986,37 +731,30 @@ export const generateRouter = createRouter({
                   (n, c) => n + (c.type === "prose" ? c.paragraphs.length : 0),
                   0,
                 );
-                // NOTE: text LENGTH deliberately does not trigger a retry.
-                // Regenerating a whole deck because its prose came in short
-                // turned one AI call into two or three and pushed requests
-                // past the platform's time limit — the deck was fine, it was
-                // the rewrite that killed it. Length is asked for in the
-                // prompt and, when a slide really is thin, fixed afterwards
-                // by the targeted prose-repair pass (one small call for the
-                // affected slides only). Retries are reserved for STRUCTURAL
-                // problems the repair pass cannot fix.
-                //
-                // A news slide is a newspaper clipping: it must carry a
-                // written body AND (unless images are off) a photo — never a
-                // bare headline, never a headline with only a picture.
+                // A news slide is a newspaper clipping: it must carry a written
+                // summary AND (unless images are off) a photo — never a bare
+                // headline, and never a headline with only a picture.
                 if (purpose === "news") {
                   const hasImage = s.components.some((c) => c.type === "image");
                   const needsImage = input.imageStyle !== "none";
                   return !structOk || paraCount < newsMinParas || (needsImage && !hasImage);
                 }
-                return !structOk || paraCount < paraFloor;
+                // "Detailed" is a promise of a real READING activity: enforce
+                // a hard word floor per teaching slide so the setting visibly
+                // changes the output instead of being advisory.
+                const proseWords = s.components.reduce(
+                  (n, c) =>
+                    n + (c.type === "prose" ? c.paragraphs.join(" ").split(/\s+/).filter(Boolean).length : 0),
+                  0,
+                );
+                const wordFloor =
+                  input.textDensity === "detailed" ? 220 : input.textDensity === "standard" ? 110 : 0;
+                return !structOk || paraCount < paraFloor || proseWords < wordFloor;
               });
             // The model sometimes under-delivers (e.g. 3 slides when 8 were
             // asked). Retry (up to maxAttempts) before accepting a miss.
             const tooFewSlides = parsedDeck.slides.length < slideCount;
-            // Only retry when there is room for an attempt that can actually
-            // finish. A model that just took 30s will take ~30s again, so
-            // starting it with 19s left burns the budget and produces
-            // nothing — better to ship the deck we already have.
-            const needForRetry = Math.max(MIN_ATTEMPT_MS, Date.now() - attemptStartedAt);
-            const canRetry =
-              attempt < maxAttempts - 1 && msLeft() - FINISH_RESERVE_MS >= needForRetry;
-            if (canRetry && (nonConforming || tooFewSlides)) {
+            if (attempt < maxAttempts - 1 && (nonConforming || tooFewSlides)) {
               console.warn(
                 tooFewSlides
                   ? `[generate.slides] model returned ${parsedDeck.slides.length}/${slideCount} slides — retry ${attempt + 1}/${maxAttempts - 1}`
@@ -1037,7 +775,6 @@ export const generateRouter = createRouter({
                   ? err.message
                   : String(err);
             console.warn(`[generate.slides] LLM parse attempt ${attempt + 1} failed:`, detail);
-            await trace.mark(`attempt${attempt + 1}:unusable`, detail.slice(0, 200));
           }
         }
       } catch (err) {
@@ -1053,22 +790,10 @@ export const generateRouter = createRouter({
         deck = lastAttempt;
       }
 
-      await trace.mark(deck ? "deck:ready" : "deck:none");
       if (!deck) {
         if (!mockAiAllowed()) {
-          if (ctx.user && cost > 0) {
-            await refundTokens(ctx.user.id, cost, `refund: ${reason}`);
-            refunded = true;
-          }
-          // Say which provider refused and why — "no provider produced
-          // content" on its own gives nobody anything to act on.
-          const why = providerErrors.length
-            ? ` Providers tried — ${[...new Set(providerErrors)].slice(0, 3).join(" · ")}`
-            : " Every provider returned an empty or unparseable deck.";
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message: `${AI_UNAVAILABLE_MSG}${why}`,
-          });
+          if (ctx.user && cost > 0) await refundTokens(ctx.user.id, cost, `refund: ${reason}`);
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: AI_UNAVAILABLE_MSG });
         }
         usedMock = true;
         deck = mockDeck({
@@ -1097,27 +822,6 @@ export const generateRouter = createRouter({
       // decks keep quizzes.
       if (purpose !== "education") {
         deck = { ...deck, slides: deck.slides.map((s) => ({ ...s, quiz: undefined })) };
-      }
-      // A best-attempt deck may have shipped past the retry floors with thin
-      // or missing body text — write the real text for those slides now,
-      // rather than letting the generic fallback line be the "explanation".
-      // Enhancement only: skipped when the budget can't absorb another call.
-      if (!usedMock && msLeft() >= PROSE_REPAIR_MS + FINISH_RESERVE_MS) {
-        deck = await expandThinProse(deck, {
-          userId: ctx.user?.id,
-          topic,
-          purpose,
-          level: input.level,
-          textDensity: input.textDensity,
-          newsPeriod: purpose === "news" ? input.newsPeriod?.trim() || undefined : undefined,
-          paraFloor,
-          newsMinParas,
-          timeoutMs: Math.min(PROSE_REPAIR_MS, msLeft() - FINISH_RESERVE_MS),
-        });
-        await trace.mark("prose-repair:done");
-      } else if (!usedMock) {
-        console.warn("[generate.slides] skipping prose repair — not enough time budget left");
-        await trace.mark("prose-repair:skipped", "not enough budget");
       }
       // Guarantee every slide has explanatory text — no image-only slides ship
       deck = ensureExplanatoryProse(deck, purpose, topic);
@@ -1155,12 +859,7 @@ export const generateRouter = createRouter({
       // with its picture already in place (no visible wait on the opening
       // slide). Every other slide's image still streams in lazily in the
       // player. Costs one image's latency, not the whole deck's.
-      if (
-        INLINE_FIRST_IMAGE &&
-        input.imageStyle !== "none" &&
-        deck.slides.length > 0 &&
-        msLeft() >= FIRST_IMAGE_MS + FINISH_RESERVE_MS
-      ) {
+      if (input.imageStyle !== "none" && deck.slides.length > 0) {
         const firstImg = deck.slides[0].components.find((c) => c.type === "image");
         if (firstImg && firstImg.type === "image" && !firstImg.imageUrl) {
           try {
@@ -1168,10 +867,6 @@ export const generateRouter = createRouter({
               userId: ctx.user?.id,
               prompt: firstImg.prompt,
               style: input.imageStyle,
-              // Hard-bounded: the deck is already made and paid for, so this
-              // nicety must never be able to outlive the invocation and take
-              // the deck down with it. The player lazy-loads it otherwise.
-              timeoutMs: Math.max(1_500, msLeft() - FINISH_RESERVE_MS),
             });
             if (url) firstImg.imageUrl = url;
           } catch (err) {
@@ -1244,24 +939,7 @@ export const generateRouter = createRouter({
           : null;
         if (owner) author = { ownerId: owner.id, name: owner.name };
       }
-        await trace.finish("deck", `${deck.slides.length} slides`);
-        return { deck, usedMock, cost, balance, previouslyTaught, slidePlan, commercial, walkthrough, author };
-      } catch (err) {
-        await trace.finish("error", err instanceof Error ? err.message.slice(0, 200) : String(err));
-        if (ctx.user && cost > 0 && !refunded) {
-          try {
-            await refundTokens(ctx.user.id, cost, `refund (generation failed): ${reason}`);
-          } catch (refundErr) {
-            console.error(
-              "[generate.slides] REFUND FAILED — user was charged for a deck they did not get:",
-              ctx.user.id,
-              cost,
-              refundErr,
-            );
-          }
-        }
-        throw err;
-      }
+      return { deck, usedMock, cost, balance, previouslyTaught, slidePlan, commercial, walkthrough, author };
     }),
 
   /**
