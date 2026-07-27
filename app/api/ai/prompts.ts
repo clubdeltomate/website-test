@@ -239,8 +239,8 @@ export function buildSlidesSystemPrompt(opts: {
       : density === "brief"
         ? "TEXT AMOUNT — BRIEF: concise but real — each slide carries roughly 60-90 words of written prose (about 3-5 sentences). Cut filler and tangents, never the substance."
         : density === "detailed"
-          ? "TEXT AMOUNT — DETAILED: write fuller explanations — each slide carries roughly 280-380 words of written prose across its paragraphs. Go into depth with examples and consequences; when there is nothing genuinely new to add, reinforce the SAME point from a fresh angle or a closely-related supporting idea, so each slide carries substantial reading."
-          : "TEXT AMOUNT — STANDARD: a solid, satisfying amount of reading — each slide carries roughly 140-190 words of written prose (two to three meaty paragraphs, not one short blurb).";
+          ? "TEXT AMOUNT — DETAILED: this deck is a READING activity. HARD RULE: every teaching slide carries AT LEAST 250 words of written prose — aim for 320-450 words across at least 3 substantial paragraphs. A slide below 250 words is a FAILED slide and will be rejected; go into depth with examples, consequences, common mistakes and connections, and when nothing genuinely new remains, reinforce the SAME point from a fresh angle so the reading stays substantial."
+          : "TEXT AMOUNT — STANDARD: a solid, satisfying amount of reading — every teaching slide carries AT LEAST 120 words of written prose, aiming for 150-200 across two to three meaty paragraphs (never one short blurb).";
 
   const memory = opts.previouslyTaught
     ? `
