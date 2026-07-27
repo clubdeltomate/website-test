@@ -2,7 +2,7 @@ import { getDb } from "../queries/connection.js";
 import { apiKeys } from "../../db/schema.js";
 import { and, eq } from "drizzle-orm";
 import { getSettings } from "../settings.js";
-import type { AiCapability, AiProvider } from "../../contracts/types.js";
+import type { AiCapability, AiProvider, ImageProvider } from "../../contracts/types.js";
 
 /* ------------------------------------------------------------------ */
 /* Pluggable text-completion provider layer.                            */
@@ -18,7 +18,7 @@ export interface ChatMessage {
 }
 
 export interface ResolvedKey {
-  provider: AiProvider;
+  provider: ImageProvider;
   apiKey: string;
   baseUrl?: string;
   /** Override the provider's default model (e.g. OpenRouter/DeepSeek routes). */
@@ -86,15 +86,62 @@ function envKeyCandidates(capability: AiCapability): ResolvedKey[] {
   const out: ResolvedKey[] = [];
 
   if (capability === "image") {
-    const gemini = val("GEMINI_API_KEY");
-    if (gemini) {
-      out.push({ provider: "gemini", apiKey: gemini, model: val("GEMINI_IMAGE_MODEL") ?? undefined, source: "env" });
-    }
-    const imageKey = val("IMAGE_API_KEY") ?? val("OPENAI_API_KEY");
-    if (imageKey) {
-      // IMAGE_API_URL may be the full endpoint; callers append /images/generations.
-      const baseUrl = val("IMAGE_API_URL")?.replace(/\/images\/generations\/?$/, "") ?? undefined;
-      out.push({ provider: "openai", apiKey: imageKey, baseUrl, model: val("IMAGE_API_MODEL") ?? undefined, source: "env" });
+    // Same shape as the text cascade: every configured generator is offered,
+    // in order, so one dead provider costs a retry instead of the picture.
+    // AI_IMAGE_PRIORITY reorders them without a deploy.
+    const builders: Record<string, () => ResolvedKey | null> = {
+      // "Nano Banana" is Google's gemini-2.5-flash-image (see
+      // GEMINI_IMAGE_MODELS) — it already leads this list.
+      gemini: () => {
+        const k = val("GEMINI_API_KEY");
+        return k
+          ? { provider: "gemini", apiKey: k, model: val("GEMINI_IMAGE_MODEL") ?? undefined, source: "env" }
+          : null;
+      },
+      openai: () => {
+        const k = val("IMAGE_API_KEY") ?? val("OPENAI_API_KEY");
+        // IMAGE_API_URL may be the full endpoint; callers append /images/generations.
+        const baseUrl = val("IMAGE_API_URL")?.replace(/\/images\/generations\/?$/, "") ?? undefined;
+        return k
+          ? { provider: "openai", apiKey: k, baseUrl, model: val("IMAGE_API_MODEL") ?? undefined, source: "env" }
+          : null;
+      },
+      leonardo: () => {
+        const k = val("LEONARDO_API_KEY");
+        return k
+          ? {
+              provider: "leonardo",
+              apiKey: k,
+              baseUrl: val("LEONARDO_API_URL") ?? undefined,
+              model: val("LEONARDO_MODEL_ID") ?? undefined,
+              source: "env",
+            }
+          : null;
+      },
+      unsplash: () => {
+        const k = val("UNSPLASH_ACCESS_KEY");
+        return k
+          ? {
+              provider: "unsplash",
+              apiKey: k,
+              baseUrl: val("UNSPLASH_API_URL") ?? undefined,
+              source: "env",
+            }
+          : null;
+      },
+    };
+    const DEFAULT_IMAGE_ORDER = ["gemini", "openai", "leonardo", "unsplash"];
+    const requested = (val("AI_IMAGE_PRIORITY") ?? "")
+      .split(",")
+      .map((x) => x.trim().toLowerCase())
+      .filter((x) => x in builders);
+    const order = [...requested, ...DEFAULT_IMAGE_ORDER.filter((id) => !requested.includes(id))]
+      // Unsplash returns a stock photograph, not a generated illustration, so
+      // it is the safety net and stays last however the order is configured.
+      .sort((a, b) => Number(a === "unsplash") - Number(b === "unsplash"));
+    for (const id of order) {
+      const key = builders[id]();
+      if (key) out.push(key);
     }
     return out;
   }
@@ -885,7 +932,7 @@ const GEMINI_IMAGE_MODELS = [
 
 async function callGeminiImage(key: ResolvedKey, prompt: string): Promise<string> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.gemini).replace(/\/$/, "");
-  let notFound: Error | null = null;
+  let lastError: Error | null = null;
   const models = key.model ? [key.model, ...GEMINI_IMAGE_MODELS] : GEMINI_IMAGE_MODELS;
   for (const model of models) {
     const res = await fetch(`${base}/models/${model}:generateContent`, {
@@ -900,20 +947,129 @@ async function callGeminiImage(key: ResolvedKey, prompt: string): Promise<string
       }),
       signal: AbortSignal.timeout(60_000),
     });
-    if (res.status === 404) {
-      notFound = new Error(`Gemini image model ${model} not found (404)`);
+    // As with text: one unhappy model means try the next model, not abandon
+    // Gemini. A 400 or 429 on the first entry used to kill image generation
+    // outright even though a sibling model would have answered.
+    if (!res.ok) {
+      lastError = new Error(
+        `Gemini image API ${res.status} on ${model}: ${(await res.text()).slice(0, 200)}`,
+      );
       continue;
     }
-    if (!res.ok)
-      throw new Error(`Gemini image API ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const data = (await res.json()) as {
       candidates?: { content?: { parts?: { inlineData?: { mimeType?: string; data?: string } }[] } }[];
     };
     const part = data.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
-    if (!part?.inlineData?.data) throw new Error("Gemini image API returned no image data");
+    if (!part?.inlineData?.data) {
+      lastError = new Error(`Gemini image model ${model} returned no image data`);
+      continue;
+    }
     return `data:${part.inlineData.mimeType || "image/png"};base64,${part.inlineData.data}`;
   }
-  throw notFound ?? new Error("No Gemini image model available");
+  throw lastError ?? new Error("No Gemini image model available");
+}
+
+/** Fetch a remote image URL and inline it, so decks stay self-contained. */
+async function urlToDataUri(url: string, timeoutMs = 30_000): Promise<string> {
+  const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+  if (!res.ok) throw new Error(`image download ${res.status}`);
+  const mime = res.headers.get("content-type")?.split(";")[0] || "image/png";
+  const buf = Buffer.from(await res.arrayBuffer());
+  return `data:${mime};base64,${buf.toString("base64")}`;
+}
+
+const LEONARDO_BASE_URL = "https://cloud.leonardo.ai/api/rest/v1";
+const UNSPLASH_BASE_URL = "https://api.unsplash.com";
+/** Leonardo Phoenix — a good general-purpose default when none is configured. */
+const LEONARDO_DEFAULT_MODEL = "6b645e3a-d64f-4341-a6d8-7a3690fbf042";
+
+/**
+ * Leonardo generates asynchronously: the POST returns a job id and the image
+ * appears some seconds later, so this polls. The whole thing is bounded well
+ * under the serverless ceiling — a slow picture must never cost the deck.
+ */
+async function callLeonardoImage(key: ResolvedKey, prompt: string): Promise<string> {
+  const base = (key.baseUrl || LEONARDO_BASE_URL).replace(/\/$/, "");
+  const headers = {
+    "content-type": "application/json",
+    accept: "application/json",
+    authorization: `Bearer ${key.apiKey}`,
+  };
+  const start = await fetch(`${base}/generations`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      prompt: prompt.slice(0, 1400),
+      modelId: key.model || LEONARDO_DEFAULT_MODEL,
+      num_images: 1,
+      width: 1024,
+      height: 768,
+      alchemy: false,
+    }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!start.ok) {
+    throw new Error(`Leonardo API ${start.status}: ${(await start.text()).slice(0, 200)}`);
+  }
+  const job = (await start.json()) as { sdGenerationJob?: { generationId?: string } };
+  const id = job.sdGenerationJob?.generationId;
+  if (!id) throw new Error("Leonardo API returned no generation id");
+
+  const deadline = Date.now() + 40_000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 2_500));
+    const poll = await fetch(`${base}/generations/${id}`, {
+      headers,
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!poll.ok) continue;
+    const data = (await poll.json()) as {
+      generations_by_pk?: { status?: string; generated_images?: { url?: string }[] };
+    };
+    const gen = data.generations_by_pk;
+    if (gen?.status === "FAILED") throw new Error("Leonardo generation failed");
+    const url = gen?.generated_images?.[0]?.url;
+    if (gen?.status === "COMPLETE" && url) return await urlToDataUri(url);
+  }
+  throw new Error("Leonardo generation timed out");
+}
+
+/**
+ * Last resort: a real photograph from Unsplash. This is a SEARCH, not a
+ * generation, so it gets the bare subject rather than the full art-direction
+ * prompt — style directives would match nothing.
+ */
+async function fetchUnsplashImage(key: ResolvedKey, query: string): Promise<string> {
+  const terms = query
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 8)
+    .join(" ");
+  const base = (key.baseUrl || UNSPLASH_BASE_URL).replace(/\/$/, "");
+  const url =
+    `${base}/search/photos?per_page=1&orientation=landscape` +
+    `&query=${encodeURIComponent(terms || query.slice(0, 80))}`;
+  const res = await fetch(url, {
+    headers: { authorization: `Client-ID ${key.apiKey}`, "accept-version": "v1" },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) throw new Error(`Unsplash API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const data = (await res.json()) as {
+    results?: { urls?: { regular?: string }; links?: { download_location?: string } }[];
+  };
+  const hit = data.results?.[0];
+  const photo = hit?.urls?.regular;
+  if (!photo) throw new Error(`Unsplash had no photo for "${terms}"`);
+  // Unsplash's API terms require pinging download_location when a photo is
+  // actually used. Best effort — never let it block or fail the image.
+  if (hit?.links?.download_location) {
+    await fetch(hit.links.download_location, {
+      headers: { authorization: `Client-ID ${key.apiKey}` },
+      signal: AbortSignal.timeout(5_000),
+    }).catch(() => {});
+  }
+  return await urlToDataUri(photo);
 }
 
 async function callOpenAIImage(key: ResolvedKey, prompt: string): Promise<string> {
@@ -967,16 +1123,22 @@ async function callOpenAIImage(key: ResolvedKey, prompt: string): Promise<string
 export async function resolveProviderName(
   userId: number | undefined,
   capability: AiCapability,
-): Promise<AiProvider | null> {
+): Promise<ImageProvider | null> {
   const candidates = await resolveKeyCandidates(userId, capability).catch(() => [] as ResolvedKey[]);
   return candidates[0]?.provider ?? null;
 }
 
-export async function generateImage(opts: {
+/**
+ * Same as generateImage, but also reports WHICH source actually served the
+ * picture. The cascade means that is often not the first candidate, and
+ * Unsplash in particular has to be credited accurately — saying "Gemini" over
+ * a stock photograph would be a false credit, not just a cosmetic slip.
+ */
+export async function generateImageDetailed(opts: {
   userId?: number;
   prompt: string;
   style?: string;
-}): Promise<string | null> {
+}): Promise<{ url: string; provider: ImageProvider } | null> {
   const candidates = await resolveKeyCandidates(opts.userId, "image").catch(() => [] as ResolvedKey[]);
   if (candidates.length === 0) return null;
   const directive = opts.style ? IMAGE_STYLE_DIRECTIVES[opts.style] : undefined;
@@ -985,12 +1147,17 @@ export async function generateImage(opts: {
     try {
       switch (key.provider) {
         case "gemini":
-          return await callGeminiImage(key, prompt);
+          return { url: await callGeminiImage(key, prompt), provider: "gemini" };
         case "openai":
-          return await callOpenAIImage(key, prompt);
+          return { url: await callOpenAIImage(key, prompt), provider: "openai" };
+        case "leonardo":
+          return { url: await callLeonardoImage(key, prompt), provider: "leonardo" };
+        case "unsplash":
+          // Searches for the subject, so it gets the un-art-directed prompt.
+          return { url: await fetchUnsplashImage(key, opts.prompt), provider: "unsplash" };
         case "anthropic":
-          console.warn("[ai/image] Anthropic has no image generation API — skipping");
-          continue;
+        case "elevenlabs":
+          continue; // no image API
       }
     } catch (err) {
       console.warn(
@@ -999,5 +1166,15 @@ export async function generateImage(opts: {
       );
     }
   }
+  console.warn(`[ai/image] all ${candidates.length} image candidate(s) failed`);
   return null;
+}
+
+/** Convenience wrapper for callers that only need the picture itself. */
+export async function generateImage(opts: {
+  userId?: number;
+  prompt: string;
+  style?: string;
+}): Promise<string | null> {
+  return (await generateImageDetailed(opts))?.url ?? null;
 }

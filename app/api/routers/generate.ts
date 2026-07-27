@@ -5,7 +5,7 @@ import { createRouter, publicQuery } from "../middleware.js";
 import { authedProcedure, moderatorProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
 import { lessons, repos, slideTools, units, users, type Repo } from "../../db/schema.js";
-import { completeText, completeVision, generateImage, resolveProviderName, textKeyIdPool, userHasKey, webResearch, type VisionImage } from "../ai/provider.js";
+import { completeText, completeVision, generateImage, generateImageDetailed, resolveProviderName, textKeyIdPool, userHasKey, webResearch, type VisionImage } from "../ai/provider.js";
 import { mockCoachReply, mockDeck, mockLessonPath } from "../ai/mock.js";
 import {
   buildLessonPathPrompt,
@@ -894,12 +894,19 @@ export const generateRouter = createRouter({
         const firstImg = deck.slides[0].components.find((c) => c.type === "image");
         if (firstImg && firstImg.type === "image" && !firstImg.imageUrl) {
           try {
-            const url = await generateImage({
+            const made = await generateImageDetailed({
               userId: ctx.user?.id,
               prompt: firstImg.prompt,
               style: input.imageStyle,
             });
-            if (url) firstImg.imageUrl = url;
+            if (made) {
+              firstImg.imageUrl = made.url;
+              // Credit whoever actually SERVED the picture, not whoever sat at
+              // the top of the candidate list. With a fallback chain those are
+              // routinely different, and crediting Gemini for an Unsplash
+              // photograph would be a false claim about its origin.
+              deck = { ...deck, imageProvider: made.provider };
+            }
           } catch (err) {
             console.warn(
               "[generate.slides] first-slide image failed (player will lazy-load it):",
