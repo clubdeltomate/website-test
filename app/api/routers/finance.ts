@@ -1,20 +1,19 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { createRouter } from "../middleware.js";
 import { adminProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
-import { payments, users } from "../../db/schema.js";
+import { payments, tokenLedger, users } from "../../db/schema.js";
 import { applyTokenDelta } from "../tokens.js";
 import { getSettings } from "../settings.js";
+import { ticketPrice } from "../cost.js";
 import {
   estimateUsd,
-  getBudgets,
   getPricing,
   getUsage,
   priceForUsage,
   refreshPricingFromWeb,
-  saveBudgets,
 } from "../finance.js";
 
 /** One receipt = one credited payments row (packId "manual-grant" marks the
@@ -42,11 +41,11 @@ export const financeRouter = createRouter({
   /** Everything the Finance page shows, in one query. */
   overview: adminProcedure.query(async () => {
     const db = getDb();
-    const [pricing, usageMap, budgets, settings] = await Promise.all([
+    const [pricing, usageMap, settings, ticketPriceCoins] = await Promise.all([
       getPricing(),
       getUsage(),
-      getBudgets(),
       getSettings(),
+      ticketPrice(),
     ]);
 
     const usage = Object.values(usageMap).map((u) => {
@@ -54,36 +53,74 @@ export const financeRouter = createRouter({
       return { ...u, priceId: price?.id ?? null, estUsd: estimateUsd(u, price) };
     });
 
-    // Per-provider budget status: spend counted from the budget's baseline
-    const providers = Object.entries(budgets).map(([providerId, b]) => {
-      let spentUsd = 0;
-      for (const u of Object.values(usageMap)) {
-        if (u.providerId !== providerId) continue;
-        const base = b.baseline[`${u.providerId}|${u.model}`];
-        const delta = {
-          inputTokens: Math.max(0, u.inputTokens - (base?.inputTokens ?? 0)),
-          outputTokens: Math.max(0, u.outputTokens - (base?.outputTokens ?? 0)),
-        };
-        spentUsd += estimateUsd(delta, priceForUsage(pricing, u));
-      }
-      return { providerId, amountUsd: b.amountUsd, setAt: b.setAt, spentUsd };
-    });
-
+    // Income: every credited sale, plus revenue grouped by month
     const credited = await db
       .select()
       .from(payments)
       .where(eq(payments.status, "credited"))
       .orderBy(desc(payments.id));
     const revenueCents = credited.reduce((n, p) => n + p.amountCents, 0);
+    const purchasedTokens = credited.reduce((n, p) => n + p.packTokens, 0);
+    const monthly = new Map<string, number>();
+    for (const p of credited) {
+      const key = (p.resolvedAt ?? p.createdAt).toISOString().slice(0, 7);
+      monthly.set(key, (monthly.get(key) ?? 0) + p.amountCents);
+    }
+    const monthlyRevenue = [...monthly.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, cents]) => ({ month, cents }));
     const recentReceipts = await Promise.all(credited.slice(0, 12).map((p) => receiptRow(db, p)));
+
+    // What one coin is worth: the real blended sale rate when there are
+    // credited sales, else the blend of the configured packs.
+    const packs = settings.tokenPacks;
+    const packTokens = packs.reduce((n, p) => n + p.tokens, 0);
+    const packBlendCents = packTokens > 0 ? packs.reduce((n, p) => n + p.priceCents, 0) / packTokens : 4;
+    const centsPerCoin = purchasedTokens > 0 ? revenueCents / purchasedTokens : packBlendCents;
+
+    // Credits ledger, coarse-grained by the reason strings this codebase
+    // writes — the accountability view: what entered circulation (and
+    // whether money backed it) and what burned out of it.
+    const [led] = await db
+      .select({
+        purchased: sql<string>`COALESCE(SUM(CASE WHEN ${tokenLedger.delta} > 0 AND (${tokenLedger.reason} ILIKE '%receipt%' OR ${tokenLedger.reason} ILIKE 'payment #%') THEN ${tokenLedger.delta} ELSE 0 END), 0)`,
+        adminGranted: sql<string>`COALESCE(SUM(CASE WHEN ${tokenLedger.delta} > 0 AND ${tokenLedger.reason} ILIKE 'manual %' THEN ${tokenLedger.delta} ELSE 0 END), 0)`,
+        starting: sql<string>`COALESCE(SUM(CASE WHEN ${tokenLedger.delta} > 0 AND ${tokenLedger.reason} ILIKE '%starting balance%' THEN ${tokenLedger.delta} ELSE 0 END), 0)`,
+        refunds: sql<string>`COALESCE(SUM(CASE WHEN ${tokenLedger.delta} > 0 AND ${tokenLedger.reason} ILIKE '%refund%' THEN ${tokenLedger.delta} ELSE 0 END), 0)`,
+        otherCredits: sql<string>`COALESCE(SUM(CASE WHEN ${tokenLedger.delta} > 0 AND NOT (${tokenLedger.reason} ILIKE '%receipt%' OR ${tokenLedger.reason} ILIKE 'payment #%' OR ${tokenLedger.reason} ILIKE 'manual %' OR ${tokenLedger.reason} ILIKE '%starting balance%' OR ${tokenLedger.reason} ILIKE '%refund%') THEN ${tokenLedger.delta} ELSE 0 END), 0)`,
+        spentOnGenerations: sql<string>`COALESCE(SUM(CASE WHEN ${tokenLedger.delta} < 0 AND NOT (${tokenLedger.reason} ILIKE 'manual %' OR ${tokenLedger.reason} ILIKE 'bought %ticket%') THEN -${tokenLedger.delta} ELSE 0 END), 0)`,
+        ticketCoins: sql<string>`COALESCE(SUM(CASE WHEN ${tokenLedger.delta} < 0 AND ${tokenLedger.reason} ILIKE 'bought %ticket%' THEN -${tokenLedger.delta} ELSE 0 END), 0)`,
+        adminRemoved: sql<string>`COALESCE(SUM(CASE WHEN ${tokenLedger.delta} < 0 AND ${tokenLedger.reason} ILIKE 'manual %' THEN -${tokenLedger.delta} ELSE 0 END), 0)`,
+      })
+      .from(tokenLedger);
+    const ledger = {
+      purchased: Number(led.purchased),
+      adminGranted: Number(led.adminGranted),
+      starting: Number(led.starting),
+      refunds: Number(led.refunds),
+      otherCredits: Number(led.otherCredits),
+      spentOnGenerations: Number(led.spentOnGenerations),
+      ticketCoins: Number(led.ticketCoins),
+      adminRemoved: Number(led.adminRemoved),
+    };
+
+    const [circ] = await db
+      .select({ total: sql<string>`COALESCE(SUM(${users.tokenBalance}), 0)` })
+      .from(users);
 
     return {
       pricing,
       usage,
-      providers,
-      packs: settings.tokenPacks,
+      packs,
+      prices: settings.prices,
+      ticketPriceCoins,
+      centsPerCoin,
       revenueCents,
+      purchasedTokens,
+      monthlyRevenue,
       recentReceipts,
+      circulationTokens: Number(circ.total),
+      ledger,
     };
   }),
 
@@ -98,40 +135,6 @@ export const financeRouter = createRouter({
       });
     }
   }),
-
-  /**
-   * Enter what's currently loaded on a provider account. Spend is estimated
-   * from this moment on (the current usage totals become the baseline), so
-   * the remaining figure can be compared against the provider's own console.
-   */
-  setBudget: adminProcedure
-    .input(
-      z.object({
-        providerId: z.string().min(1).max(40),
-        amountUsd: z.number().min(0).max(1000000).nullable(),
-      }),
-    )
-    .mutation(async ({ input }) => {
-      const budgets = await getBudgets();
-      if (input.amountUsd == null) {
-        delete budgets[input.providerId];
-      } else {
-        const usage = await getUsage();
-        const baseline: Record<string, { inputTokens: number; outputTokens: number }> = {};
-        for (const [key, u] of Object.entries(usage)) {
-          if (u.providerId === input.providerId) {
-            baseline[key] = { inputTokens: u.inputTokens, outputTokens: u.outputTokens };
-          }
-        }
-        budgets[input.providerId] = {
-          amountUsd: input.amountUsd,
-          setAt: new Date().toISOString(),
-          baseline,
-        };
-      }
-      await saveBudgets(budgets);
-      return { ok: true as const };
-    }),
 
   /**
    * Credit coins to a user against a real payment, producing a receipt: the
