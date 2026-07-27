@@ -841,6 +841,49 @@ function FinanceBody() {
       ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     : [];
 
+  // Chart reference values: average AI cost of the configured deck, what the
+  // user pays for it, one ticket, and a 100-coin sale. The log axis spans
+  // from just under the cheapest bar to just over the highest line.
+  const avgCostUsd = perModel.length
+    ? perModel.reduce((n, m) => n + m.costUsd, 0) / perModel.length
+    : 0;
+  const hundredCoinsUsd = (100 * packRate) / 100;
+  const perGenMargin = calc.chargeUsd - avgCostUsd;
+  const decksPer100 = calc.coins > 0 ? Math.floor(100 / calc.coins) : 0;
+  const costOf100Coins = decksPer100 * avgCostUsd;
+  const minCostUsd = perModel.length ? Math.min(...perModel.map((m) => m.costUsd)) : 0.001;
+  const chartFloor = Math.max(0.0005, Number((minCostUsd / 2).toPrecision(1)));
+  const chartCeiling = Math.max(calc.chargeUsd, calc.ticketUsd, hundredCoinsUsd) * 1.8;
+
+  // Reference lines, lowest first. Lines that land on (nearly) the same value
+  // — e.g. a maxed-out deck charges exactly the auto ticket price — are drawn
+  // once with a combined label, and remaining close neighbours get their
+  // labels nudged apart so nothing overlaps.
+  const refLines = (() => {
+    const raw = [
+      { key: 'avg', value: avgCostUsd, color: '#5C5347', dash: '3 4', label: `avg cost ${fmtUsd(avgCostUsd)}` },
+      { key: 'coin', value: calc.chargeUsd, color: '#3F74D6', dash: '7 4', label: `user pays ${calc.coins} 🪙 = ${fmtUsd(calc.chargeUsd)}` },
+      { key: 'ticket', value: calc.ticketUsd, color: '#4C9A5C', dash: '7 4', label: `1 ticket = ${fmtUsd(calc.ticketUsd)}` },
+      { key: 'c100', value: hundredCoinsUsd, color: '#8566D4', dash: '7 4', label: `100 🪙 sold = ${fmtUsd(hundredCoinsUsd)}` },
+    ]
+      .filter((l) => l.value > 0)
+      .sort((a, b) => a.value - b.value);
+
+    const merged: (typeof raw[number] & { dy: number })[] = [];
+    for (const line of raw) {
+      const prev = merged[merged.length - 1];
+      if (prev && Math.abs(prev.value - line.value) / line.value < 0.02) {
+        // same height — one line, both names, neutral ink so neither colour lies
+        prev.label = `${prev.label.replace(/ = \$[\d.]+$/, '')} / ${line.label.replace(/^1 /, '')}`;
+        prev.color = '#2E2820';
+        continue;
+      }
+      const tooClose = prev && line.value / prev.value < 1.7;
+      merged.push({ ...line, dy: tooClose ? prev.dy - 13 : 0 });
+    }
+    return merged;
+  })();
+
   const pricingAge = formatRelative(new Date(data.pricing.updatedAt));
   const liabilityUsd = (data.circulationTokens * data.centsPerCoin) / 100;
   const led = data.ledger;
@@ -925,13 +968,12 @@ function FinanceBody() {
         {tab === 'generation' && (
           <div className="p-4">
             <h3 className="font-heading text-lg font-semibold text-ink">
-              Profit on one presentation, by model
+              What a presentation costs you vs what it earns
             </h3>
             <p className="mb-3 text-xs text-ink-soft">
-              For the deck configured below, each bar is your PROFIT after paying that model's
-              estimated AI bill: blue = the user paid with coins, green = they used a ticket.
-              A bar reaching left of zero would mean a loss. Change what you charge in the
-              "Set prices" tab.
+              Orange bars: what each model charges YOU in AI fees to generate the deck configured
+              below. The dotted lines are money coming in — every line above the bars is profit.
+              Change what you charge in the "Set prices" tab.
             </p>
 
             {/* calculator */}
@@ -1003,55 +1045,106 @@ function FinanceBody() {
               </div>
             )}
 
-            <div style={{ height: perModel.length * 52 + 70 }}>
+            <div className="h-[420px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={perModel.map((m) => ({
-                    name: m.name,
-                    'Coin-paid deck': Number((calc.chargeUsd - m.costUsd).toFixed(3)),
-                    'Ticketed deck': Number((calc.ticketUsd - m.costUsd).toFixed(3)),
+                    name: m.name.replace(' (via OpenRouter)', ' (OR)'),
+                    'AI cost': Number(m.costUsd.toFixed(4)),
                   }))}
-                  layout="vertical"
-                  margin={{ top: 4, right: 56, bottom: 0, left: 8 }}
-                  barGap={2}
+                  margin={{ top: 10, right: 196, bottom: 62, left: 4 }}
                 >
-                  <CartesianGrid stroke="#C9BFA9" strokeDasharray="4 6" horizontal={false} />
+                  <CartesianGrid stroke="#C9BFA9" strokeDasharray="4 6" vertical={false} />
                   <XAxis
-                    type="number"
+                    dataKey="name"
+                    interval={0}
+                    angle={-28}
+                    textAnchor="end"
+                    height={64}
+                    tick={{ ...AXIS_TICK, fontSize: 12, fontFamily: 'inherit' }}
+                    axisLine={AXIS_LINE}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    // log scale: your revenue is 20-100x one deck's AI bill, so a
+                    // linear axis would flatten every bar to nothing
+                    scale="log"
+                    domain={[chartFloor, chartCeiling]}
+                    allowDataOverflow
                     tick={AXIS_TICK}
                     axisLine={AXIS_LINE}
                     tickLine={false}
-                    tickFormatter={(v: number) => `$${Number(v).toFixed(2)}`}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={170}
-                    tick={{ ...AXIS_TICK, fontSize: 14, fontFamily: 'inherit' }}
-                    axisLine={AXIS_LINE}
-                    tickLine={false}
+                    width={62}
+                    tickFormatter={(v: number) => (v >= 1 ? `$${v}` : `$${v}`)}
                   />
                   <Tooltip content={<CostTooltip unit="$" />} cursor={{ fill: '#F4EBD6' }} />
-                  <Legend wrapperStyle={{ fontSize: 13 }} />
-                  <ReferenceLine x={0} stroke="#2E2820" strokeWidth={2} />
-                  <Bar dataKey="Coin-paid deck" fill="#3F74D6" fillOpacity={0.85} stroke="#2E2820" strokeWidth={1.5} radius={[0, 4, 4, 0]}>
+                  <Bar dataKey="AI cost" fill="#EF8A3C" fillOpacity={0.9} stroke="#2E2820" strokeWidth={1.5} radius={[4, 4, 0, 0]}>
                     <LabelList
-                      dataKey="Coin-paid deck"
-                      position="right"
+                      dataKey="AI cost"
+                      position="top"
                       formatter={(v: number) => fmtUsd(v)}
-                      style={{ fill: '#5C5347', fontSize: 11, fontFamily: 'monospace' }}
+                      style={{ fill: '#5C5347', fontSize: 10, fontFamily: 'monospace' }}
                     />
                   </Bar>
-                  <Bar dataKey="Ticketed deck" fill="#4C9A5C" fillOpacity={0.85} stroke="#2E2820" strokeWidth={1.5} radius={[0, 4, 4, 0]}>
-                    <LabelList
-                      dataKey="Ticketed deck"
-                      position="right"
-                      formatter={(v: number) => fmtUsd(v)}
-                      style={{ fill: '#5C5347', fontSize: 11, fontFamily: 'monospace' }}
+                  {refLines.map((l) => (
+                    <ReferenceLine
+                      key={l.key}
+                      y={Number(l.value.toFixed(4))}
+                      stroke={l.color}
+                      strokeWidth={2}
+                      strokeDasharray={l.dash}
+                      label={{
+                        value: l.label,
+                        position: 'right',
+                        fill: l.color,
+                        fontSize: 11,
+                        dy: l.dy,
+                      }}
                     />
-                  </Bar>
+                  ))}
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+            <p className="micro mt-1 text-center text-ink-faint">
+              Vertical scale is logarithmic — each gridline is 10× the one below, so cent-sized
+              costs and dollar-sized income both stay visible.
+            </p>
+
+            {/* the two readings: per generation, and per 100 coins */}
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-wobble-sm border-2 border-dashed border-blue bg-blue-soft/40 p-3">
+                <p className="font-heading font-semibold text-ink">Average per generation</p>
+                <p className="mt-1 text-sm text-ink">
+                  This deck costs you <span className="font-bold text-red">~{fmtUsd(avgCostUsd)}</span> on
+                  an average model and the user pays{' '}
+                  <span className="font-bold text-orange">{calc.coins} 🪙</span> ={' '}
+                  <span className="font-bold">{fmtUsd(calc.chargeUsd)}</span> →{' '}
+                  <span className={perGenMargin >= 0 ? 'font-bold text-green' : 'font-bold text-red'}>
+                    {fmtUsd(perGenMargin)} kept
+                  </span>
+                  {perGenMargin > 0 && avgCostUsd > 0 && (
+                    <span className="text-ink-faint"> ({(calc.chargeUsd / avgCostUsd).toFixed(0)}× what it cost)</span>
+                  )}
+                </p>
+              </div>
+              <div className="rounded-wobble-sm border-2 border-dashed border-purple bg-purple-soft/40 p-3">
+                <p className="font-heading font-semibold text-ink">Per 100 coins sold</p>
+                <p className="mt-1 text-sm text-ink">
+                  100 🪙 sell for <span className="font-bold text-green">{fmtUsd(hundredCoinsUsd)}</span> and
+                  buy <span className="font-bold">{decksPer100}</span> deck
+                  {decksPer100 === 1 ? '' : 's'} this size, costing you{' '}
+                  <span className="font-bold text-red">~{fmtUsd(costOf100Coins)}</span> →{' '}
+                  <span className={hundredCoinsUsd - costOf100Coins >= 0 ? 'font-bold text-green' : 'font-bold text-red'}>
+                    {fmtUsd(hundredCoinsUsd - costOf100Coins)} kept
+                  </span>
+                  {calc.coins > 0 && (
+                    <span className="text-ink-faint">
+                      {' '}
+                      · {calc.coins} 🪙 per generation, ~{(calc.coins / calcSlides).toFixed(1)} 🪙 per slide
+                    </span>
+                  )}
+                </p>
+              </div>
             </div>
 
             <div className="mt-3 overflow-x-auto">
