@@ -42,7 +42,14 @@ import TemplateBar from '@/components/templates/TemplateBar';
 import TemplatePicker from '@/components/templates/TemplatePicker';
 
 import { isStemTopic } from '@contracts/stem';
-import { loadGenDefaults, saveGenDefaults, type TextDensity } from '@/lib/genDefaults';
+import {
+  loadGenDefaults,
+  saveGenDefaults,
+  STYLE_PRESETS,
+  SLIDE_COUNT_MIN,
+  SLIDE_COUNT_MAX,
+  type TextDensity,
+} from '@/lib/genDefaults';
 import { templatesForContext, packetsForPurpose, GRADABLE_TYPES } from '@contracts/slide-templates';
 import { repoPurpose, templateFilterPurpose, type RepoTemplate } from '@contracts/types';
 import { TemplateIcon } from '@/components/repo/shared';
@@ -54,13 +61,6 @@ const CATEGORY_OPTS: { id: RepoTemplate; label: string; hint: string }[] = [
   { id: 'restaurant', label: 'Menu item', hint: 'Showcase a dish — no evaluations' },
   { id: 'service', label: 'Service', hint: 'Showcase a service — no evaluations' },
   { id: 'shop', label: 'Product', hint: 'Marketplace display — no evaluations' },
-];
-
-const STYLE_PRESETS: Exclude<ImageStyle, 'none'>[] = [
-  'sketch',
-  'watercolor',
-  'flat',
-  'photo',
 ];
 
 /** Time Travel News: the era timeline the period scroller moves through —
@@ -1088,14 +1088,14 @@ function ToolStudio({
           </span>
           <input
             type="range"
-            min={4}
-            max={15}
+            min={SLIDE_COUNT_MIN}
+            max={SLIDE_COUNT_MAX}
             value={slideCount}
             onChange={(e) => setSlideCount(Number(e.target.value))}
             className="w-full accent-[#2E2820]"
             aria-label="Slide count"
           />
-          {slideCount === 15 && (
+          {slideCount === SLIDE_COUNT_MAX && (
             <p className="mt-1 font-display text-lg text-ink-soft">
               15 slides max — notebooks have edges too.
             </p>
