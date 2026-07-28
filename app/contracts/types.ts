@@ -42,6 +42,70 @@ export function levelTier(level: Level): LevelTier {
   return "dense";
 }
 
+/* ---------------- Text amount ------------------------------------- */
+
+/**
+ * How much written prose each slide carries. The character figures are
+ * per-slide estimates shown in the UI so the choice is concrete rather than a
+ * vague adjective — measured as roughly 6.2 characters per English word,
+ * spaces included.
+ *
+ * "explained" replaces the old "detailed" tier and "dense" is new above it;
+ * every tier's target was raised, because the previous "standard" (120-200
+ * words) read as a blurb rather than a lesson.
+ */
+export type TextDensity = "minimal" | "brief" | "standard" | "explained" | "dense";
+
+export const TEXT_DENSITIES: TextDensity[] = [
+  "minimal",
+  "brief",
+  "standard",
+  "explained",
+  "dense",
+];
+
+export interface TextDensityMeta {
+  label: string;
+  /** approximate characters of prose per slide, for the picker */
+  approxChars: string;
+  hint: string;
+  /** rough per-slide characters, used to warn about very large decks */
+  charsPerSlide: number;
+}
+
+export const TEXT_DENSITY_META: Record<TextDensity, TextDensityMeta> = {
+  minimal: {
+    label: "Minimal",
+    approxChars: "~200 characters",
+    hint: "Two sentences. The visuals do the teaching.",
+    charsPerSlide: 200,
+  },
+  brief: {
+    label: "Brief",
+    approxChars: "~700 characters",
+    hint: "Short but real — the essentials, no filler.",
+    charsPerSlide: 700,
+  },
+  standard: {
+    label: "Standard",
+    approxChars: "~1,700 characters",
+    hint: "A proper lesson: two or three meaty paragraphs.",
+    charsPerSlide: 1700,
+  },
+  explained: {
+    label: "Explained",
+    approxChars: "~3,000 characters",
+    hint: "Worked through with examples, mistakes and consequences.",
+    charsPerSlide: 3000,
+  },
+  dense: {
+    label: "Dense",
+    approxChars: "~4,600 characters",
+    hint: "A reading assignment. Every angle, fully developed.",
+    charsPerSlide: 4600,
+  },
+};
+
 export const IMAGE_STYLES: ImageStyle[] = ["sketch", "watercolor", "flat", "photo", "none"];
 export const REPO_TEMPLATES: RepoTemplate[] = ["course", "restaurant", "service", "shop", "walkthrough", "news", "other"];
 

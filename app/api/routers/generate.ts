@@ -377,7 +377,7 @@ export const generateRouter = createRouter({
         // a product/menu/service showcase (no evaluations).
         purpose: z.enum(["education", "commercial", "walkthrough", "news"]).optional(),
         // How much explanatory text each slide carries (advanced setting).
-        textDensity: z.enum(["minimal", "brief", "standard", "detailed"]).default("standard"),
+        textDensity: z.enum(["minimal", "brief", "standard", "explained", "dense"]).default("standard"),
         // Subject override for template filtering: "auto" detects from the
         // topic; "stem"/"humanities" force the catalog the author chose.
         subject: z.enum(["auto", "stem", "humanities"]).default("auto"),
@@ -606,10 +606,18 @@ export const generateRouter = createRouter({
       const purposeParaFloor = purpose === "walkthrough" ? Math.max(2, baseParaFloor) : baseParaFloor;
       // The advanced "text amount" setting shifts the floor up or down.
       const densityDelta =
-        input.textDensity === "minimal" ? -99 : input.textDensity === "brief" ? -1 : input.textDensity === "detailed" ? 2 : 0;
+        input.textDensity === "minimal"
+          ? -99
+          : input.textDensity === "brief"
+            ? -1
+            : input.textDensity === "dense"
+              ? 3
+              : input.textDensity === "explained"
+                ? 2
+                : 0;
       const paraFloor = Math.max(1, purposeParaFloor + densityDelta);
       // News summaries stay concise unless "detailed" is chosen.
-      const newsMinParas = input.textDensity === "detailed" ? 2 : 1;
+      const newsMinParas = input.textDensity === "dense" || input.textDensity === "explained" ? 2 : 1;
       const layoutTemplates = allowedTemplates.map((t) => ({
         name: t.name,
         tags: t.tags,
@@ -801,7 +809,13 @@ export const generateRouter = createRouter({
                   0,
                 );
                 const wordFloor =
-                  input.textDensity === "detailed" ? 220 : input.textDensity === "standard" ? 110 : 0;
+                  input.textDensity === "dense"
+                    ? 600
+                    : input.textDensity === "explained"
+                      ? 360
+                      : input.textDensity === "standard"
+                        ? 210
+                        : 0;
                 return !structOk || paraCount < paraFloor || proseWords < wordFloor;
               });
             // The model sometimes under-delivers (e.g. 3 slides when 8 were
@@ -1396,10 +1410,10 @@ RULES:
         level: z.enum(["A0", "A1", "A2", "B1", "B2", "C1", "C2"]),
         slideCount: z.number().int().min(3).max(15),
         imageStyle: z.enum(["sketch", "watercolor", "flat", "photo", "none"]),
-        textDensity: z.enum(["minimal", "brief", "standard", "detailed"]),
+        textDensity: z.enum(["minimal", "brief", "standard", "explained", "dense"]),
         templatePlan: z.array(z.string()).min(3).max(15),
       });
-      const system = `You configure a slide-presentation generator. Reply with ONLY JSON: {"level":"A0..C2","slideCount":3-15,"imageStyle":"sketch|watercolor|flat|photo|none","textDensity":"minimal|brief|standard|detailed","templatePlan":[exactly slideCount layout names]}. Purpose of this deck: ${input.purpose}${input.newsPeriod ? ` (news from "${input.newsPeriod}")` : ""}. Choose settings that BEST fit the user's prompt: reading level from the implied audience, slide count from the scope, photo style for food/products, more images for menus/shops, denser text for scholarly topics. Every templatePlan entry MUST be exactly one of: ${names.join(" · ")}. Vary layouts; order them to open strong (image-led) and close with synthesis.`;
+      const system = `You configure a slide-presentation generator. Reply with ONLY JSON: {"level":"A0..C2","slideCount":3-15,"imageStyle":"sketch|watercolor|flat|photo|none","textDensity":"minimal|brief|standard|explained|dense","templatePlan":[exactly slideCount layout names]}. Purpose of this deck: ${input.purpose}${input.newsPeriod ? ` (news from "${input.newsPeriod}")` : ""}. Choose settings that BEST fit the user's prompt: reading level from the implied audience, slide count from the scope, photo style for food/products, more images for menus/shops, denser text for scholarly topics. Every templatePlan entry MUST be exactly one of: ${names.join(" · ")}. Vary layouts; order them to open strong (image-led) and close with synthesis.`;
       try {
         const result = await completeText({
           userId: ctx.user?.id,

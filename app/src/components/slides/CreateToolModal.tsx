@@ -18,10 +18,22 @@ import {
   LEVEL_LABEL,
   levelTier,
   repoPurpose,
+  templateFilterPurpose,
+  TEXT_DENSITIES,
+  TEXT_DENSITY_META,
   type ImageStyle,
   type Level,
   type RepoTemplate,
+  type TextDensity,
 } from '@contracts/types';
+import {
+  templatesForContext,
+  TEMPLATE_FLAVORS,
+  sectionForTags,
+  templateSequenceLabel,
+  type SlideTemplate,
+} from '@contracts/slide-templates';
+import { Shuffle } from 'lucide-react';
 import { TemplateIcon } from '@/components/repo/shared';
 import SketchButton from '../sketch/SketchButton';
 import WashiTape from '../sketch/WashiTape';
@@ -40,8 +52,44 @@ const CATEGORIES: { id: RepoTemplate; label: string; hint: string }[] = [
   { id: 'shop', label: 'Product', hint: 'Marketplace display — no evaluations' },
 ];
 
-type Step = 'kind' | 'look' | 'type';
-const STEPS: Step[] = ['kind', 'look', 'type'];
+type Step = 'kind' | 'look' | 'type' | 'subject' | 'focus' | 'plan' | 'text';
+
+/**
+ * A menu item or a product is not STEM or humanities, and picking a lesson
+ * flavour for one makes no sense — those decks skip straight from the slides
+ * type to the layout plan.
+ */
+function stepsFor(template: RepoTemplate): Step[] {
+  const teaches = templateFilterPurpose(repoPurpose(template)) === 'education';
+  return teaches
+    ? ['kind', 'look', 'type', 'subject', 'focus', 'plan', 'text']
+    : ['kind', 'look', 'type', 'plan', 'text'];
+}
+
+const SUBTITLES: Record<Step, (kind: string, slides: number) => string> = {
+  kind: () => "Pick what it's for — the AI names and describes it from your first generation.",
+  look: (kind) => `A ${kind.toLowerCase()}. How long should it be, and how should it look?`,
+  type: () => 'Does it check what was learned, and how hard should it be?',
+  subject: () => 'Which field is it? This decides the layouts you can choose from.',
+  focus: () => 'Narrow it down, or leave it open and keep every layout.',
+  plan: (_kind, slides) => `Give each of the ${slides} slides a layout — or leave some to the AI.`,
+  text: () => 'How much writing should each slide carry?',
+};
+
+const SUBJECTS: { id: 'stem' | 'humanities'; label: string; hint: string; art: string }[] = [
+  {
+    id: 'stem',
+    label: 'STEM',
+    hint: 'Maths, science, medicine, code — formulas, data and worked problems',
+    art: '/subject-stem.svg',
+  },
+  {
+    id: 'humanities',
+    label: 'Humanities',
+    hint: 'History, literature, philosophy, language — reading and discussion',
+    art: '/subject-humanities.svg',
+  },
+];
 
 /**
  * Slides type. "Quiz" only means anything where the deck is allowed to carry
@@ -86,6 +134,19 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
   const [imageStyle, setImageStyle] = useState<ImageStyle>(remembered.imageStyle);
   const [includeQuiz, setIncludeQuiz] = useState(remembered.includeQuiz);
   const [level, setLevel] = useState<Level>(remembered.level);
+  const [subject, setSubject] = useState<'stem' | 'humanities'>(
+    remembered.subject === 'humanities' ? 'humanities' : 'stem',
+  );
+  const [flavor, setFlavor] = useState<string | null>(remembered.flavor);
+  const [textDensity, setTextDensity] = useState<TextDensity>(remembered.textDensity);
+  /** How many slides each layout should fill, keyed by layout name. */
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  /** The plan in running order — rebuilt from counts, reordered by Shuffle. */
+  const [plan, setPlan] = useState<string[]>([]);
+
+  const templatesQuery = trpc.templates.list.useQuery(undefined, { enabled: open });
+
+  const STEPS = stepsFor(template);
 
   // Only education decks keep their evaluations; everything else has them
   // stripped during generation, so offering the choice there would be a lie.
@@ -102,6 +163,11 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
     setImageStyle(current.imageStyle);
     setIncludeQuiz(current.includeQuiz);
     setLevel(current.level);
+    setSubject(current.subject === 'humanities' ? 'humanities' : 'stem');
+    setFlavor(current.flavor);
+    setTextDensity(current.textDensity);
+    setCounts({});
+    setPlan([]);
   }, [open, user?.id]);
 
   const create = trpc.slideTools.create.useMutation({
@@ -119,12 +185,22 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
     // Both are needed: the settings page intentionally opens with the user's
     // remembered settings rather than the tool's stored ones, so saving only
     // the tool would leave this step with nothing to show for itself.
+    // Pad the plan out to the slide count: a shorter plan means the remaining
+    // slides are the AI's choice, which is exactly what a null entry means.
+    const paddedPlan: (string | null)[] = Array.from(
+      { length: slideCount },
+      (_, i) => plan[i] ?? null,
+    );
     saveGenDefaults(user?.id, {
       ...loadGenDefaults(user?.id),
       slideCount,
       imageStyle,
       level,
       includeQuiz: canQuiz && includeQuiz,
+      textDensity,
+      subject,
+      flavor,
+      templatePlan: paddedPlan.some(Boolean) ? paddedPlan : [],
     });
     create.mutate({
       name: `Untitled ${label}`,
@@ -132,6 +208,66 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
       defaultSlideCount: slideCount,
       defaultImageStyle: imageStyle,
       defaultLevel: level,
+    });
+  };
+
+  // Flavours whose tags actually belong to the chosen half of the catalog, so
+  // "Philosophy" never shows under STEM and "Wolfram" never under humanities.
+  const flavors = TEMPLATE_FLAVORS.filter((f) => {
+    const section = sectionForTags(f.tags);
+    return section === 'general' || section === subject;
+  });
+
+  const available: SlideTemplate[] = (() => {
+    const all = templatesQuery.data ?? [];
+    const scoped = templatesForContext(all, {
+      purpose: templateFilterPurpose(repoPurpose(template)),
+      stem: subject === 'stem',
+      level,
+    });
+    if (!flavor) return scoped;
+    const meta = TEMPLATE_FLAVORS.find((f) => f.id === flavor);
+    if (!meta) return scoped;
+    const wanted = new Set(meta.tags);
+    const hit = scoped.filter((t) => t.tags.some((tag) => wanted.has(tag)));
+    // A flavour with nothing in it would strand the step; fall back rather
+    // than show an empty picker with no way forward.
+    return hit.length > 0 ? hit : scoped;
+  })();
+
+  const assigned = Object.values(counts).reduce((a, b) => a + b, 0);
+  const slotsLeft = slideCount - assigned;
+
+  /** Expand the per-layout counts into one entry per slide, in menu order. */
+  const rebuildPlan = (next: Record<string, number>) => {
+    const out: string[] = [];
+    for (const [name, n] of Object.entries(next)) {
+      for (let i = 0; i < n; i++) out.push(name);
+    }
+    setPlan(out);
+  };
+
+  const bump = (name: string, delta: number) => {
+    setCounts((prev) => {
+      const cur = prev[name] ?? 0;
+      const room = slideCount - Object.values(prev).reduce((a, b) => a + b, 0);
+      const next = Math.max(0, Math.min(cur + delta, cur + room));
+      const merged = { ...prev, [name]: next };
+      if (next === 0) delete merged[name];
+      rebuildPlan(merged);
+      return merged;
+    });
+  };
+
+  const shuffle = () => {
+    setPlan((prev) => {
+      const out = [...prev];
+      // Fisher-Yates: every ordering equally likely, unlike sort(() => …).
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+      }
+      return out;
     });
   };
 
@@ -169,11 +305,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
               </span>
             </div>
             <p className="mt-1 text-sm text-ink-soft">
-              {step === 'kind'
-                ? "Pick what it's for — the AI names and describes it from your first generation."
-                : step === 'look'
-                  ? `A ${kindLabel.toLowerCase()}. How long should it be, and how should it look?`
-                  : 'Does it check what was learned, and how hard should it be?'}
+              {SUBTITLES[step](kindLabel, slideCount)}
             </p>
 
             {/* A single sticky note: the steps swap in place. */}
@@ -304,7 +436,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                       </p>
                     </div>
                   </motion.div>
-                ) : (
+                ) : step === 'type' ? (
                   <motion.div
                     key="type"
                     initial={{ opacity: 0, x: 12 }}
@@ -394,7 +526,273 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                       </p>
                     </div>
                   </motion.div>
-                )}
+                ) : step === 'subject' ? (
+                  <motion.div
+                    key="subject"
+                    initial={{ opacity: 0, x: 12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 12 }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    <span className="micro mb-1.5 block text-ink-soft">Field</span>
+                    <div className="grid grid-cols-2 gap-3">
+                      {SUBJECTS.map((sub) => (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          onClick={() => {
+                            setSubject(sub.id);
+                            // The flavour list changes with the field, so a
+                            // stale pick would filter against the wrong tags.
+                            setFlavor(null);
+                            setCounts({});
+                            setPlan([]);
+                          }}
+                          aria-pressed={subject === sub.id}
+                          className={cn(
+                            'overflow-hidden rounded-wobble-sm border-2 text-left transition-all',
+                            subject === sub.id
+                              ? 'border-ink shadow-offset'
+                              : 'border-pencil opacity-75 hover:border-ink hover:opacity-100',
+                          )}
+                        >
+                          <img src={sub.art} alt="" className="h-[76px] w-full object-cover" />
+                          <span className="block border-t-2 border-inherit bg-paper-3 px-2.5 py-1.5">
+                            <span className="flex items-center gap-1.5">
+                              <span className="font-heading text-sm font-bold text-ink">
+                                {sub.label}
+                              </span>
+                              {subject === sub.id && (
+                                <span className="flex h-4 w-4 items-center justify-center rounded-full border-2 border-ink bg-yellow text-[9px] font-bold text-ink">
+                                  ✓
+                                </span>
+                              )}
+                            </span>
+                            <span className="micro block text-[0.56rem] leading-tight text-ink-faint">
+                              {sub.hint}
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-xs text-ink-faint">
+                      This decides which half of the layout catalog the next steps draw from.
+                    </p>
+                  </motion.div>
+                ) : step === 'focus' ? (
+                  <motion.div
+                    key="focus"
+                    initial={{ opacity: 0, x: 12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 12 }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    <span className="micro mb-1.5 block text-ink-soft">
+                      Focus — narrows the layouts on offer
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFlavor(null);
+                          setCounts({});
+                          setPlan([]);
+                        }}
+                        aria-pressed={flavor === null}
+                        className={cn(
+                          'rounded-wobble-sm border-2 px-3 py-1.5 text-sm font-bold transition-all',
+                          flavor === null
+                            ? 'border-ink bg-yellow shadow-offset text-ink'
+                            : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                        )}
+                      >
+                        Everything
+                      </button>
+                      {flavors.map((f) => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          title={f.hint}
+                          onClick={() => {
+                            setFlavor(f.id);
+                            setCounts({});
+                            setPlan([]);
+                          }}
+                          aria-pressed={flavor === f.id}
+                          className={cn(
+                            'flex items-center gap-1.5 rounded-wobble-sm border-2 px-3 py-1.5 text-sm font-bold transition-all',
+                            flavor === f.id
+                              ? 'border-ink bg-yellow shadow-offset text-ink'
+                              : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                          )}
+                        >
+                          <span className="font-mono text-xs">{f.symbol}</span>
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-2.5 text-xs text-ink-faint">
+                      {flavor
+                        ? TEMPLATE_FLAVORS.find((f) => f.id === flavor)?.hint
+                        : 'Every layout for this field stays on offer.'}{' '}
+                      <span className="font-bold text-ink-soft">
+                        {available.length} layout{available.length === 1 ? '' : 's'} available.
+                      </span>
+                    </p>
+                  </motion.div>
+                ) : step === 'plan' ? (
+                  <motion.div
+                    key="plan"
+                    initial={{ opacity: 0, x: 12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 12 }}
+                    transition={{ duration: 0.18 }}
+                    className="flex flex-col gap-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="micro block text-ink-soft">
+                        Layouts — {assigned} of {slideCount} slides
+                      </span>
+                      <SketchButton
+                        variant="ghost"
+                        size="sm"
+                        onClick={shuffle}
+                        disabled={plan.length < 2}
+                      >
+                        <Shuffle className="mr-1 h-3.5 w-3.5" />
+                        Shuffle
+                      </SketchButton>
+                    </div>
+
+                    {/* the running order, one chip per slide */}
+                    <div className="flex flex-wrap gap-1.5 rounded-wobble-sm border-2 border-dashed border-pencil p-2">
+                      {Array.from({ length: slideCount }).map((_, i) => (
+                        <span
+                          key={i}
+                          className={cn(
+                            'rounded-wobble-sm border-2 px-2 py-1 text-[0.62rem] font-bold',
+                            plan[i]
+                              ? 'border-ink bg-yellow-soft text-ink'
+                              : 'border-dotted border-pencil text-ink-faint',
+                          )}
+                        >
+                          {i + 1}. {plan[i] ?? 'AI picks'}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="flex max-h-[210px] flex-col gap-1.5 overflow-y-auto pr-1">
+                      {templatesQuery.isLoading && (
+                        <p className="text-sm text-ink-faint">Fetching layouts…</p>
+                      )}
+                      {available.map((t) => {
+                        const n = counts[t.name] ?? 0;
+                        return (
+                          <div
+                            key={String(t.id)}
+                            className={cn(
+                              'flex items-center gap-2 rounded-wobble-sm border-2 px-2.5 py-1.5',
+                              n > 0 ? 'border-ink bg-paper-3' : 'border-dashed border-pencil',
+                            )}
+                          >
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-heading text-sm font-bold text-ink">
+                                {t.name}
+                              </span>
+                              <span className="micro block truncate text-[0.54rem] text-ink-faint">
+                                {templateSequenceLabel(t.components)}
+                              </span>
+                            </span>
+                            <button
+                              type="button"
+                              aria-label={`One fewer ${t.name}`}
+                              onClick={() => bump(t.name, -1)}
+                              disabled={n === 0}
+                              className="h-6 w-6 shrink-0 rounded-wobble-sm border-2 border-ink font-bold leading-none text-ink disabled:opacity-30"
+                            >
+                              −
+                            </button>
+                            <span className="w-5 shrink-0 text-center font-mono text-sm font-bold text-ink">
+                              {n}
+                            </span>
+                            <button
+                              type="button"
+                              aria-label={`One more ${t.name}`}
+                              onClick={() => bump(t.name, 1)}
+                              disabled={slotsLeft === 0}
+                              className="h-6 w-6 shrink-0 rounded-wobble-sm border-2 border-ink bg-yellow font-bold leading-none text-ink disabled:opacity-30"
+                            >
+                              +
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-ink-faint">
+                      {slotsLeft > 0
+                        ? `${slotsLeft} slide${slotsLeft === 1 ? '' : 's'} left for the AI to choose — or fill them yourself.`
+                        : 'Every slide has a layout. Shuffle to change the running order.'}
+                    </p>
+                  </motion.div>
+                ) : step === 'text' ? (
+                  <motion.div
+                    key="text"
+                    initial={{ opacity: 0, x: 12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 12 }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    <span className="micro mb-1.5 block text-ink-soft">
+                      Text amount — per slide
+                    </span>
+                    <div className="flex flex-col gap-1.5">
+                      {TEXT_DENSITIES.map((d) => {
+                        const meta = TEXT_DENSITY_META[d];
+                        return (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => setTextDensity(d)}
+                            aria-pressed={textDensity === d}
+                            className={cn(
+                              'flex items-center gap-2.5 rounded-wobble-sm border-2 px-3 py-2 text-left transition-all',
+                              textDensity === d
+                                ? 'border-ink bg-yellow-soft shadow-offset'
+                                : 'border-dashed border-pencil hover:border-ink',
+                            )}
+                          >
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-heading text-sm font-bold text-ink">
+                                {meta.label}
+                              </span>
+                              <span className="micro block truncate text-[0.56rem] text-ink-faint">
+                                {meta.hint}
+                              </span>
+                            </span>
+                            <span className="shrink-0 font-mono text-[0.68rem] font-bold text-ink-soft">
+                              {meta.approxChars}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-2.5 text-xs text-ink-faint">
+                      About{' '}
+                      <span className="font-bold text-ink-soft">
+                        {(TEXT_DENSITY_META[textDensity].charsPerSlide * slideCount).toLocaleString()}{' '}
+                        characters
+                      </span>{' '}
+                      across {slideCount} slides.
+                    </p>
+                    {TEXT_DENSITY_META[textDensity].charsPerSlide * slideCount > 26_000 && (
+                      <p className="mt-1.5 rounded-wobble-sm border-2 border-dashed border-orange bg-yellow-soft px-2.5 py-1.5 text-xs text-ink">
+                        That is a lot of writing for one request — a deck this big can run past the
+                        server's time limit. Fewer slides, or a lighter text amount, generates more
+                        reliably.
+                      </p>
+                    )}
+                  </motion.div>
+                ) : null}
               </AnimatePresence>
             </div>
 

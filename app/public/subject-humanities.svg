@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" width="240" height="160" role="img" aria-label="Sketch of an open book, a quill and a classical column">
+  <rect width="240" height="160" fill="#EFE6D0"/>
+  <!-- ruled paper, the lined kind -->
+  <g stroke="#D9CBAA" stroke-width="1" opacity="0.55">
+    <line x1="0" y1="30" x2="240" y2="30"/><line x1="0" y1="60" x2="240" y2="60"/>
+    <line x1="0" y1="90" x2="240" y2="90"/><line x1="0" y1="120" x2="240" y2="120"/>
+    <line x1="0" y1="150" x2="240" y2="150"/>
+  </g>
+
+  <g fill="none" stroke="#2E2820" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+    <!-- classical column -->
+    <path d="M26 40 L74 40 L72 48 L28 48 Z" fill="#FFFDF6"/>
+    <path d="M32 48 L32 116 M44 48 L44 116 M56 48 L56 116 M68 48 L68 116" stroke-width="2.2" opacity="0.75"/>
+    <path d="M24 116 L76 116 L78 126 L22 126 Z" fill="#FFFDF6"/>
+
+    <!-- open book -->
+    <path d="M100 128 C118 116 138 116 154 124 C170 116 190 116 208 128
+             L208 66 C190 54 170 54 154 62 C138 54 118 54 100 66 Z" fill="#FFFDF6"/>
+    <path d="M154 62 L154 124"/>
+    <g stroke-width="2" opacity="0.6">
+      <path d="M110 76 L144 72"/><path d="M110 88 L144 84"/><path d="M110 100 L138 96"/>
+      <path d="M164 72 L198 76"/><path d="M164 84 L198 88"/><path d="M170 96 L198 100"/>
+    </g>
+  </g>
+
+  <!-- quill, laid across the page -->
+  <g fill="none" stroke="#DE5346" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M186 44 C176 30 158 26 146 34 C160 36 168 42 172 52"/>
+    <path d="M172 52 L156 66"/>
+  </g>
+</svg>

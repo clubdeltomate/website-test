@@ -196,7 +196,7 @@ export function buildSlidesSystemPrompt(opts: {
   tone?: string;
   purpose?: "education" | "commercial" | "walkthrough" | "news";
   /** how much explanatory text each slide carries — biases the paragraph floor */
-  textDensity?: "minimal" | "brief" | "standard" | "detailed";
+  textDensity?: "minimal" | "brief" | "standard" | "explained" | "dense";
   /** news decks only: the moment in time the briefing reports from */
   newsPeriod?: string;
   /** the exact topic/item this deck is about (e.g. a product name) */
@@ -229,18 +229,30 @@ export function buildSlidesSystemPrompt(opts: {
   // words). "detailed" adds substantially; "brief" trims to essentials.
   const density = opts.textDensity ?? "standard";
   const densityDelta =
-    density === "minimal" ? -99 : density === "brief" ? -1 : density === "detailed" ? 2 : 0;
+    density === "minimal"
+      ? -99
+      : density === "brief"
+        ? -1
+        : density === "dense"
+          ? 3
+          : density === "explained"
+            ? 2
+            : 0;
   const paraFloor = Math.max(1, purposeFloor + densityDelta);
   // Concrete word targets per tier so the knob visibly changes the output —
-  // brief/standard/detailed aim ~25% above what models naturally produce.
+  // Every tier sits well above what models naturally produce, because the
+  // model under-writes against a soft target; the floors are stated as hard
+  // rejection rules for that reason.
   const textAmountDirective =
     density === "minimal"
       ? "TEXT AMOUNT — MINIMAL: HARD CAP of TWO sentences of written prose per slide, total. Make those two sentences count — specific and vivid — but never write a third. Visuals carry the rest."
       : density === "brief"
-        ? "TEXT AMOUNT — BRIEF: concise but real — each slide carries roughly 60-90 words of written prose (about 3-5 sentences). Cut filler and tangents, never the substance."
-        : density === "detailed"
-          ? "TEXT AMOUNT — DETAILED: this deck is a READING activity. HARD RULE: every teaching slide carries AT LEAST 250 words of written prose — aim for 320-450 words across at least 3 substantial paragraphs. A slide below 250 words is a FAILED slide and will be rejected; go into depth with examples, consequences, common mistakes and connections, and when nothing genuinely new remains, reinforce the SAME point from a fresh angle so the reading stays substantial."
-          : "TEXT AMOUNT — STANDARD: a solid, satisfying amount of reading — every teaching slide carries AT LEAST 120 words of written prose, aiming for 150-200 across two to three meaty paragraphs (never one short blurb).";
+        ? "TEXT AMOUNT — BRIEF: concise but real — every teaching slide carries AT LEAST 90 words of written prose, aiming for 90-130 (about 5-7 sentences) across two paragraphs. Cut filler and tangents, never the substance."
+        : density === "dense"
+          ? "TEXT AMOUNT — DENSE: this deck is a serious READING assignment. HARD RULE: every teaching slide carries AT LEAST 650 words of written prose — aim for 650-850 words across at least 5 substantial paragraphs. A slide below 650 words is a FAILED slide and will be rejected. Develop the idea completely: definitions, mechanism, a worked example, edge cases, common misconceptions, why it matters, and how it connects to neighbouring ideas. When nothing genuinely new remains, deepen the SAME point from a fresh angle rather than stopping short."
+          : density === "explained"
+            ? "TEXT AMOUNT — EXPLAINED: this deck is a READING activity. HARD RULE: every teaching slide carries AT LEAST 400 words of written prose — aim for 400-550 words across at least 4 substantial paragraphs. A slide below 400 words is a FAILED slide and will be rejected; go into depth with worked examples, consequences, common mistakes and connections between ideas."
+            : "TEXT AMOUNT — STANDARD: a full lesson, not a summary. HARD RULE: every teaching slide carries AT LEAST 240 words of written prose — aim for 240-320 words across three meaty paragraphs. A slide below 240 words is a FAILED slide and will be rejected. Explain the idea, show it working with a concrete example, and say why it matters — never a single short blurb."
 
   const memory = opts.previouslyTaught
     ? `
