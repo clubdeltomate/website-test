@@ -629,6 +629,9 @@ export interface PriceSettings {
   perImageSlide: number;
   perTts: number;
   levelMultiplier: Record<Level, number>;
+  /** Admin-set ticket price in coins; null/absent = auto (the price of the
+   *  most expensive possible customization). Set from Finance → Set prices. */
+  ticketPriceOverride?: number | null;
 }
 
 export interface AppSettings {

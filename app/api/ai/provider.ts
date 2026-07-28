@@ -2,6 +2,7 @@ import { getDb } from "../queries/connection.js";
 import { apiKeys } from "../../db/schema.js";
 import { and, eq } from "drizzle-orm";
 import { getSettings } from "../settings.js";
+import { recordAiUsage } from "../finance.js";
 import type { AiCapability, AiProvider, ImageProvider } from "../../contracts/types.js";
 
 /* ------------------------------------------------------------------ */
@@ -258,12 +259,24 @@ export async function userHasKey(userId: number, capability: AiCapability): Prom
   return rows.length > 0;
 }
 
+/**
+ * What one provider call returns. The token counts are what the Finance
+ * expense tracker meters — they come from the provider's own accounting, so
+ * spend is measured rather than guessed. `usage` is absent when a provider
+ * does not report it.
+ */
+interface RawCompletion {
+  text: string;
+  model: string;
+  usage?: { input: number; output: number };
+}
+
 async function callOpenAICompatible(
   key: ResolvedKey,
   messages: ChatMessage[],
   maxTokens: number,
   timeoutMs: number,
-): Promise<string> {
+): Promise<RawCompletion> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.openai).replace(/\/$/, "");
   // Per-route output ceilings. Moonshot/DeepSeek reject very large
   // max_tokens; gpt-4o-mini tops out at 16k.
@@ -287,10 +300,17 @@ async function callOpenAICompatible(
   if (!res.ok) throw new Error(`OpenAI-compatible API ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const data = (await res.json()) as {
     choices?: { message?: { content?: string } }[];
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
   const text = data.choices?.[0]?.message?.content;
   if (!text) throw new Error("OpenAI-compatible API returned no content");
-  return text;
+  return {
+    text,
+    model: key.model || DEFAULT_MODELS.openai,
+    usage: data.usage
+      ? { input: data.usage.prompt_tokens ?? 0, output: data.usage.completion_tokens ?? 0 }
+      : undefined,
+  };
 }
 
 async function callAnthropic(
@@ -298,7 +318,7 @@ async function callAnthropic(
   messages: ChatMessage[],
   maxTokens: number,
   timeoutMs: number,
-): Promise<string> {
+): Promise<RawCompletion> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.anthropic).replace(/\/$/, "");
   maxTokens = Math.min(maxTokens, 8192); // haiku's per-request output ceiling
   const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
@@ -319,10 +339,19 @@ async function callAnthropic(
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new Error(`Anthropic API ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const data = (await res.json()) as { content?: { type: string; text?: string }[] };
+  const data = (await res.json()) as {
+    content?: { type: string; text?: string }[];
+    usage?: { input_tokens?: number; output_tokens?: number };
+  };
   const text = data.content?.find((c) => c.type === "text")?.text;
   if (!text) throw new Error("Anthropic API returned no text");
-  return text;
+  return {
+    text,
+    model: key.model || DEFAULT_MODELS.anthropic,
+    usage: data.usage
+      ? { input: data.usage.input_tokens ?? 0, output: data.usage.output_tokens ?? 0 }
+      : undefined,
+  };
 }
 
 async function callGemini(
@@ -330,7 +359,7 @@ async function callGemini(
   messages: ChatMessage[],
   maxTokens: number,
   timeoutMs: number,
-): Promise<string> {
+): Promise<RawCompletion> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.gemini).replace(/\/$/, "");
   const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
   const contents = messages
@@ -379,6 +408,7 @@ async function callGemini(
     }
     const data = (await res.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
+      usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
     };
     const candidate = data.candidates?.[0];
     if (candidate?.finishReason === "MAX_TOKENS") {
@@ -394,7 +424,16 @@ async function callGemini(
       console.warn(`[ai/text] ${lastError.message} — trying next model`);
       continue;
     }
-    return text;
+    return {
+      text,
+      model,
+      usage: data.usageMetadata
+        ? {
+            input: data.usageMetadata.promptTokenCount ?? 0,
+            output: data.usageMetadata.candidatesTokenCount ?? 0,
+          }
+        : undefined,
+    };
   }
   throw lastError ?? new Error("No Gemini text model available");
 }
@@ -447,21 +486,28 @@ export async function completeText(opts: {
   const keys = candidates.slice(0, Math.max(1, opts.maxCandidates ?? candidates.length));
   for (const key of keys) {
     try {
-      let text: string;
+      let out: RawCompletion;
       switch (key.provider) {
         case "openai":
-          text = await callOpenAICompatible(key, opts.messages, maxTokens, timeoutMs);
+          out = await callOpenAICompatible(key, opts.messages, maxTokens, timeoutMs);
           break;
         case "anthropic":
-          text = await callAnthropic(key, opts.messages, maxTokens, timeoutMs);
+          out = await callAnthropic(key, opts.messages, maxTokens, timeoutMs);
           break;
         case "gemini":
-          text = await callGemini(key, opts.messages, maxTokens, timeoutMs);
+          out = await callGemini(key, opts.messages, maxTokens, timeoutMs);
           break;
         default:
           continue; // e.g. an elevenlabs (tts-only) key can't do text
       }
-      return { text, provider: key.provider, source: key.source, keyId: resolvedKeyId(key) };
+      // Finance expense tracker. Awaited on purpose: a stray promise cannot be
+      // left running here — a serverless invocation stays open until it
+      // settles, so a slow bookkeeping write could outlive the deck it was
+      // measuring and take the whole request down with it. recordAiUsage
+      // bounds its own time and swallows its own errors, so the worst case is
+      // an unrecorded call, never a lost generation.
+      if (out.usage) await recordAiUsage(key, out.model, out.usage);
+      return { text: out.text, provider: key.provider, source: key.source, keyId: resolvedKeyId(key) };
     } catch (err) {
       // Bad key, quota, timeout, unreachable host — log and try the next key.
       const detail = err instanceof Error ? err.message : String(err);
@@ -747,6 +793,67 @@ export async function completeVision(opts: {
     }
   }
   return null;
+}
+
+export interface ProviderDiagnosis {
+  provider: ImageProvider;
+  source: "byok" | "platform" | "env";
+  model: string | null;
+  endpoint: string | null;
+  ok: boolean;
+  ms: number;
+  error: string | null;
+}
+
+/**
+ * Ping every configured TEXT provider, in parallel, with a real (tiny)
+ * generation. This is the answer to "generation failed but I can't see why":
+ * it names each key the server would actually use and reports whether it
+ * answers, how fast, and the exact error when it doesn't.
+ */
+export async function diagnoseTextProviders(
+  userId?: number,
+  timeoutMs = 12_000,
+): Promise<ProviderDiagnosis[]> {
+  const candidates = await resolveKeyCandidates(userId, "text").catch(() => [] as ResolvedKey[]);
+  const messages: ChatMessage[] = [
+    { role: "system", content: 'Reply with only this JSON: {"ok":true}' },
+    { role: "user", content: "ping" },
+  ];
+  return Promise.all(
+    candidates.map(async (key): Promise<ProviderDiagnosis> => {
+      const at = Date.now();
+      const base: Omit<ProviderDiagnosis, "ok" | "ms" | "error"> = {
+        provider: key.provider,
+        source: key.source,
+        model: key.model ?? DEFAULT_MODELS[key.provider as TextProvider] ?? null,
+        endpoint: key.baseUrl ?? null,
+      };
+      try {
+        switch (key.provider) {
+          case "openai":
+            await callOpenAICompatible(key, messages, 16, timeoutMs);
+            break;
+          case "anthropic":
+            await callAnthropic(key, messages, 16, timeoutMs);
+            break;
+          case "gemini":
+            await callGemini(key, messages, 16, timeoutMs);
+            break;
+          default:
+            throw new Error("not a text provider");
+        }
+        return { ...base, ok: true, ms: Date.now() - at, error: null };
+      } catch (err) {
+        return {
+          ...base,
+          ok: false,
+          ms: Date.now() - at,
+          error: (err instanceof Error ? err.message : String(err)).slice(0, 240),
+        };
+      }
+    }),
+  );
 }
 
 /**
