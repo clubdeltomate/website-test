@@ -106,6 +106,24 @@ export const TEXT_DENSITY_META: Record<TextDensity, TextDensityMeta> = {
   },
 };
 
+/**
+ * Which text amounts make sense at a given level. A0 and A1 readers are
+ * working through a few short sentences at a time — pouring a thousand
+ * characters onto a pre-beginner slide does not teach more, it just makes the
+ * slide unreadable for the person it was levelled for. Those levels offer the
+ * two short amounts only.
+ */
+export function allowedDensities(level: Level): TextDensity[] {
+  return level === "A0" || level === "A1" ? ["minimal", "brief"] : TEXT_DENSITIES;
+}
+
+/** Nearest allowed amount, used to pull a selection back in range when the
+ *  level changes under it rather than silently generating something else. */
+export function clampDensity(level: Level, density: TextDensity): TextDensity {
+  const allowed = allowedDensities(level);
+  return allowed.includes(density) ? density : allowed[allowed.length - 1];
+}
+
 export const IMAGE_STYLES: ImageStyle[] = ["sketch", "watercolor", "flat", "photo", "none"];
 export const REPO_TEMPLATES: RepoTemplate[] = ["course", "restaurant", "service", "shop", "walkthrough", "news", "other"];
 
