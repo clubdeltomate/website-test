@@ -32,6 +32,7 @@ import {
   templatesForContext,
   TEMPLATE_FLAVORS,
   sectionForTags,
+  isGradable,
   type SlideTemplate,
 } from '@contracts/slide-templates';
 import { Shuffle } from 'lucide-react';
@@ -141,7 +142,15 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
   const [subject, setSubject] = useState<'stem' | 'humanities'>(
     remembered.subject === 'humanities' ? 'humanities' : 'stem',
   );
-  const [flavor, setFlavor] = useState<string | null>(remembered.flavor);
+  /**
+   * Deliberately NOT restored from the remembered settings. Slide count and
+   * image style are preferences that carry between decks; "only Wolfram
+   * layouts" is a decision about one lesson. Restoring it meant a lesson on
+   * cannabis-infused recipes opened with a maths filter still applied from
+   * whatever was built before it, and the only layouts on offer were Wolfram
+   * ones. Every deck starts unfiltered.
+   */
+  const [flavor, setFlavor] = useState<string | null>(null);
   const [textDensity, setTextDensity] = useState<TextDensity>(remembered.textDensity);
   /**
    * One entry per slide, in running order: a layout name, or null for "let the
@@ -214,7 +223,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
     setIncludeQuiz(current.includeQuiz);
     setLevel(current.level);
     setSubject(current.subject === 'humanities' ? 'humanities' : 'stem');
-    setFlavor(current.flavor);
+    setFlavor(null);
     setTextDensity(current.textDensity);
     setPlan([]);
     setInstructions('');
@@ -273,20 +282,31 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
     return section === 'general' || section === subject;
   });
 
+  /** True when this deck will actually carry questions. */
+  const wantsQuiz = canQuiz && includeQuiz;
+
   const available: SlideTemplate[] = (() => {
     const all = templatesQuery.data ?? [];
-    const scoped = templatesForContext(all, {
+    let scoped = templatesForContext(all, {
       purpose: templateFilterPurpose(repoPurpose(template)),
       stem: subject === 'stem',
       level,
     });
+
+    // A "Normal" deck was asked for a presentation, so layouts that end in a
+    // multiple choice or a worksheet do not belong on the menu. This is a hard
+    // filter, not a preference: generation strips evaluations from a deck that
+    // is not allowed them, so planning a slide around one produced a slide
+    // whose closing step silently vanished.
+    if (!wantsQuiz) scoped = scoped.filter((t) => !t.components.some(isGradable));
+
     if (!flavor) return scoped;
     const meta = TEMPLATE_FLAVORS.find((f) => f.id === flavor);
     if (!meta) return scoped;
     const wanted = new Set(meta.tags);
     const hit = scoped.filter((t) => t.tags.some((tag) => wanted.has(tag)));
-    // A flavour with nothing in it would strand the step; fall back rather
-    // than show an empty picker with no way forward.
+    // The flavour is the soft one of the two: if narrowing to it leaves
+    // nothing, drop the flavour rather than the no-evaluation rule.
     return hit.length > 0 ? hit : scoped;
   })();
 
@@ -862,6 +882,12 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                         );
                       })}
                     </div>
+                    <p className="text-xs text-ink-faint">
+                      Showing {available.length} layout{available.length === 1 ? '' : 's'} for{' '}
+                      {template === 'course' ? `${subject === 'stem' ? 'STEM' : 'humanities'} · ` : ''}
+                      {wantsQuiz ? 'with questions' : 'no questions'}
+                      {flavor ? ` · ${TEMPLATE_FLAVORS.find((f) => f.id === flavor)?.label}` : ''}.
+                    </p>
                     <p className="text-xs text-ink-faint">
                       {slotsLeft > 0
                         ? `${slotsLeft} slide${slotsLeft === 1 ? '' : 's'} left for the AI to choose — or fill them yourself. Click a filled slide above to clear it.`
