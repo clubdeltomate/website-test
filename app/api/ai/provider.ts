@@ -41,6 +41,38 @@ export function resolvedKeyId(k: ResolvedKey): string {
   return `${k.provider}|${k.baseUrl ?? "-"}|${k.model ?? "-"}`;
 }
 
+/**
+ * Reorder candidates so the first ones all hit DIFFERENT services, keeping
+ * relative priority within each group.
+ *
+ * Callers cap how many candidates they can afford (a deck gets two, because
+ * two slow tries already fill a 60s invocation). That cap is only a fallback
+ * if the tries land on different services — and they did not: a platform
+ * Gemini key and an env Gemini key are two entries but one API, so when Gemini
+ * was slow BOTH tries timed out against it and Grok, OpenAI, DeepSeek and Kimi
+ * were never reached, despite being configured and healthy.
+ *
+ * Keys are grouped by endpoint rather than by `provider`, because most
+ * providers here speak the OpenAI protocol — Grok, DeepSeek, Kimi and
+ * OpenRouter all report `provider: "openai"` and only the base URL tells them
+ * apart. Duplicates are kept, just moved behind one of every other service, so
+ * a second key for the same API is still tried when the budget allows.
+ */
+export function orderForDiversity(candidates: ResolvedKey[]): ResolvedKey[] {
+  const firstOfService: ResolvedKey[] = [];
+  const duplicates: ResolvedKey[] = [];
+  const seen = new Set<string>();
+  for (const k of candidates) {
+    const service = `${k.provider}|${k.baseUrl ?? "-"}`;
+    if (seen.has(service)) duplicates.push(k);
+    else {
+      seen.add(service);
+      firstOfService.push(k);
+    }
+  }
+  return [...firstOfService, ...duplicates];
+}
+
 /** Providers with a chat/completion API (ElevenLabs is speech-only). */
 type TextProvider = Exclude<AiProvider, "elevenlabs">;
 
@@ -483,7 +515,10 @@ export async function completeText(opts: {
 
   const maxTokens = opts.maxTokens ?? 4096;
   const timeoutMs = Math.max(2_000, opts.timeoutMs ?? Number(process.env.AI_TEXT_TIMEOUT_MS ?? 25_000));
-  const keys = candidates.slice(0, Math.max(1, opts.maxCandidates ?? candidates.length));
+  const keys = orderForDiversity(candidates).slice(
+    0,
+    Math.max(1, opts.maxCandidates ?? candidates.length),
+  );
   for (const key of keys) {
     try {
       let out: RawCompletion;
