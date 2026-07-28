@@ -73,6 +73,28 @@ export function orderForDiversity(candidates: ResolvedKey[]): ResolvedKey[] {
   return [...firstOfService, ...duplicates];
 }
 
+/** Below this there is not enough time left for any reply to arrive. */
+export const MIN_SLICE_MS = 6_000;
+
+/**
+ * How long the next candidate may take, given a shared deadline.
+ *
+ * Returns null when the remaining time is too short to be worth spending —
+ * the caller reports that as a skip rather than burning the tail of the
+ * budget on a request that cannot land. With no deadline set every candidate
+ * simply gets the full per-call timeout, which is the old behaviour.
+ */
+export function nextSlice(
+  timeoutMs: number,
+  deadline: number | null,
+  now: number,
+): number | null {
+  if (deadline === null) return timeoutMs;
+  const remaining = deadline - now;
+  if (remaining < MIN_SLICE_MS) return null;
+  return Math.min(timeoutMs, remaining);
+}
+
 /** Providers with a chat/completion API (ElevenLabs is speech-only). */
 type TextProvider = Exclude<AiProvider, "elevenlabs">;
 
@@ -493,6 +515,10 @@ export async function completeText(opts: {
   /** Pass an array to collect each candidate's failure reason, so a total
    *  failure can report WHICH provider refused and why. */
   collectErrors?: string[];
+  /** Wall-clock ceiling for every candidate COMBINED. Without it each
+   *  candidate gets the full timeoutMs, which can overrun the caller's own
+   *  deadline; with it, the time is spent where it does the most good. */
+  budgetMs?: number;
 }): Promise<CompletionResult | null> {
   const capability = opts.capability ?? "text";
   let candidates = await resolveKeyCandidates(opts.userId, capability);
@@ -519,18 +545,37 @@ export async function completeText(opts: {
     0,
     Math.max(1, opts.maxCandidates ?? candidates.length),
   );
+  /**
+   * Wall-clock ceiling for ALL candidates together, rather than a fixed slice
+   * each. Dividing the budget evenly is what turned one slow success into two
+   * guaranteed failures: a deck is ~5.5k output tokens, which takes a provider
+   * 35-55s to produce, so two 26s tries could not finish even though a single
+   * longer one would have. Now the first candidate may use most of the budget,
+   * and a candidate that fails FAST (bad key, 400, refusal) leaves the rest of
+   * the time to the next one — which is when a fallback is actually useful.
+   */
+  const deadline = opts.budgetMs ? Date.now() + opts.budgetMs : null;
+
   for (const key of keys) {
+    const slice = nextSlice(timeoutMs, deadline, Date.now());
+    if (slice === null) {
+      const left = Math.max(0, Math.round(((deadline ?? 0) - Date.now()) / 1000));
+      const msg = `skipped — only ${left}s of the time budget left`;
+      opts.collectErrors?.push(`${key.provider} (${key.source}): ${msg}`);
+      console.warn(`[ai/text] ${key.provider} (${key.source}) ${msg}`);
+      break;
+    }
     try {
       let out: RawCompletion;
       switch (key.provider) {
         case "openai":
-          out = await callOpenAICompatible(key, opts.messages, maxTokens, timeoutMs);
+          out = await callOpenAICompatible(key, opts.messages, maxTokens, slice);
           break;
         case "anthropic":
-          out = await callAnthropic(key, opts.messages, maxTokens, timeoutMs);
+          out = await callAnthropic(key, opts.messages, maxTokens, slice);
           break;
         case "gemini":
-          out = await callGemini(key, opts.messages, maxTokens, timeoutMs);
+          out = await callGemini(key, opts.messages, maxTokens, slice);
           break;
         default:
           continue; // e.g. an elevenlabs (tts-only) key can't do text
