@@ -16,6 +16,10 @@ export interface GenDefaults {
   level: Level;
   imageStyle: ImageStyle;
   textDensity: TextDensity;
+  /** Slides type: true = the deck evaluates as it teaches (quiz slides),
+   *  false = it only presents. Chosen in the creation wizard and remembered
+   *  like the rest, so the tool page opens on the same choice. */
+  includeQuiz: boolean;
 }
 
 export const BASE_GEN_DEFAULTS: GenDefaults = {
@@ -23,6 +27,7 @@ export const BASE_GEN_DEFAULTS: GenDefaults = {
   level: 'A1',
   imageStyle: 'sketch',
   textDensity: 'standard',
+  includeQuiz: true,
 };
 
 /**
@@ -59,6 +64,10 @@ export function loadGenDefaults(userId?: number | null): GenDefaults {
           : BASE_GEN_DEFAULTS.slideCount,
       level: (parsed.level as Level) ?? BASE_GEN_DEFAULTS.level,
       imageStyle: (parsed.imageStyle as ImageStyle) ?? BASE_GEN_DEFAULTS.imageStyle,
+      includeQuiz:
+        typeof parsed.includeQuiz === 'boolean'
+          ? parsed.includeQuiz
+          : BASE_GEN_DEFAULTS.includeQuiz,
       textDensity: (parsed.textDensity as TextDensity) ?? BASE_GEN_DEFAULTS.textDensity,
     };
   } catch {
