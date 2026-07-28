@@ -30,11 +30,12 @@ import {
   templatesForContext,
   TEMPLATE_FLAVORS,
   sectionForTags,
-  templateSequenceLabel,
   type SlideTemplate,
 } from '@contracts/slide-templates';
 import { Shuffle } from 'lucide-react';
 import { TemplateIcon } from '@/components/repo/shared';
+import TemplateBar from '@/components/templates/TemplateBar';
+import { TemplateBadges } from '@/components/templates/TemplatePicker';
 import SketchButton from '../sketch/SketchButton';
 import WashiTape from '../sketch/WashiTape';
 
@@ -55,13 +56,13 @@ const CATEGORIES: { id: RepoTemplate; label: string; hint: string }[] = [
 type Step = 'kind' | 'look' | 'type' | 'subject' | 'focus' | 'plan' | 'text';
 
 /**
- * A menu item or a product is not STEM or humanities, and picking a lesson
- * flavour for one makes no sense — those decks skip straight from the slides
- * type to the layout plan.
+ * Only a Lesson asks which field it is. A walkthrough, a news briefing, a menu
+ * item, a service and a product are not STEM or humanities in any useful
+ * sense, and making someone answer it — then pick a lesson flavour — is two
+ * screens of nothing. Those go straight from the slides type to the plan.
  */
 function stepsFor(template: RepoTemplate): Step[] {
-  const teaches = templateFilterPurpose(repoPurpose(template)) === 'education';
-  return teaches
+  return template === 'course'
     ? ['kind', 'look', 'type', 'subject', 'focus', 'plan', 'text']
     : ['kind', 'look', 'type', 'plan', 'text'];
 }
@@ -143,6 +144,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
   const [counts, setCounts] = useState<Record<string, number>>({});
   /** The plan in running order — rebuilt from counts, reordered by Shuffle. */
   const [plan, setPlan] = useState<string[]>([]);
+  const [instructions, setInstructions] = useState('');
 
   const templatesQuery = trpc.templates.list.useQuery(undefined, { enabled: open });
 
@@ -168,13 +170,16 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
     setTextDensity(current.textDensity);
     setCounts({});
     setPlan([]);
+    setInstructions('');
   }, [open, user?.id]);
 
   const create = trpc.slideTools.create.useMutation({
     onSuccess: async ({ slug }) => {
       await utils.slideTools.list.invalidate();
       onClose();
-      navigate(`/slides/${slug}`);
+      // The wizard already asked everything the tool page would ask, so go
+      // straight into the generation rather than through the settings screen.
+      navigate(`/slides/${slug}?generate=1`);
     },
     onError: (err) => toast.error(err.message),
   });
@@ -205,6 +210,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
     create.mutate({
       name: `Untitled ${label}`,
       template,
+      instructions: instructions.trim(),
       defaultSlideCount: slideCount,
       defaultImageStyle: imageStyle,
       defaultLevel: level,
@@ -681,7 +687,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                       ))}
                     </div>
 
-                    <div className="flex max-h-[210px] flex-col gap-1.5 overflow-y-auto pr-1">
+                    <div className="flex max-h-[260px] flex-col gap-1.5 overflow-y-auto pr-1">
                       {templatesQuery.isLoading && (
                         <p className="text-sm text-ink-faint">Fetching layouts…</p>
                       )}
@@ -691,17 +697,20 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                           <div
                             key={String(t.id)}
                             className={cn(
-                              'flex items-center gap-2 rounded-wobble-sm border-2 px-2.5 py-1.5',
+                              'flex items-start gap-2 rounded-wobble-sm border-2 px-2.5 py-2',
                               n > 0 ? 'border-ink bg-paper-3' : 'border-dashed border-pencil',
                             )}
                           >
                             <span className="min-w-0 flex-1">
                               <span className="block truncate font-heading text-sm font-bold text-ink">
+                                <TemplateBadges tags={t.tags} />
                                 {t.name}
                               </span>
-                              <span className="micro block truncate text-[0.54rem] text-ink-faint">
-                                {templateSequenceLabel(t.components)}
-                              </span>
+                              {/* The layout itself, step by step — the same bar
+                                  the tool page shows, so a name like "Wolfram,
+                                  then answer" is not the only clue to what a
+                                  slide will actually contain. */}
+                              <TemplateBar components={t.components} className="mt-1" />
                             </span>
                             <button
                               type="button"
@@ -791,6 +800,28 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                         reliably.
                       </p>
                     )}
+
+                    <div className="mt-4">
+                      <label
+                        htmlFor="wizard-instructions"
+                        className="micro mb-1.5 block text-ink-soft"
+                      >
+                        Anything else? — optional
+                      </label>
+                      <textarea
+                        id="wizard-instructions"
+                        value={instructions}
+                        onChange={(e) => setInstructions(e.target.value)}
+                        rows={3}
+                        maxLength={4000}
+                        placeholder="e.g. focus on the Krebs cycle, use metric units, avoid analogies with sport"
+                        className="w-full resize-y rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-3 px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
+                      />
+                      <p className="mt-1 text-xs text-ink-faint">
+                        Steers the writing on every slide. It is saved with the tool, so a later
+                        regeneration keeps it.
+                      </p>
+                    </div>
                   </motion.div>
                 ) : null}
               </AnimatePresence>
@@ -809,7 +840,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
               )}
               {isLastStep ? (
                 <SketchButton variant="accent" loading={create.isPending} onClick={submit}>
-                  Create &amp; open
+                  Create &amp; generate
                 </SketchButton>
               ) : (
                 <SketchButton variant="accent" onClick={() => setStep(STEPS[stepIdx + 1])}>
