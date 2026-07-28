@@ -21,6 +21,8 @@ import {
   templateFilterPurpose,
   TEXT_DENSITIES,
   TEXT_DENSITY_META,
+  allowedDensities,
+  clampDensity,
   type ImageStyle,
   type Level,
   type RepoTemplate,
@@ -151,6 +153,15 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
   const templatesQuery = trpc.templates.list.useQuery(undefined, { enabled: open });
 
   const STEPS = stepsFor(template);
+
+  // A0/A1 offer the short amounts only. If the level is changed after the text
+  // amount was picked — easy, since Back is right there — the selection is
+  // pulled back into range rather than left showing an amount that is no
+  // longer on offer and would be generated anyway.
+  const densities = allowedDensities(level);
+  useEffect(() => {
+    setTextDensity((d) => clampDensity(level, d));
+  }, [level]);
 
   // Only education decks keep their evaluations; everything else has them
   // stripped during generation, so offering the choice there would be a lie.
@@ -834,17 +845,22 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                     <div className="flex flex-col gap-1.5">
                       {TEXT_DENSITIES.map((d) => {
                         const meta = TEXT_DENSITY_META[d];
+                        const blocked = !densities.includes(d);
                         return (
                           <button
                             key={d}
                             type="button"
+                            disabled={blocked}
+                            title={blocked ? `Too much text for ${level}` : meta.hint}
                             onClick={() => setTextDensity(d)}
-                            aria-pressed={textDensity === d}
+                            aria-pressed={textDensity === d && !blocked}
                             className={cn(
                               'flex items-center gap-2.5 rounded-wobble-sm border-2 px-3 py-2 text-left transition-all',
-                              textDensity === d
-                                ? 'border-ink bg-yellow-soft shadow-offset'
-                                : 'border-dashed border-pencil hover:border-ink',
+                              blocked
+                                ? 'cursor-not-allowed border-dashed border-pencil opacity-40'
+                                : textDensity === d
+                                  ? 'border-ink bg-yellow-soft shadow-offset'
+                                  : 'border-dashed border-pencil hover:border-ink',
                             )}
                           >
                             <span className="min-w-0 flex-1">
@@ -852,7 +868,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                                 {meta.label}
                               </span>
                               <span className="micro block truncate text-[0.56rem] text-ink-faint">
-                                {meta.hint}
+                                {blocked ? `Too much reading for ${level}` : meta.hint}
                               </span>
                             </span>
                             <span className="shrink-0 font-mono text-[0.68rem] font-bold text-ink-soft">
@@ -862,6 +878,13 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                         );
                       })}
                     </div>
+                    {densities.length < TEXT_DENSITIES.length && (
+                      <p className="mt-2 text-xs text-ink-faint">
+                        {LEVEL_LABEL[level]} reads a few short sentences at a time, so only the
+                        short amounts are offered. Raise the level on the previous step for longer
+                        writing.
+                      </p>
+                    )}
                     <p className="mt-2.5 text-xs text-ink-faint">
                       About{' '}
                       <span className="font-bold text-ink-soft">

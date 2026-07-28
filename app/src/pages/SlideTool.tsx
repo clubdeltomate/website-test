@@ -35,6 +35,8 @@ import {
   TONE_HINT,
   TEXT_DENSITIES,
   TEXT_DENSITY_META,
+  allowedDensities,
+  clampDensity,
 } from '@contracts/types';
 import SketchButton from '@/components/sketch/SketchButton';
 import Chip from '@/components/sketch/Chip';
@@ -671,6 +673,13 @@ function ToolStudio({
    * feature rather than move it.
    */
   const aiEntryDisabled = !seed && !configureIntent;
+
+  // Lowering the level must lower the text amount with it, or the deck would
+  // still be generated at the old length behind a control that no longer
+  // offers it.
+  useEffect(() => {
+    setTextDensity((d) => clampDensity(level, d));
+  }, [level]);
 
   const autoFiredRef = useRef(false);
   useEffect(() => {
@@ -1418,18 +1427,23 @@ function ToolStudio({
                     slide carries. Every amount still shows a real explanation.
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {TEXT_DENSITIES.map((d) => (
+                    {TEXT_DENSITIES.map((d) => {
+                      const blocked = !allowedDensities(level).includes(d);
+                      return (
                       <button
                         key={d}
                         type="button"
+                        disabled={blocked}
                         onClick={() => setTextDensity(d)}
-                        aria-pressed={textDensity === d}
-                        title={TEXT_DENSITY_META[d].hint}
+                        aria-pressed={textDensity === d && !blocked}
+                        title={blocked ? `Too much reading for ${level}` : TEXT_DENSITY_META[d].hint}
                         className={cn(
                           'rounded-wobble-sm border-2 px-3.5 py-1.5 text-sm font-bold transition-all',
-                          textDensity === d
-                            ? 'border-ink bg-blue-soft text-ink shadow-offset'
-                            : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                          blocked
+                            ? 'cursor-not-allowed border-dashed border-pencil opacity-40'
+                            : textDensity === d
+                              ? 'border-ink bg-blue-soft text-ink shadow-offset'
+                              : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
                         )}
                       >
                         {TEXT_DENSITY_META[d].label}
@@ -1437,8 +1451,15 @@ function ToolStudio({
                           {TEXT_DENSITY_META[d].approxChars}
                         </span>
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
+                  {allowedDensities(level).length < TEXT_DENSITIES.length && (
+                    <p className="micro mt-1.5 text-ink-faint">
+                      {level} reads a few short sentences at a time — the longer amounts are off
+                      until the level is raised.
+                    </p>
+                  )}
                 </div>
 
                 <div className="mb-3 border-t-2 border-dashed border-pencil" />
