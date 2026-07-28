@@ -316,6 +316,7 @@ function ToolStudio({
   tool,
   seed,
   configureIntent = false,
+  autoGenerate = false,
   onDismissSeed,
 }: {
   tool: SlideToolSummary;
@@ -323,6 +324,10 @@ function ToolStudio({
   /** arrived via a "Configure" link — generate a personal customization, never
    *  the repo preset (even for the owner/admin). */
   configureIntent?: boolean;
+  /** arrived straight from the creation wizard, which already asked every
+   *  question this page asks — so generate immediately instead of showing the
+   *  same settings a second time. */
+  autoGenerate?: boolean;
   onDismissSeed: () => void;
 }) {
   const { user, isGuest, role } = useAuth();
@@ -424,6 +429,27 @@ function ToolStudio({
    * the Toaster, and it stays on screen instead of timing out.
    */
   const [genError, setGenError] = useState<string | null>(null);
+
+  /**
+   * Announce a failure as a toast as well as the banner. It has to happen in an
+   * effect, not in the mutation's onError: sonner delivers only to a mounted
+   * <Toaster/> and never replays, and at the moment onError runs the generation
+   * theater is still on screen — the config view that owns the Toaster has not
+   * rendered yet, so a toast fired there reaches nobody. By the time this
+   * effect runs, it has.
+   */
+  useEffect(() => {
+    if (!genError) return;
+    const headline = genError.startsWith('AI_UNAVAILABLE')
+      ? 'No deck was generated — your tokens were refunded'
+      : genError.startsWith('NEED_TICKET')
+        ? 'You need a customization ticket for this repo'
+        : 'That generation did not finish';
+    toast.error(headline, {
+      description: genError.split('\n\n')[1]?.slice(0, 200) ?? genError.slice(0, 200),
+      duration: 10000,
+    });
+  }, [genError]);
   // Captured when the owner presses "Generate & set preset" so the completion
   // handoff never depends on repoQuery having re-resolved by then.
   const setFlowRef = useRef(false);
@@ -624,6 +650,27 @@ function ToolStudio({
       },
     );
   };
+
+  /**
+   * The wizard is now the settings screen: it asks the kind, the length, the
+   * image style, the slides type, the level, the layout plan and the text
+   * amount, then sends us here to run it. Showing those same questions again
+   * before anything happens would be asking twice, so a `?generate=1` arrival
+   * starts immediately. The ref makes it fire once — React runs effects twice
+   * in development, and a second run would spend the user's coins again.
+   */
+  const autoFiredRef = useRef(false);
+  useEffect(() => {
+    if (!autoGenerate || autoFiredRef.current) return;
+    autoFiredRef.current = true;
+    runGenerate();
+    // Drop the flag so a refresh, or Back from the player, does not regenerate.
+    const next = new URLSearchParams(window.location.search);
+    next.delete('generate');
+    const qs = next.toString();
+    window.history.replaceState({}, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoGenerate]);
 
   const enterPlayer = () => {
     if (!result) return;
@@ -1736,6 +1783,7 @@ export default function SlideTool() {
       tool={toolQuery.data}
       seed={seed}
       configureIntent={searchParams.get('intent') === 'configure'}
+      autoGenerate={searchParams.get('generate') === '1'}
       onDismissSeed={dismissSeed}
     />
   );
