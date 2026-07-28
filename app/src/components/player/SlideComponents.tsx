@@ -603,6 +603,122 @@ function CodeView({
   return <CodeDeck snippets={[component]} ci={ci} current={current} />;
 }
 
+/**
+ * The page strip shared by every kind of support material that comes in
+ * multiples — code files, illustrations, graphs. The Wolfram card and the
+ * annotation tool already worked this way; this is the same control, so a
+ * reader learns it once.
+ */
+function Pager({
+  labels,
+  page,
+  onPage,
+  ariaLabel,
+}: {
+  labels: string[];
+  page: number;
+  onPage: (i: number) => void;
+  ariaLabel: string;
+}) {
+  if (labels.length < 2) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label={ariaLabel}>
+      <button
+        type="button"
+        aria-label="Previous"
+        onClick={() => onPage((page - 1 + labels.length) % labels.length)}
+        className="flex h-6 w-6 items-center justify-center rounded-wobble-sm border-2 border-ink bg-paper font-bold leading-none text-ink transition-colors hover:bg-yellow-soft"
+      >
+        ‹
+      </button>
+      {labels.map((label, i) => (
+        <button
+          key={i}
+          type="button"
+          role="tab"
+          aria-selected={i === page}
+          title={label}
+          onClick={() => onPage(i)}
+          className={cn(
+            'max-w-[9rem] truncate rounded-wobble-sm border-2 px-2 py-0.5 font-heading text-[0.7rem] font-bold transition-all',
+            i === page
+              ? 'border-ink bg-yellow text-ink'
+              : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+          )}
+        >
+          {label}
+        </button>
+      ))}
+      <button
+        type="button"
+        aria-label="Next"
+        onClick={() => onPage((page + 1) % labels.length)}
+        className="flex h-6 w-6 items-center justify-center rounded-wobble-sm border-2 border-ink bg-paper font-bold leading-none text-ink transition-colors hover:bg-yellow-soft"
+      >
+        ›
+      </button>
+      <span className="micro ml-auto text-ink-faint">
+        {page + 1} / {labels.length}
+      </span>
+    </div>
+  );
+}
+
+/** Several illustrations for one slide, one at a time. */
+export function ImageDeck({
+  images,
+  ci,
+  current,
+  showcase = false,
+  imageProvider,
+}: {
+  images: Extract<SlideComponent, { type: 'image' }>[];
+  ci: number;
+  current: string | null;
+  showcase?: boolean;
+  imageProvider?: string | null;
+}) {
+  const [page, setPage] = useState(0);
+  const i = Math.min(page, images.length - 1);
+  return (
+    <div className="flex flex-col gap-2">
+      <Pager
+        labels={images.map((im, n) => im.alt?.slice(0, 28) || `Image ${n + 1}`)}
+        page={i}
+        onPage={setPage}
+        ariaLabel="Illustrations"
+      />
+      <ImageView component={images[i]} ci={ci} current={current} showcase={showcase} />
+      <SourceTag provider={imageProvider} kind="image" />
+    </div>
+  );
+}
+
+/** Several graphs for one slide, one at a time. */
+export function ChartDeck({
+  charts,
+  ci,
+  current,
+}: {
+  charts: Extract<SlideComponent, { type: 'chart' }>[];
+  ci: number;
+  current: string | null;
+}) {
+  const [page, setPage] = useState(0);
+  const i = Math.min(page, charts.length - 1);
+  return (
+    <div className="flex flex-col gap-2">
+      <Pager
+        labels={charts.map((c, n) => c.title?.slice(0, 28) || `Graph ${n + 1}`)}
+        page={i}
+        onPage={setPage}
+        ariaLabel="Graphs"
+      />
+      <ChartView component={charts[i]} ci={ci} current={current} />
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Dispatcher                                                          */
 /* ------------------------------------------------------------------ */
