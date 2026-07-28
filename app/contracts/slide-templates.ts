@@ -503,6 +503,28 @@ const GENERAL_TEMPLATES: SlideTemplate[] = [
   bi("Read the chart", "A1", ["prose", "chart", "quiz"], []),
   bi("Interpret the graph", "B1", ["prose", "chart", "prose", "quiz"], []),
   bi("Graph analysis (general)", "C1", ["prose", "chart", "prose", "shortanswer"], []),
+
+  // PAGED SUPPORT MATERIAL — several of one kind on a single slide, which the
+  // player shows one page at a time rather than stacking. Empty tags means
+  // every field offers them, and there is one of each at A1/B1/C1 so they
+  // survive the tier filter at any level. Each comes in two forms because a
+  // "Normal" deck filters out every layout with a gradable step.
+  bi("Two pictures compared", "A1", ["prose", "image", "image", "mcq2"], []),
+  bi("Picture gallery", "A1", ["prose", "image", "image", "image"], []),
+  bi("Illustrated sequence", "B1", ["prose", "image", "image", "image", "prose", "quiz"], []),
+  bi("Illustrated walk-through", "B1", ["prose", "image", "image", "image", "prose"], []),
+  bi("Visual case study", "C1", ["prose", "image", "image", "image", "prose", "prose", "shortanswer"], []),
+  bi("Visual essay", "C1", ["prose", "image", "image", "image", "prose", "prose"], []),
+
+  bi("Two graphs compared", "A1", ["prose", "chart", "chart", "mcq2"], []),
+  bi("Graph gallery", "A1", ["prose", "chart", "chart", "chart"], []),
+  bi("Graph series", "B1", ["prose", "chart", "chart", "chart", "prose", "quiz"], []),
+  bi("Graph series explained", "B1", ["prose", "chart", "chart", "chart", "prose"], []),
+  bi("Data across graphs", "C1", ["prose", "chart", "chart", "chart", "prose", "prose", "shortanswer"], []),
+  bi("Data story", "C1", ["prose", "chart", "chart", "chart", "prose", "prose"], []),
+
+  bi("Code in three files", "B1", ["prose", "code", "code", "code", "prose"], []),
+  bi("Code compared", "C1", ["prose", "code", "code", "code", "prose", "prose", "shortanswer"], []),
 ];
 
 /* ---------------- Commercial: showcase an item (no quiz) ---------------- */

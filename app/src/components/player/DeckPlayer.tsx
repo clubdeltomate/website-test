@@ -10,7 +10,7 @@ import SketchButton from '../sketch/SketchButton';
 import WashiTape from '../sketch/WashiTape';
 import { DoodleSparkle, DoodleStar, DoodleSpiral } from '../sketch/DoodleIcons';
 import PlayerHeader from './PlayerHeader';
-import SlideComponentView, { Kara, CodeDeck } from './SlideComponents';
+import SlideComponentView, { Kara, CodeDeck, ImageDeck, ChartDeck } from './SlideComponents';
 import QuizCard, { type QuizAnswer } from './QuizCard';
 import FinishScreen from './FinishScreen';
 import CommercialFinish from './CommercialFinish';
@@ -105,17 +105,25 @@ const item = {
  */
 
 /**
- * Collapse runs of adjacent code components into one group, leaving everything
- * else alone. A slide that shows the same example in three languages emits
- * three code components in a row; they belong in one tabbed window rather than
- * as three stacked boxes the reader has to scroll past.
+ * Support material that arrives in multiples and is read one page at a time.
+ * Wolfram already worked this way on its own; these are the kinds where the
+ * slide carries several of the same thing.
  */
-function codeGrouped(idxs: number[], components: SlideComponent[]): number[][] {
+const PAGEABLE = new Set(['code', 'image', 'chart']);
+
+/**
+ * Collapse runs of adjacent same-kind components into one group, leaving
+ * everything else alone. A slide showing one example in three languages, or
+ * three illustrations, or three graphs, emits them as a run; they belong in
+ * one paged window rather than as three stacked boxes to scroll past.
+ */
+function pagedGroups(idxs: number[], components: SlideComponent[]): number[][] {
   const groups: number[][] = [];
   for (const i of idxs) {
+    const type = components[i]?.type;
     const last = groups[groups.length - 1];
-    const isCode = components[i]?.type === 'code';
-    if (isCode && last && components[last[last.length - 1]]?.type === 'code') last.push(i);
+    const lastType = last ? components[last[last.length - 1]]?.type : undefined;
+    if (type && PAGEABLE.has(type) && last && lastType === type) last.push(i);
     else groups.push([i]);
   }
   return groups;
@@ -577,18 +585,39 @@ export default function DeckPlayer({
                     its own row with no height cap, so the slide matches the
                     layout template's shape exactly. */}
                 <motion.div variants={item} className="mt-6 flex flex-col gap-6">
-                  {codeGrouped(orderedIdxs, slide.components).map((group) =>
+                  {pagedGroups(orderedIdxs, slide.components).map((group) =>
                     group.length > 1 ? (
-                      // Several code blocks in a row are one window with tabs —
-                      // the HTML, CSS and JS of one example read as one thing.
-                      <CodeDeck
-                        key={`code-${group[0]}`}
-                        ci={group[0]}
-                        current={readAloud.currentKey}
-                        snippets={group.map(
-                          (i) => slide.components[i] as Extract<SlideComponent, { type: 'code' }>,
-                        )}
-                      />
+                      // A run of one kind becomes a single paged window.
+                      slide.components[group[0]].type === 'code' ? (
+                        <CodeDeck
+                          key={`code-${group[0]}`}
+                          ci={group[0]}
+                          current={readAloud.currentKey}
+                          snippets={group.map(
+                            (i) => slide.components[i] as Extract<SlideComponent, { type: 'code' }>,
+                          )}
+                        />
+                      ) : slide.components[group[0]].type === 'image' ? (
+                        <ImageDeck
+                          key={`image-${group[0]}`}
+                          ci={group[0]}
+                          current={readAloud.currentKey}
+                          showcase={!!commercial}
+                          imageProvider={deck.imageProvider}
+                          images={group.map(
+                            (i) => slide.components[i] as Extract<SlideComponent, { type: 'image' }>,
+                          )}
+                        />
+                      ) : (
+                        <ChartDeck
+                          key={`chart-${group[0]}`}
+                          ci={group[0]}
+                          current={readAloud.currentKey}
+                          charts={group.map(
+                            (i) => slide.components[i] as Extract<SlideComponent, { type: 'chart' }>,
+                          )}
+                        />
+                      )
                     ) : (
                       <SlideComponentView
                         key={group[0]}
