@@ -154,6 +154,34 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
   // stripped during generation, so offering the choice there would be a lie.
   const canQuiz = repoPurpose(template) === 'education';
 
+  /**
+   * Hold the page still while the note is open. Without this a wheel over the
+   * layout list scrolls the gallery behind it instead — the list is a small
+   * scroller inside a fixed overlay, and once it reaches an end (or if the
+   * pointer is a pixel outside it) the browser hands the scroll to the body.
+   * Freezing the body is the half of the fix that does not depend on where the
+   * pointer happens to be; overscroll-contain on the list is the other half.
+   */
+  useEffect(() => {
+    if (!open) return;
+    // Both elements, deliberately. Overflow on the root propagates to the
+    // viewport, and which of <html>/<body> wins depends on the other's value,
+    // so locking just one is the coin-flip that let the gallery keep scrolling
+    // under the note. The scroll position is restored on close, because
+    // freezing a scrolled page and releasing it must not jump the view.
+    const html = document.documentElement;
+    const body = document.body;
+    const keep = { html: html.style.overflow, body: body.style.overflow };
+    const y = window.scrollY;
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    return () => {
+      html.style.overflow = keep.html;
+      body.style.overflow = keep.body;
+      window.scrollTo(0, y);
+    };
+  }, [open]);
+
   // Reopening starts a fresh tool, so start at the first question again — and
   // re-read the remembered settings, which the last generation may have moved.
   useEffect(() => {
@@ -290,12 +318,17 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-          <div className="absolute inset-0 bg-ink/30" onClick={onClose} aria-hidden="true" />
+          <div
+            data-lenis-prevent
+            className="absolute inset-0 bg-ink/30"
+            onClick={onClose}
+            aria-hidden="true"
+          />
           <motion.div
             role="dialog"
             aria-modal="true"
             aria-label="New slide tool"
-            className="relative w-full max-w-[480px] rounded-wobble-2 border-2 border-ink bg-paper-3 p-6 pt-9 shadow-offset sm:p-8 sm:pt-10"
+            className="relative flex max-h-[92vh] w-full max-w-[480px] flex-col rounded-wobble-2 border-2 border-ink bg-paper-3 p-6 pt-9 shadow-offset sm:p-8 sm:pt-10"
             initial={{ scale: 0.96, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.96, opacity: 0 }}
@@ -314,8 +347,21 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
               {SUBTITLES[step](kindLabel, slideCount)}
             </p>
 
-            {/* A single sticky note: the steps swap in place. */}
-            <div className="mt-5">
+            {/* A single sticky note: the steps swap in place. This is the only
+                scroller — a tall step scrolls here rather than pushing the note
+                past the viewport and handing the wheel to the page behind.
+
+                data-lenis-prevent is the load-bearing part: the site runs Lenis
+                smooth scrolling, which swallows wheel events globally and moves
+                the page by script. Script-driven scrolling ignores overflow
+                rules, so no amount of locking the page stops it and a nested
+                scroller never sees the wheel at all — this attribute is how the
+                rest of the app (chat thread, slide player, admin drawers) opts
+                a container back into native scrolling. */}
+            <div
+              data-lenis-prevent
+              className="mt-5 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-0.5"
+            >
               <AnimatePresence mode="wait" initial={false}>
                 {step === 'kind' ? (
                   <motion.div
@@ -687,7 +733,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                       ))}
                     </div>
 
-                    <div className="flex max-h-[260px] flex-col gap-1.5 overflow-y-auto pr-1">
+                    <div className="flex flex-col gap-1.5">
                       {templatesQuery.isLoading && (
                         <p className="text-sm text-ink-faint">Fetching layouts…</p>
                       )}
