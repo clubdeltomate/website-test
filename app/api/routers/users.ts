@@ -1,10 +1,26 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import { createRouter, publicQuery } from "../middleware.js";
 import { adminProcedure, authedProcedure, moderatorProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
-import { favorites, repos, runs, slideTools, tokenLedger, users } from "../../db/schema.js";
+import {
+  apiKeys,
+  customizations,
+  favorites,
+  lessonLogs,
+  lessons,
+  orders,
+  payments,
+  repos,
+  runs,
+  slideTools,
+  ticketRequests,
+  tickets,
+  tokenLedger,
+  units,
+  users,
+} from "../../db/schema.js";
 import { applyTokenDelta } from "../tokens.js";
 import { hashPassword } from "../auth-utils.js";
 import { favoriteSlugs, repoSummaries } from "./repos.js";
@@ -219,24 +235,99 @@ export const usersRouter = createRouter({
       return { ok: true as const };
     }),
 
-  /** Moderator+ manual token credit with ledger entry. */
+  /**
+   * Moderator+ manual token adjustment with ledger entry. `direction:
+   * "deduct"` removes previously awarded credits (never below zero).
+   */
   creditTokens: moderatorProcedure
     .input(
       z.object({
         userId: z.number().int(),
         amount: z.number().int().min(1).max(100000),
         reason: z.string().max(255).default("manual credit"),
+        direction: z.enum(["credit", "deduct"]).default("credit"),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       const user = await db.query.users.findFirst({ where: eq(users.id, input.userId) });
       if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      if (input.direction === "deduct" && input.amount > user.tokenBalance) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `${user.name} only has ${user.tokenBalance} 🪙 — can't remove ${input.amount}`,
+        });
+      }
+      const delta = input.direction === "deduct" ? -input.amount : input.amount;
       const balance = await applyTokenDelta(
         input.userId,
-        input.amount,
+        delta,
         `${input.reason} (by ${ctx.user.email})`,
       );
       return { ok: true as const, balance };
+    }),
+
+  /**
+   * Admin only — permanently remove an account and everything it owns.
+   * The schema has no DB-level FK cascades, so every table that points at
+   * the user (or at their repos) is cleaned up here explicitly.
+   */
+  deleteUser: adminProcedure
+    .input(z.object({ userId: z.number().int() }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.userId === ctx.user.id) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "You can't delete your own account" });
+      }
+      const db = getDb();
+      const user = await db.query.users.findFirst({ where: eq(users.id, input.userId) });
+      if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+
+      await db.transaction(async (tx) => {
+        // Their repos, plus the course content and ticket economy inside them
+        const owned = await tx
+          .select({ id: repos.id })
+          .from(repos)
+          .where(eq(repos.ownerId, user.id));
+        const repoIds = owned.map((r) => r.id);
+        if (repoIds.length) {
+          const repoUnits = await tx
+            .select({ id: units.id })
+            .from(units)
+            .where(inArray(units.repoId, repoIds));
+          const unitIds = repoUnits.map((u) => u.id);
+          if (unitIds.length) await tx.delete(lessons).where(inArray(lessons.unitId, unitIds));
+          await tx.delete(units).where(inArray(units.repoId, repoIds));
+          await tx.delete(customizations).where(inArray(customizations.repoId, repoIds));
+          await tx.delete(tickets).where(inArray(tickets.repoId, repoIds));
+          await tx.delete(ticketRequests).where(inArray(ticketRequests.repoId, repoIds));
+          await tx.delete(repos).where(inArray(repos.id, repoIds));
+        }
+        await tx.delete(slideTools).where(eq(slideTools.ownerId, user.id));
+
+        // Personal rows
+        await tx.delete(apiKeys).where(eq(apiKeys.userId, user.id));
+        await tx.delete(favorites).where(eq(favorites.userId, user.id));
+        await tx.delete(tokenLedger).where(eq(tokenLedger.userId, user.id));
+        await tx.delete(payments).where(eq(payments.userId, user.id));
+        await tx.delete(customizations).where(eq(customizations.userId, user.id));
+        await tx.delete(lessonLogs).where(eq(lessonLogs.userId, user.id));
+        await tx.delete(runs).where(eq(runs.userId, user.id));
+        await tx.delete(orders).where(eq(orders.ownerId, user.id));
+        await tx
+          .delete(tickets)
+          .where(or(eq(tickets.holderId, user.id), eq(tickets.issuedById, user.id)));
+        await tx
+          .delete(ticketRequests)
+          .where(or(eq(ticketRequests.requesterId, user.id), eq(ticketRequests.ownerId, user.id)));
+
+        // Favorites other people made OF this user
+        await tx
+          .delete(favorites)
+          .where(and(eq(favorites.targetType, "user"), eq(favorites.targetSlug, String(user.id))));
+
+        await tx.delete(users).where(eq(users.id, user.id));
+      });
+
+      return { ok: true as const };
     }),
 });
