@@ -477,10 +477,13 @@ function SellTicketsForm({
   ticketPriceCoins,
   packRate,
   estCostPerTicket,
+  onReceipt,
 }: {
   ticketPriceCoins: number;
   packRate: number;
   estCostPerTicket: number;
+  /** hand the completed sale up so its receipt opens straight away */
+  onReceipt: (sale: TicketSale) => void;
 }) {
   const utils = trpc.useUtils();
   const usersList = trpc.users.list.useQuery({ limit: 200 });
@@ -488,10 +491,27 @@ function SellTicketsForm({
   const [count, setCount] = useState(5);
 
   const sell = trpc.tickets.sellToModerator.useMutation({
-    onSuccess: (r) => {
+    onSuccess: async (r) => {
       toast.success(`Sold ${count} ticket${count === 1 ? '' : 's'} — ${r.tokenBalance} 🪙 left on their balance`);
-      void utils.finance.overview.invalidate();
+      const email = target?.email;
+      await utils.finance.overview.invalidate();
       void utils.users.list.invalidate();
+      // A ticket sale already produced a receipt, but the only way to it was to
+      // find the row in Transfers afterwards. Open it here, the way the coin
+      // desk does — the sale is read back from the refreshed overview because
+      // its ledger id is the server's to assign, not ours to guess.
+      try {
+        const fresh = await utils.finance.overview.fetch();
+        const mine = fresh.ticketSales.filter((sale) => sale.userEmail === email);
+        const newest = mine.reduce<TicketSale | null>(
+          (best, sale) =>
+            !best || new Date(sale.createdAt) > new Date(best.createdAt) ? sale : best,
+          null,
+        );
+        if (newest) onReceipt(newest);
+      } catch {
+        // The sale itself went through; the receipt is still in Transfers.
+      }
     },
     onError: (e) => toast.error(errMsg(e)),
   });
@@ -543,7 +563,8 @@ function SellTicketsForm({
           disabled={userId === '' || short}
           onClick={() => userId !== '' && sell.mutate({ userId, count })}
         >
-          Sell {count} ticket{count === 1 ? '' : 's'}
+          <ReceiptText className="h-4 w-4" strokeWidth={2} /> Sell {count} ticket
+          {count === 1 ? '' : 's'} + receipt
         </SketchButton>
       </div>
       {short && (
@@ -1675,6 +1696,7 @@ function FinanceBody() {
                   ticketPriceCoins={data.ticketPriceCoins}
                   packRate={packRate}
                   estCostPerTicket={salesBasis.maxDeckCostUsd}
+                  onReceipt={setTicketReceipt}
                 />
               </div>
             </div>
