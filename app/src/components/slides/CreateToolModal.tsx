@@ -13,7 +13,15 @@ import {
   SLIDE_COUNT_MIN,
   SLIDE_COUNT_MAX,
 } from '@/lib/genDefaults';
-import type { ImageStyle, RepoTemplate } from '@contracts/types';
+import {
+  LEVELS,
+  LEVEL_LABEL,
+  levelTier,
+  repoPurpose,
+  type ImageStyle,
+  type Level,
+  type RepoTemplate,
+} from '@contracts/types';
 import { TemplateIcon } from '@/components/repo/shared';
 import SketchButton from '../sketch/SketchButton';
 import WashiTape from '../sketch/WashiTape';
@@ -32,7 +40,30 @@ const CATEGORIES: { id: RepoTemplate; label: string; hint: string }[] = [
   { id: 'shop', label: 'Product', hint: 'Marketplace display — no evaluations' },
 ];
 
-type Step = 'kind' | 'look';
+type Step = 'kind' | 'look' | 'type';
+const STEPS: Step[] = ['kind', 'look', 'type'];
+
+/**
+ * Slides type. "Quiz" only means anything where the deck is allowed to carry
+ * evaluations at all: generation strips quizzes from every non-education
+ * purpose, so a menu or a walkthrough can only ever be a presentation. The
+ * card is shown for those too, but disabled and explained, rather than
+ * silently accepting a choice that would be thrown away.
+ */
+const SLIDE_TYPES: { id: 'quiz' | 'normal'; label: string; hint: string; art: string }[] = [
+  {
+    id: 'quiz',
+    label: 'Quiz',
+    hint: 'Teaches, then checks — slides carry questions',
+    art: '/slidetype-quiz.svg',
+  },
+  {
+    id: 'normal',
+    label: 'Normal',
+    hint: 'Presents the information — no questions',
+    art: '/slidetype-normal.svg',
+  },
+];
 
 /**
  * "New slide tool" — a short wizard on one sticky note. Step one asks what the
@@ -53,6 +84,12 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
   const [template, setTemplate] = useState<RepoTemplate>('course');
   const [slideCount, setSlideCount] = useState(remembered.slideCount);
   const [imageStyle, setImageStyle] = useState<ImageStyle>(remembered.imageStyle);
+  const [includeQuiz, setIncludeQuiz] = useState(remembered.includeQuiz);
+  const [level, setLevel] = useState<Level>(remembered.level);
+
+  // Only education decks keep their evaluations; everything else has them
+  // stripped during generation, so offering the choice there would be a lie.
+  const canQuiz = repoPurpose(template) === 'education';
 
   // Reopening starts a fresh tool, so start at the first question again — and
   // re-read the remembered settings, which the last generation may have moved.
@@ -63,6 +100,8 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
     setTemplate('course');
     setSlideCount(current.slideCount);
     setImageStyle(current.imageStyle);
+    setIncludeQuiz(current.includeQuiz);
+    setLevel(current.level);
   }, [open, user?.id]);
 
   const create = trpc.slideTools.create.useMutation({
@@ -80,16 +119,25 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
     // Both are needed: the settings page intentionally opens with the user's
     // remembered settings rather than the tool's stored ones, so saving only
     // the tool would leave this step with nothing to show for itself.
-    saveGenDefaults(user?.id, { ...loadGenDefaults(user?.id), slideCount, imageStyle });
+    saveGenDefaults(user?.id, {
+      ...loadGenDefaults(user?.id),
+      slideCount,
+      imageStyle,
+      level,
+      includeQuiz: canQuiz && includeQuiz,
+    });
     create.mutate({
       name: `Untitled ${label}`,
       template,
       defaultSlideCount: slideCount,
       defaultImageStyle: imageStyle,
+      defaultLevel: level,
     });
   };
 
   const kindLabel = CATEGORIES.find((c) => c.id === template)?.label ?? '';
+  const stepIdx = STEPS.indexOf(step);
+  const isLastStep = stepIdx === STEPS.length - 1;
 
   return (
     <AnimatePresence>
@@ -117,13 +165,15 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
             <div className="flex items-start justify-between gap-3">
               <h2 className="font-display text-4xl font-bold text-ink">New slide tool</h2>
               <span className="micro mt-2 shrink-0 text-ink-faint">
-                Step {step === 'kind' ? 1 : 2} of 2
+                Step {STEPS.indexOf(step) + 1} of {STEPS.length}
               </span>
             </div>
             <p className="mt-1 text-sm text-ink-soft">
               {step === 'kind'
                 ? "Pick what it's for — the AI names and describes it from your first generation."
-                : `A ${kindLabel.toLowerCase()}. How long should it be, and how should it look?`}
+                : step === 'look'
+                  ? `A ${kindLabel.toLowerCase()}. How long should it be, and how should it look?`
+                  : 'Does it check what was learned, and how hard should it be?'}
             </p>
 
             {/* A single sticky note: the steps swap in place. */}
@@ -166,7 +216,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                       ))}
                     </div>
                   </motion.div>
-                ) : (
+                ) : step === 'look' ? (
                   <motion.div
                     key="look"
                     initial={{ opacity: 0, x: 12 }}
@@ -254,29 +304,119 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                       </p>
                     </div>
                   </motion.div>
+                ) : (
+                  <motion.div
+                    key="type"
+                    initial={{ opacity: 0, x: 12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 12 }}
+                    transition={{ duration: 0.18 }}
+                    className="flex flex-col gap-5"
+                  >
+                    <div>
+                      <span className="micro mb-1.5 block text-ink-soft">Slides type</span>
+                      <div className="grid grid-cols-2 gap-3">
+                        {SLIDE_TYPES.map((t) => {
+                          const chosen = (t.id === 'quiz') === includeQuiz;
+                          const blocked = t.id === 'quiz' && !canQuiz;
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              disabled={blocked}
+                              onClick={() => setIncludeQuiz(t.id === 'quiz')}
+                              aria-pressed={chosen && !blocked}
+                              className={cn(
+                                'overflow-hidden rounded-wobble-sm border-2 text-left transition-all',
+                                blocked
+                                  ? 'cursor-not-allowed border-dashed border-pencil opacity-45'
+                                  : chosen
+                                    ? 'border-ink shadow-offset'
+                                    : 'border-pencil opacity-75 hover:opacity-100 hover:border-ink',
+                              )}
+                            >
+                              <img
+                                src={t.art}
+                                alt=""
+                                className="h-[76px] w-full object-cover"
+                              />
+                              <span className="block border-t-2 border-inherit bg-paper-3 px-2.5 py-1.5">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="font-heading text-sm font-bold text-ink">
+                                    {t.label}
+                                  </span>
+                                  {chosen && !blocked && (
+                                    <span className="flex h-4 w-4 items-center justify-center rounded-full border-2 border-ink bg-yellow text-[9px] font-bold text-ink">
+                                      ✓
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="micro block text-[0.56rem] leading-tight text-ink-faint">
+                                  {blocked ? `A ${kindLabel.toLowerCase()} never carries questions` : t.hint}
+                                </span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="micro mb-1.5 block text-ink-soft">
+                        Level (CEFR) — language and exercise difficulty
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {LEVELS.map((l) => (
+                          <button
+                            key={l}
+                            type="button"
+                            onClick={() => setLevel(l)}
+                            aria-pressed={level === l}
+                            title={LEVEL_LABEL[l]}
+                            className={cn(
+                              'rounded-wobble-sm border-2 px-3.5 py-1.5 text-sm font-bold transition-all',
+                              level === l
+                                ? levelTier(l) === 'light'
+                                  ? 'border-ink bg-green-soft text-ink shadow-offset'
+                                  : levelTier(l) === 'mid'
+                                    ? 'border-ink bg-yellow-soft text-ink shadow-offset'
+                                    : 'border-ink bg-red-soft text-ink shadow-offset'
+                                : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                            )}
+                          >
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-xs text-ink-faint">
+                        {LEVEL_LABEL[level]} — sets vocabulary and sentence complexity, and how hard
+                        the problems and worked examples get.
+                      </p>
+                    </div>
+                  </motion.div>
                 )}
               </AnimatePresence>
             </div>
 
             <div className="mt-6 flex items-center justify-end gap-3">
-              {step === 'look' ? (
-                <SketchButton variant="ghost" onClick={() => setStep('kind')}>
-                  <ArrowLeft className="mr-1 h-4 w-4" />
-                  Back
-                </SketchButton>
-              ) : (
+              {stepIdx === 0 ? (
                 <SketchButton variant="ghost" onClick={onClose}>
                   Cancel
                 </SketchButton>
-              )}
-              {step === 'kind' ? (
-                <SketchButton variant="accent" onClick={() => setStep('look')}>
-                  Next
-                  <ArrowRight className="ml-1 h-4 w-4" />
-                </SketchButton>
               ) : (
+                <SketchButton variant="ghost" onClick={() => setStep(STEPS[stepIdx - 1])}>
+                  <ArrowLeft className="mr-1 h-4 w-4" />
+                  Back
+                </SketchButton>
+              )}
+              {isLastStep ? (
                 <SketchButton variant="accent" loading={create.isPending} onClick={submit}>
                   Create &amp; open
+                </SketchButton>
+              ) : (
+                <SketchButton variant="accent" onClick={() => setStep(STEPS[stepIdx + 1])}>
+                  Next
+                  <ArrowRight className="ml-1 h-4 w-4" />
                 </SketchButton>
               )}
             </div>

@@ -370,7 +370,7 @@ function ToolStudio({
   const [eraIdx, setEraIdx] = useState<number>(ERA_TODAY_IDX);
   const [customEra, setCustomEra] = useState(false);
   const [voiceURI, setVoiceURI] = useState<string | null>(null);
-  const [includeQuiz, setIncludeQuiz] = useState(true);
+  const [includeQuiz, setIncludeQuiz] = useState(remembered.includeQuiz);
   const [webSearch, setWebSearch] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   // Advanced: teaching tone / voice for the whole deck (register + jargon).
@@ -550,7 +550,7 @@ function ToolStudio({
     canceledRef.current = false;
     setGenError(null);
     // Remember this user's choices so they become the defaults next time.
-    saveGenDefaults(user?.id, { slideCount, level, imageStyle, textDensity });
+    saveGenDefaults(user?.id, { slideCount, level, imageStyle, textDensity, includeQuiz });
     const isSet = canPublishPreset && !!seed;
     setFlowRef.current = isSet;
     customizeFlowRef.current = !!seed && !isSet && !isGuest;
@@ -1049,7 +1049,7 @@ function ToolStudio({
           variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}
         >
           <span className="micro mb-1.5 block text-ink-soft">
-            Level (CEFR) — controls reading difficulty
+            Level (CEFR) — language and exercise difficulty
           </span>
           <div className="flex flex-wrap gap-2">
             {LEVELS.map((l) => (

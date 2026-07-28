@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" width="240" height="160" role="img" aria-label="Sketch of a slide that explains a topic with a picture and paragraphs, no question">
+  <rect width="240" height="160" fill="#EFE6D0"/>
+  <!-- faint ruled paper -->
+  <g stroke="#D9CBAA" stroke-width="1" opacity="0.55">
+    <line x1="0" y1="34" x2="240" y2="34"/>
+    <line x1="0" y1="70" x2="240" y2="70"/>
+    <line x1="0" y1="106" x2="240" y2="106"/>
+    <line x1="0" y1="142" x2="240" y2="142"/>
+  </g>
+
+  <!-- slide frame, drawn slightly off-true so it reads as hand-ruled -->
+  <path d="M28 22 L212 20 L214 140 L26 138 Z" fill="#FFFDF6" stroke="#2E2820"
+        stroke-width="2.6" stroke-linejoin="round"/>
+
+  <g stroke="#2E2820" stroke-linecap="round" fill="none">
+    <!-- heading -->
+    <path d="M42 42 L142 41" stroke-width="4.2"/>
+
+    <!-- a picture block, sketched with the usual hill-and-sun -->
+    <rect x="42" y="58" width="66" height="52" rx="3" stroke-width="2.4" fill="#DDE9FB"/>
+    <path d="M46 100 L64 80 L78 96 L88 88 L104 100" stroke-width="2.2" stroke-linejoin="round"/>
+    <circle cx="92" cy="72" r="6" stroke-width="2.2" fill="#FFC53D"/>
+
+    <!-- the explanation, running beside the picture and under it -->
+    <g stroke-width="2.6" opacity="0.85">
+      <path d="M120 62 L196 61.5"/>
+      <path d="M120 76 L196 75.5"/>
+      <path d="M120 90 L188 89.5"/>
+      <path d="M120 104 L172 103.5"/>
+    </g>
+    <g stroke-width="2.6" opacity="0.6">
+      <path d="M42 122 L196 121"/>
+    </g>
+  </g>
+</svg>

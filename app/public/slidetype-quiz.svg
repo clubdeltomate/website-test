@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" width="240" height="160" role="img" aria-label="Sketch of a slide that asks a question with answer choices, one ticked">
+  <rect width="240" height="160" fill="#EFE6D0"/>
+  <!-- faint ruled paper -->
+  <g stroke="#D9CBAA" stroke-width="1" opacity="0.55">
+    <line x1="0" y1="34" x2="240" y2="34"/>
+    <line x1="0" y1="70" x2="240" y2="70"/>
+    <line x1="0" y1="106" x2="240" y2="106"/>
+    <line x1="0" y1="142" x2="240" y2="142"/>
+  </g>
+
+  <!-- slide frame, drawn slightly off-true so it reads as hand-ruled -->
+  <path d="M28 22 L212 20 L214 140 L26 138 Z" fill="#FFFDF6" stroke="#2E2820"
+        stroke-width="2.6" stroke-linejoin="round"/>
+
+  <g stroke="#2E2820" stroke-linecap="round" fill="none">
+    <!-- the question -->
+    <path d="M42 42 L150 41" stroke-width="4.2"/>
+    <path d="M42 54 L120 53.5" stroke-width="2.4" opacity="0.55"/>
+
+    <!-- answer choices: three bubbles, the second one chosen -->
+    <circle cx="50" cy="76" r="6.5" stroke-width="2.4"/>
+    <path d="M64 76 L168 75.5" stroke-width="2.6" opacity="0.8"/>
+
+    <circle cx="50" cy="98" r="6.5" stroke-width="2.4" fill="#FFC53D"/>
+    <path d="M46.5 98 L49.5 101 L54 94.5" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M64 98 L182 97.5" stroke-width="2.6"/>
+
+    <circle cx="50" cy="120" r="6.5" stroke-width="2.4"/>
+    <path d="M64 120 L146 119.5" stroke-width="2.6" opacity="0.8"/>
+  </g>
+
+  <!-- a scribbled question mark in the corner, the way you'd doodle one -->
+  <g stroke="#DE5346" stroke-width="3" fill="none" stroke-linecap="round">
+    <path d="M182 44 C182 36 196 36 196 44 C196 50 189 50 189 57"/>
+    <path d="M189 65 L189 66"/>
+  </g>
+</svg>

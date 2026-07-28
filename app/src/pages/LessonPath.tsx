@@ -196,7 +196,12 @@ export default function LessonPath() {
       return;
     }
     // Remember this user's choices so they become the defaults next time.
-    saveGenDefaults(user?.id, { slideCount, level, imageStyle, textDensity: remembered.textDensity });
+    saveGenDefaults(user?.id, {
+      ...remembered,
+      slideCount,
+      level,
+      imageStyle,
+    });
     setTheaterStep(0);
     generate.mutate(
       {
