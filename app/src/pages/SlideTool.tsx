@@ -659,6 +659,19 @@ function ToolStudio({
    * starts immediately. The ref makes it fire once — React runs effects twice
    * in development, and a second run would spend the user's coins again.
    */
+  /**
+   * The creation wizard is the settings screen now, so this page no longer
+   * STARTS a generation of its own — its Generate and auto-tune buttons are
+   * off. runGenerate itself stays live, because the wizard sends the user here
+   * with ?generate=1 to run exactly this code.
+   *
+   * Two arrivals keep their buttons: a repo lesson seed and a ticket
+   * customization. Neither is reachable from the wizard, which only ever makes
+   * a brand-new standalone tool, so switching them off would remove the
+   * feature rather than move it.
+   */
+  const aiEntryDisabled = !seed && !configureIntent;
+
   const autoFiredRef = useRef(false);
   useEffect(() => {
     if (!autoGenerate || autoFiredRef.current) return;
@@ -998,7 +1011,7 @@ function ToolStudio({
                 <button
                   type="button"
                   onClick={runTune}
-                  disabled={tune.isPending}
+                  disabled={aiEntryDisabled || tune.isPending}
                   title="Tune all settings to this prompt — the AI picks level, slides, style, text amount and a layout for every slide"
                   aria-label="Auto-tune settings from prompt"
                   className={cn(
@@ -1653,7 +1666,7 @@ function ToolStudio({
             variant="accent"
             size="lg"
             className="w-full font-display text-2xl font-bold"
-            disabled={insufficient || estimateQuery.isLoading}
+            disabled={aiEntryDisabled || insufficient || estimateQuery.isLoading}
             loading={generate.isPending}
             onClick={runGenerate}
           >
@@ -1663,6 +1676,15 @@ function ToolStudio({
                 ? 'Generate my version'
                 : 'Generate presentation'}
           </SketchButton>
+          {aiEntryDisabled && (
+            <p className="text-center text-xs text-ink-faint">
+              Generating starts from{' '}
+              <Link to="/slides" className="squiggle font-bold">
+                New slide tool
+              </Link>{' '}
+              now — it asks all of this and runs it in one go.
+            </p>
+          )}
           {canPublishPreset && (
             <p className="text-center text-xs text-ink-faint">
               Saves the free version and returns to the repo — no AI-graded activities are included,
