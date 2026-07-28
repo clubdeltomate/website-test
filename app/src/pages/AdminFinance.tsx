@@ -170,16 +170,31 @@ function ReceiptModal({ receipt, onClose }: { receipt: Receipt; onClose: () => v
 function GrantForm({
   onReceipt,
   costPerCoinUsd,
+  centsPerCoin,
 }: {
   onReceipt: (r: Receipt) => void;
   costPerCoinUsd: number;
+  /** the live sale price set on the Per-generation tab */
+  centsPerCoin: number;
 }) {
   const utils = trpc.useUtils();
   const usersList = trpc.users.list.useQuery({ limit: 200 });
   const [userId, setUserId] = useState<number | ''>('');
   const [tokens, setTokens] = useState(100);
-  const [amount, setAmount] = useState('5.00');
   const [note, setNote] = useState('');
+  /**
+   * What those coins cost at the price set on the Per-generation tab. The
+   * amount was a free-text box defaulting to $5.00, which meant every sale had
+   * to be worked out by hand and disagreed with the price the rest of the page
+   * is built on.
+   */
+  const listPrice = (tokens * centsPerCoin) / 100;
+  /** Typing in the box takes it off the list price — a discount, a rounded
+   *  bank transfer, whatever actually landed — and the reset puts it back. */
+  const [override, setOverride] = useState<string | null>(null);
+  const amount = override ?? listPrice.toFixed(2);
+  const setAmount = (v: string) => setOverride(v);
+  const offList = override != null && Math.abs(Number(override) - listPrice) > 0.005;
 
   const grant = trpc.finance.grantTokens.useMutation({
     onSuccess: (r) => {
@@ -227,12 +242,33 @@ function GrantForm({
         />
       </LabeledField>
       <LabeledField label="Amount paid (USD)">
-        <SketchInput value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="5.00" />
+        <div className="flex items-center gap-2">
+          <SketchInput
+            className="min-w-0 flex-1"
+            aria-label="Amount paid in dollars"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder={listPrice.toFixed(2)}
+          />
+          {offList && (
+            <button
+              type="button"
+              onClick={() => setOverride(null)}
+              title={`Back to the list price for ${tokens} coins`}
+              className="shrink-0 rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.65rem] font-bold text-ink-soft hover:border-ink hover:text-ink"
+            >
+              ${listPrice.toFixed(2)}
+            </button>
+          )}
+        </div>
       </LabeledField>
       <LabeledField label="Note (on the receipt)">
         <SketchInput value={note} onChange={(e) => setNote(e.target.value)} placeholder="Bank transfer ref…" />
       </LabeledField>
       <p className="self-end pb-1 text-xs text-ink-faint">
+        {tokens} 🪙 at {centsPerCoin.toFixed(2)}¢ = {fmtUsd(listPrice)}
+        {offList && <span className="text-orange"> · charging {fmtUsd(Number(amount) || 0)}</span>}
+        <br />
         those coins cost you ~{fmtUsd(estCost)} to honor →{' '}
         <span className={estProfit >= 0 ? 'font-bold text-green' : 'font-bold text-red'}>
           {fmtUsd(estProfit)} profit
@@ -1622,7 +1658,11 @@ function FinanceBody() {
             <div className="mb-5 grid gap-4 lg:grid-cols-2">
               <div className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper p-3">
                 <p className="mb-2 font-heading font-semibold text-ink">Sell coins (against a payment)</p>
-                <GrantForm onReceipt={setReceipt} costPerCoinUsd={salesBasis.costPerCoinUsd} />
+                <GrantForm
+                  onReceipt={setReceipt}
+                  costPerCoinUsd={salesBasis.costPerCoinUsd}
+                  centsPerCoin={packRate}
+                />
               </div>
               <div className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper p-3">
                 <p className="mb-2 font-heading font-semibold text-ink">
