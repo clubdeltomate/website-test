@@ -718,6 +718,154 @@ function PricingEditor({
   );
 }
 
+/**
+ * Prices, on the page where their consequences are drawn.
+ *
+ * The "Set prices" tab has the same two numbers, but changing them there means
+ * leaving the chart that shows whether the change was a good idea. Here the
+ * bars, the guarantee and the margin all redraw from what is typed.
+ *
+ * The margin field works backwards from the answer: given what this deck costs
+ * to generate, it solves for the coin price that leaves the requested share as
+ * profit — which is how the question is usually posed ("I want 90% margin"),
+ * rather than guessing a rate and reading the margin off afterwards.
+ */
+function PerGenerationPrices({
+  packs,
+  ticketPriceCoins,
+  ticketPriceOverride,
+  deckCoins,
+  deckCostUsd,
+}: {
+  packs: { tokens: number; priceCents: number }[];
+  ticketPriceCoins: number;
+  ticketPriceOverride: number | null | undefined;
+  /** coins the configured deck charges a learner */
+  deckCoins: number;
+  /** what that deck costs in AI fees on an average model */
+  deckCostUsd: number;
+}) {
+  const utils = trpc.useUtils();
+  const currentRate = (() => {
+    const t = packs.reduce((n, p) => n + p.tokens, 0);
+    return t > 0 ? packs.reduce((n, p) => n + p.priceCents, 0) / t : 4;
+  })();
+  const [rate, setRate] = useState(currentRate.toFixed(2));
+  const [ticket, setTicket] = useState(String(ticketPriceCoins));
+  const [auto, setAuto] = useState(ticketPriceOverride == null);
+
+  const save = trpc.finance.setPricing.useMutation({
+    onSuccess: async () => {
+      await utils.finance.overview.invalidate();
+      void utils.tokens.packs.invalidate();
+      toast.success('Prices saved');
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const rateNum = Number(rate);
+  const valid = Number.isFinite(rateNum) && rateNum >= 0 && (auto || Number(ticket) >= 1);
+  const incomeUsd = (deckCoins * rateNum) / 100;
+  const marginPct = incomeUsd > 0 ? ((incomeUsd - deckCostUsd) / incomeUsd) * 100 : 0;
+
+  /** Coin price that leaves `pct` of the sale as profit on THIS deck. */
+  const rateForMargin = (pct: number) => {
+    if (pct >= 100 || deckCoins <= 0) return null;
+    const needUsd = deckCostUsd / (1 - pct / 100);
+    return (needUsd * 100) / deckCoins;
+  };
+
+  return (
+    <div className="mb-4 flex flex-wrap items-end gap-3 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper p-3">
+      <LabeledField label="Per coin">
+        <div className="flex items-center gap-1">
+          <SketchInput
+            type="number"
+            min={0}
+            step="0.01"
+            className="w-24"
+            aria-label="Price per coin in cents"
+            value={rate}
+            onChange={(e) => setRate(e.target.value)}
+          />
+          <span className="text-sm text-ink-soft">¢</span>
+        </div>
+      </LabeledField>
+
+      <LabeledField label="Ticket">
+        <div className="flex items-center gap-1.5">
+          <SketchInput
+            type="number"
+            min={1}
+            className="w-20"
+            aria-label="Ticket price in coins"
+            value={auto ? String(ticketPriceCoins) : ticket}
+            disabled={auto}
+            onChange={(e) => setTicket(e.target.value)}
+          />
+          <span className="text-sm text-ink-soft">🪙</span>
+          <label className="flex items-center gap-1 text-xs text-ink-soft">
+            <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
+            auto
+          </label>
+        </div>
+      </LabeledField>
+
+      <LabeledField label="Target margin">
+        <div className="flex items-center gap-1">
+          <SketchInput
+            type="number"
+            min={0}
+            max={99}
+            className="w-20"
+            aria-label="Target profit margin percent"
+            defaultValue={Math.round(marginPct)}
+            onChange={(e) => {
+              // Three decimals, not two: at low coin prices a hundredth of a
+              // cent is a couple of margin points, so rounding harder made the
+              // field miss the number that was just typed into it.
+              const next = rateForMargin(Number(e.target.value));
+              if (next != null && Number.isFinite(next)) setRate(next.toFixed(3));
+            }}
+          />
+          <span className="text-sm text-ink-soft">%</span>
+        </div>
+      </LabeledField>
+
+      <p className="pb-1 text-sm text-ink">
+        This deck earns <span className="font-bold">{fmtUsd(incomeUsd)}</span>, costs{' '}
+        <span className="font-bold text-red">~{fmtUsd(deckCostUsd)}</span> →{' '}
+        <span className={`font-bold ${marginPct >= 0 ? 'text-green' : 'text-red'}`}>
+          {marginPct.toFixed(1)}% margin
+        </span>
+        {Math.abs(rateNum - currentRate) > 0.005 && (
+          <span className="text-ink-faint"> · unsaved, was {currentRate.toFixed(2)}¢</span>
+        )}
+      </p>
+
+      <SketchButton
+        variant="accent"
+        size="sm"
+        className="mb-0.5"
+        loading={save.isPending}
+        disabled={!valid}
+        onClick={() =>
+          save.mutate({
+            // Every pack keeps its coin count and moves to the new rate.
+            packs: packs.map((p) => ({
+              tokens: p.tokens,
+              priceCents: Math.round(p.tokens * rateNum),
+            })),
+            ticketPriceOverride: auto ? null : Math.round(Number(ticket)),
+          })
+        }
+      >
+        Save prices
+      </SketchButton>
+    </div>
+  );
+}
+
 function FinanceBody() {
   const utils = trpc.useUtils();
   const overview = trpc.finance.overview.useQuery();
@@ -808,6 +956,15 @@ function FinanceBody() {
   // Private cost bases for the Sales desk: the average model cost of a
   // reference deck (8 slides, images, B1) spread over its coin charge, and
   // the average cost of the maxed-out deck a ticket must cover.
+  /** What the deck configured above costs on an average model. */
+  const avgDeckCostUsd = useMemo(() => {
+    if (!data || data.pricing.models.length === 0) return 0;
+    return (
+      data.pricing.models.reduce((n, m) => n + modelCostAt(m, calcSlides).costUsd, 0) /
+      data.pricing.models.length
+    );
+  }, [data, modelCostAt, calcSlides]);
+
   const salesBasis = useMemo(() => {
     if (!data || data.pricing.models.length === 0) return null;
     const avgAt = (slides: number) =>
@@ -1025,7 +1182,7 @@ function FinanceBody() {
             <p className="mb-3 text-xs text-ink-soft">
               Orange bars: what each model charges YOU in AI fees to generate the deck configured
               below. The dotted lines are money coming in — every line above the bars is profit.
-              Change what you charge in the "Set prices" tab.
+              Set what you charge in the second row and everything here redraws before you save.
             </p>
 
             {/* calculator */}
@@ -1073,6 +1230,14 @@ function FinanceBody() {
                 <span className="font-bold text-green">{data.ticketPriceCoins} 🪙 ≈ {fmtUsd(calc.ticketUsd)}</span>
               </p>
             </div>
+
+            <PerGenerationPrices
+              packs={data.packs}
+              ticketPriceCoins={data.ticketPriceCoins}
+              ticketPriceOverride={data.ticketPriceOverride}
+              deckCoins={calc.coins}
+              deckCostUsd={avgDeckCostUsd}
+            />
 
             {/* ticket guarantee */}
             {worstCase && (
