@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { motion, useReducedMotion } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { ArrowRight, PlayCircle, RotateCcw, TriangleAlert, UserRound } from 'lucide-react';
+import { ArrowRight, PlayCircle, RotateCcw, TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 import { isPassingScore, PASS_THRESHOLD } from '@contracts/progress';
 import type { LessonSeed, SlideDeck, DeckAnnotations } from '@contracts/types';
 import SketchButton from '../sketch/SketchButton';
+import { AuthorProfileLink } from './EndingActions';
 import Chip from '../sketch/Chip';
 import { DoodleCheck } from '../sketch/DoodleIcons';
 import type { QuizAnswer } from './QuizCard';
@@ -494,13 +495,7 @@ export default function FinishScreen({
             className="w-full basis-full text-center"
             variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}
           >
-            <Link
-              to={`/users/${author.ownerId}`}
-              className="inline-flex items-center gap-1.5 font-heading text-sm font-semibold text-ink-soft underline underline-offset-4 transition-colors hover:text-ink"
-            >
-              <UserRound className="h-4 w-4" strokeWidth={2} />
-              Visit {author.name}'s profile
-            </Link>
+            <AuthorProfileLink ownerId={author.ownerId} ownerName={author.name} />
           </motion.div>
         )}
       </motion.div>
