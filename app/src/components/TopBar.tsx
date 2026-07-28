@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Menu, Plus, LibraryBig, Presentation, Route, ChevronDown, LogOut } from 'lucide-react';
+import { Menu, Plus, LibraryBig, Presentation, Route, ChevronDown, LogOut, Ticket } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -60,14 +60,28 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
         <div className="ml-auto flex items-center gap-2">
           {/* token pill — live balance when signed in */}
           {user ? (
-            <Link
-              to="/settings?tab=tokens"
-              className="flex items-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-orange/20 px-2.5 py-1 font-mono text-sm font-bold text-ink no-underline shadow-offset transition-transform hover:-translate-y-0.5"
-              title="Token balance — click to recharge"
-            >
-              <span aria-hidden="true">🪙</span>
-              <span>{user.tokenBalance}</span>
-            </Link>
+            <>
+              <Link
+                to="/settings?tab=tokens"
+                className="flex items-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-orange/20 px-2.5 py-1 font-mono text-sm font-bold text-ink no-underline shadow-offset transition-transform hover:-translate-y-0.5"
+                title="Token balance — click to recharge"
+              >
+                <span aria-hidden="true">🪙</span>
+                <span>{user.tokenBalance}</span>
+              </Link>
+              {/* Tickets sit beside coins because they are the other thing a
+                  learner spends, and until now the only way to find out how
+                  many you held was to try to use one. */}
+              <Link
+                to="/settings?tab=tokens"
+                className="flex items-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-green-soft px-2.5 py-1 font-mono text-sm font-bold text-ink no-underline shadow-offset transition-transform hover:-translate-y-0.5"
+                title={`${user.ticketBalance} customization ticket${user.ticketBalance === 1 ? '' : 's'}`}
+                aria-label={`${user.ticketBalance} customization tickets`}
+              >
+                <Ticket className="h-4 w-4" strokeWidth={2} />
+                <span>{user.ticketBalance}</span>
+              </Link>
+            </>
           ) : (
             <Link
               to="/auth"
