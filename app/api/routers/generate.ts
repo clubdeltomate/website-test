@@ -693,24 +693,44 @@ export const generateRouter = createRouter({
       // more chances to honor it exactly before we accept a miss.
       const hasPlan = pinnedPlan.some(Boolean);
       const maxAttempts = hasPlan ? 3 : 2;
+      /**
+       * One deadline for the whole request. vercel.json caps the invocation at
+       * 60s, and everything past this point — retries, the inline first image,
+       * saving the run — has to fit inside what the deck attempt leaves behind.
+       * Measured from real usage, a deck is ~5.5k output tokens, which a
+       * provider takes 35-55s to write, so the deck attempt legitimately needs
+       * most of the budget and the rest must yield to it rather than compete.
+       */
+      const startedAt = Date.now();
+      const HARD_CEILING_MS = 60_000;
+      const elapsed = () => Date.now() - startedAt;
+      const remaining = () => HARD_CEILING_MS - elapsed();
       try {
         for (let attempt = 0; attempt < maxAttempts && deck === null; attempt++) {
+          // A retry is only worth starting if a reply could still arrive.
+          if (attempt > 0 && remaining() < 15_000) {
+            console.warn(
+              `[generate.slides] skipping attempt ${attempt + 1}: ${Math.round(remaining() / 1000)}s left`,
+            );
+            break;
+          }
           try {
             const result = await completeText({
               userId: ctx.user?.id,
-              // The whole request lives inside one serverless invocation
-              // (vercel.json caps it at 60s), so the budget is two tries.
-              // completeText orders candidates so those two hit DIFFERENT
-              // services — otherwise a platform key and an env key for the
-              // same API eat both slots and the other providers, healthy and
-              // configured, are never asked.
+              // completeText orders candidates so these hit DIFFERENT services
+              // — otherwise a platform key and an env key for the same API eat
+              // both slots and the other providers, healthy and configured,
+              // are never asked.
               //
-              // 26s each (52s total) rather than 22s: a full deck is a lot of
-              // JSON and a provider that is merely slow should still be
-              // allowed to finish. The cap exists to stop a DEAD provider from
-              // running out the invocation, not to cut off a live one.
+              // budgetMs is a ceiling for BOTH tries together, not a slice
+              // each. That distinction is the whole fix: a deck needs 35-55s
+              // to write, so splitting the budget in half guaranteed two
+              // timeouts where one longer attempt would have succeeded. The
+              // first candidate may now use nearly all of it, and only a
+              // candidate that fails FAST leaves the rest to the next one.
               maxCandidates: 2,
-              timeoutMs: 26_000,
+              timeoutMs: 45_000,
+              budgetMs: Math.max(10_000, remaining() - 8_000),
               collectErrors: providerErrors,
               messages: [
                 { role: "system", content: systemPrompt },
@@ -895,7 +915,18 @@ export const generateRouter = createRouter({
       // with its picture already in place (no visible wait on the opening
       // slide). Every other slide's image still streams in lazily in the
       // player. Costs one image's latency, not the whole deck's.
-      if (input.imageStyle !== "none" && deck.slides.length > 0) {
+      //
+      // It is a nicety, so it yields: when the deck took most of the budget
+      // there is no room for a picture that can take tens of seconds, and
+      // spending the remainder on it would lose the finished deck to the
+      // platform's timeout. The player fetches this image lazily anyway — the
+      // only cost of skipping is a brief placeholder on slide 1.
+      const IMAGE_NEEDS_MS = 20_000;
+      if (input.imageStyle !== "none" && remaining() < IMAGE_NEEDS_MS) {
+        console.warn(
+          `[generate.slides] skipping the inline first image: ${Math.round(remaining() / 1000)}s left — the player will fetch it`,
+        );
+      } else if (input.imageStyle !== "none" && deck.slides.length > 0) {
         const firstImg = deck.slides[0].components.find((c) => c.type === "image");
         if (firstImg && firstImg.type === "image" && !firstImg.imageUrl) {
           try {
