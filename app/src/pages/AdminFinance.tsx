@@ -558,6 +558,26 @@ function PricingEditor({
   );
   const ticketValid = mode === 'auto' || (Number.isFinite(Number(ticket)) && Number(ticket) >= 1);
 
+  /** The blended rate the current packs work out to, in cents per coin. */
+  const rateFromPacks = (() => {
+    const tokens = parsed.reduce((n, p) => n + p.tokens, 0);
+    const cents = parsed.reduce((n, p) => n + p.priceCents, 0);
+    return tokens > 0 ? cents / tokens : 0;
+  })();
+  const [perCoin, setPerCoin] = useState(() => rateFromPacks.toFixed(1));
+
+  /** Put every pack on one rate, keeping each pack's coin count. */
+  const applyPerCoin = (cents: number) => {
+    setRows((rs) =>
+      rs.map((r) => {
+        const tokens = Number(r.tokens);
+        return Number.isFinite(tokens) && tokens > 0
+          ? { ...r, price: ((tokens * cents) / 100).toFixed(2) }
+          : r;
+      }),
+    );
+  };
+
   return (
     <div className="p-4">
       <h3 className="mb-1 font-heading text-lg font-semibold text-ink">What you charge</h3>
@@ -566,6 +586,38 @@ function PricingEditor({
         a moderator pays (in coins) for one customization. Every chart on this page recalculates
         from what you set here.
       </p>
+
+      {/* The packs ARE the coin price, but only indirectly — to make a coin
+          cheaper you had to work out new dollar figures for every pack by
+          hand. This sets the rate directly and rescales the packs to match,
+          which is how the question is actually asked: "what should a coin
+          cost?" */}
+      <h4 className="mb-2 font-heading font-semibold text-ink">Price per coin</h4>
+      <div className="mb-5 flex flex-wrap items-center gap-2 rounded-wobble-sm border-2 border-dashed border-pencil p-3">
+        <SketchInput
+          type="number"
+          min={0}
+          step="0.1"
+          className="w-24"
+          aria-label="Price per coin in cents"
+          value={perCoin}
+          onChange={(e) => {
+            setPerCoin(e.target.value);
+            const c = Number(e.target.value);
+            if (Number.isFinite(c) && c >= 0) applyPerCoin(c);
+          }}
+        />
+        <span className="text-sm text-ink-soft">¢ per 🪙</span>
+        <span className="font-mono text-xs text-ink-faint">
+          = ${((Number(perCoin || 0) * 100) / 100).toFixed(2)} per 100 🪙
+          {Math.abs(Number(perCoin || 0) - rateFromPacks) > 0.05 && (
+            <span className="ml-2 text-orange">was {rateFromPacks.toFixed(1)}¢</span>
+          )}
+        </span>
+        <span className="ml-auto text-xs text-ink-faint">
+          Every pack below rescales to this rate. Edit a pack afterwards to give it its own deal.
+        </span>
+      </div>
 
       <h4 className="mb-2 font-heading font-semibold text-ink">Coin packs</h4>
       <div className="flex flex-col gap-2">
