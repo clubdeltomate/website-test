@@ -1,7 +1,5 @@
-import { Link } from 'react-router';
 import { motion } from 'framer-motion';
-import { ArrowLeft, UserRound } from 'lucide-react';
-import SketchButton from '../sketch/SketchButton';
+import { EndingActions } from './EndingActions';
 import WashiTape from '../sketch/WashiTape';
 import { DoodleSparkle } from '../sketch/DoodleIcons';
 import type { WalkthroughInfo } from '@contracts/types';
@@ -48,20 +46,7 @@ export default function WalkthroughFinish({
           {ownerName ? ` ${isNews ? 'Reported' : 'Put together'} by ${ownerName}.` : ''}
         </p>
 
-        <div className="mt-7 flex flex-col items-stretch gap-2.5">
-          {ownerId != null && (
-            <Link to={`/users/${ownerId}`} className="no-underline">
-              <SketchButton variant="accent" className="w-full justify-center">
-                <UserRound className="h-4 w-4" strokeWidth={2} />
-                Visit {ownerName ? `${ownerName}'s` : 'the author’s'} profile
-              </SketchButton>
-            </Link>
-          )}
-          <SketchButton variant="secondary" className="w-full justify-center" onClick={onExit}>
-            <ArrowLeft className="h-4 w-4" strokeWidth={2} />
-            Back
-          </SketchButton>
-        </div>
+        <EndingActions ownerId={ownerId} ownerName={ownerName} onExit={onExit} />
       </motion.div>
     </div>
   );

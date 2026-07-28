@@ -5,12 +5,12 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
-import type { LessonSeed, SlideDeck, SlidePlanInfo, SlideAnnotation, DeckAnnotations, CommercialInfo, WalkthroughInfo } from '@contracts/types';
+import type { LessonSeed, SlideComponent, SlideDeck, SlidePlanInfo, SlideAnnotation, DeckAnnotations, CommercialInfo, WalkthroughInfo } from '@contracts/types';
 import SketchButton from '../sketch/SketchButton';
 import WashiTape from '../sketch/WashiTape';
 import { DoodleSparkle, DoodleStar, DoodleSpiral } from '../sketch/DoodleIcons';
 import PlayerHeader from './PlayerHeader';
-import SlideComponentView, { Kara } from './SlideComponents';
+import SlideComponentView, { Kara, CodeDeck } from './SlideComponents';
 import QuizCard, { type QuizAnswer } from './QuizCard';
 import FinishScreen from './FinishScreen';
 import CommercialFinish from './CommercialFinish';
@@ -103,6 +103,24 @@ const item = {
  * directional slide transitions, per-slide quizzes, read-aloud karaoke,
  * keyboard navigation — finish screen is the only save point.
  */
+
+/**
+ * Collapse runs of adjacent code components into one group, leaving everything
+ * else alone. A slide that shows the same example in three languages emits
+ * three code components in a row; they belong in one tabbed window rather than
+ * as three stacked boxes the reader has to scroll past.
+ */
+function codeGrouped(idxs: number[], components: SlideComponent[]): number[][] {
+  const groups: number[][] = [];
+  for (const i of idxs) {
+    const last = groups[groups.length - 1];
+    const isCode = components[i]?.type === 'code';
+    if (isCode && last && components[last[last.length - 1]]?.type === 'code') last.push(i);
+    else groups.push([i]);
+  }
+  return groups;
+}
+
 export default function DeckPlayer({
   deck,
   toolSlug,
@@ -559,17 +577,30 @@ export default function DeckPlayer({
                     its own row with no height cap, so the slide matches the
                     layout template's shape exactly. */}
                 <motion.div variants={item} className="mt-6 flex flex-col gap-6">
-                  {orderedIdxs.map((ci) => (
-                    <SlideComponentView
-                      key={ci}
-                      component={slide.components[ci]}
-                      ci={ci}
-                      current={readAloud.currentKey}
-                      showcase={!!commercial}
-                      provider={deck.provider}
-                      imageProvider={deck.imageProvider}
-                    />
-                  ))}
+                  {codeGrouped(orderedIdxs, slide.components).map((group) =>
+                    group.length > 1 ? (
+                      // Several code blocks in a row are one window with tabs —
+                      // the HTML, CSS and JS of one example read as one thing.
+                      <CodeDeck
+                        key={`code-${group[0]}`}
+                        ci={group[0]}
+                        current={readAloud.currentKey}
+                        snippets={group.map(
+                          (i) => slide.components[i] as Extract<SlideComponent, { type: 'code' }>,
+                        )}
+                      />
+                    ) : (
+                      <SlideComponentView
+                        key={group[0]}
+                        component={slide.components[group[0]]}
+                        ci={group[0]}
+                        current={readAloud.currentKey}
+                        showcase={!!commercial}
+                        provider={deck.provider}
+                        imageProvider={deck.imageProvider}
+                      />
+                    ),
+                  )}
                 </motion.div>
 
                 {/* sticky note peels in last (design.md §6) */}

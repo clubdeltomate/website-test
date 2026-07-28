@@ -53,7 +53,7 @@ const CATEGORIES: { id: RepoTemplate; label: string; hint: string }[] = [
   { id: 'shop', label: 'Product', hint: 'Marketplace display — no evaluations' },
 ];
 
-type Step = 'kind' | 'look' | 'type' | 'subject' | 'focus' | 'plan' | 'text';
+type Step = 'topic' | 'kind' | 'look' | 'type' | 'subject' | 'focus' | 'plan' | 'text';
 
 /**
  * Only a Lesson asks which field it is. A walkthrough, a news briefing, a menu
@@ -63,11 +63,12 @@ type Step = 'kind' | 'look' | 'type' | 'subject' | 'focus' | 'plan' | 'text';
  */
 function stepsFor(template: RepoTemplate): Step[] {
   return template === 'course'
-    ? ['kind', 'look', 'type', 'subject', 'focus', 'plan', 'text']
-    : ['kind', 'look', 'type', 'plan', 'text'];
+    ? ['topic', 'kind', 'look', 'type', 'subject', 'focus', 'plan', 'text']
+    : ['topic', 'kind', 'look', 'type', 'plan', 'text'];
 }
 
 const SUBTITLES: Record<Step, (kind: string, slides: number) => string> = {
+  topic: () => 'What do you want it to be about? This is the prompt the AI works from.',
   kind: () => "Pick what it's for — the AI names and describes it from your first generation.",
   look: (kind) => `A ${kind.toLowerCase()}. How long should it be, and how should it look?`,
   type: () => 'Does it check what was learned, and how hard should it be?',
@@ -129,7 +130,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
   const { user } = useAuth();
   const remembered = loadGenDefaults(user?.id);
 
-  const [step, setStep] = useState<Step>('kind');
+  const [step, setStep] = useState<Step>('topic');
   const [template, setTemplate] = useState<RepoTemplate>('course');
   const [slideCount, setSlideCount] = useState(remembered.slideCount);
   const [imageStyle, setImageStyle] = useState<ImageStyle>(remembered.imageStyle);
@@ -145,6 +146,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
   /** The plan in running order — rebuilt from counts, reordered by Shuffle. */
   const [plan, setPlan] = useState<string[]>([]);
   const [instructions, setInstructions] = useState('');
+  const [topic, setTopic] = useState('');
 
   const templatesQuery = trpc.templates.list.useQuery(undefined, { enabled: open });
 
@@ -187,7 +189,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
   useEffect(() => {
     if (!open) return;
     const current = loadGenDefaults(user?.id);
-    setStep('kind');
+    setStep('topic');
     setTemplate('course');
     setSlideCount(current.slideCount);
     setImageStyle(current.imageStyle);
@@ -199,6 +201,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
     setCounts({});
     setPlan([]);
     setInstructions('');
+    setTopic('');
   }, [open, user?.id]);
 
   const create = trpc.slideTools.create.useMutation({
@@ -238,6 +241,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
     create.mutate({
       name: `Untitled ${label}`,
       template,
+      topic: topic.trim(),
       instructions: instructions.trim(),
       defaultSlideCount: slideCount,
       defaultImageStyle: imageStyle,
@@ -363,7 +367,34 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
               className="mt-5 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-0.5"
             >
               <AnimatePresence mode="wait" initial={false}>
-                {step === 'kind' ? (
+                {step === 'topic' ? (
+                  <motion.div
+                    key="topic"
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -12 }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    <label htmlFor="wizard-topic" className="micro mb-1.5 block text-ink-soft">
+                      Topic / prompt
+                    </label>
+                    <textarea
+                      id="wizard-topic"
+                      autoFocus
+                      value={topic}
+                      onChange={(e) => setTopic(e.target.value)}
+                      rows={4}
+                      maxLength={2000}
+                      placeholder="e.g. how photosynthesis works, the fall of Constantinople, React hooks for beginners"
+                      className="w-full resize-y rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-3 px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
+                    />
+                    <p className="mt-1.5 text-xs text-ink-faint">
+                      A sentence is plenty — the AI writes the deck from this, and names the tool
+                      after it. When a lesson is opened from a repository, that lesson's title is
+                      used instead and this becomes the fallback.
+                    </p>
+                  </motion.div>
+                ) : step === 'kind' ? (
                   <motion.div
                     key="kind"
                     initial={{ opacity: 0, x: -12 }}
@@ -889,7 +920,11 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                   Create &amp; generate
                 </SketchButton>
               ) : (
-                <SketchButton variant="accent" onClick={() => setStep(STEPS[stepIdx + 1])}>
+                <SketchButton
+                  variant="accent"
+                  disabled={step === 'topic' && topic.trim().length < 3}
+                  onClick={() => setStep(STEPS[stepIdx + 1])}
+                >
                   Next
                   <ArrowRight className="ml-1 h-4 w-4" />
                 </SketchButton>

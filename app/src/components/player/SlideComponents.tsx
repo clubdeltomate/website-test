@@ -500,6 +500,97 @@ function ImageView({
   );
 }
 
+/**
+ * One or more code snippets in a single window.
+ *
+ * Two things a long listing needs. The box is a FIXED height with its own
+ * scroller, so a hundred lines of code cannot push the rest of the slide off
+ * the screen — and it carries data-lenis-prevent, because the site's smooth
+ * scrolling otherwise swallows the wheel and moves the page instead of the
+ * listing. And when a slide explains something across several files, they
+ * become tabs on the one window rather than three stacked boxes: HTML, CSS and
+ * JavaScript for the same example belong together, and flipping between them
+ * is how you actually read them.
+ */
+export function CodeDeck({
+  snippets,
+  ci,
+  current,
+}: {
+  snippets: Extract<SlideComponent, { type: 'code' }>[];
+  ci: number;
+  current: string | null;
+}) {
+  const [page, setPage] = useState(0);
+  const shown = snippets[Math.min(page, snippets.length - 1)];
+  const lines = shown.code.split('\n');
+  const many = snippets.length > 1;
+
+  return (
+    <figure className="overflow-hidden rounded-wobble-2 border-2 border-ink bg-paper-3 shadow-offset">
+      <div className="flex items-center justify-between gap-3 border-b-2 border-dashed border-pencil px-4 py-2">
+        {many ? (
+          <div className="flex min-w-0 flex-wrap gap-1.5" role="tablist" aria-label="Code files">
+            {snippets.map((sn, i) => (
+              <button
+                key={i}
+                type="button"
+                role="tab"
+                aria-selected={i === page}
+                onClick={() => setPage(i)}
+                className={cn(
+                  'rounded-wobble-sm border-2 px-2.5 py-0.5 font-heading text-[0.72rem] font-bold transition-all',
+                  i === page
+                    ? 'border-ink bg-yellow text-ink'
+                    : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                )}
+              >
+                {sn.language || `File ${i + 1}`}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span className="micro text-ink-faint">{shown.language}</span>
+        )}
+        <span className="flex shrink-0 gap-1.5" aria-hidden="true">
+          <span className="h-2.5 w-2.5 rounded-full border border-ink bg-red-soft" />
+          <span className="h-2.5 w-2.5 rounded-full border border-ink bg-yellow-soft" />
+          <span className="h-2.5 w-2.5 rounded-full border border-ink bg-green-soft" />
+        </span>
+      </div>
+      <pre
+        data-lenis-prevent
+        className="max-h-[22rem] overflow-auto overscroll-contain p-4 font-mono text-sm leading-relaxed text-ink"
+      >
+        <code>
+          {lines.map((line, i) => (
+            <span key={i} className="flex">
+              <span className="w-8 shrink-0 select-none text-right text-pencil">{i + 1}</span>
+              <span className="whitespace-pre pl-4">{line || ' '}</span>
+            </span>
+          ))}
+        </code>
+      </pre>
+      {(shown.caption || many) && (
+        <figcaption className="flex items-center justify-between gap-3 border-t-2 border-dashed border-pencil px-4 py-2 text-sm italic text-ink-soft">
+          <span className="min-w-0">
+            {shown.caption && (
+              <Kara k={`code:${ci}:${page}`} current={current}>
+                {shown.caption}
+              </Kara>
+            )}
+          </span>
+          {many && (
+            <span className="micro shrink-0 not-italic text-ink-faint">
+              {page + 1} / {snippets.length}
+            </span>
+          )}
+        </figcaption>
+      )}
+    </figure>
+  );
+}
+
 function CodeView({
   component,
   ci,
@@ -509,38 +600,7 @@ function CodeView({
   ci: number;
   current: string | null;
 }) {
-  const lines = component.code.split('\n');
-  return (
-    <figure className="overflow-hidden rounded-wobble-2 border-2 border-ink bg-paper-3 shadow-offset">
-      <div className="flex items-center justify-between border-b-2 border-dashed border-pencil px-4 py-2">
-        <span className="micro text-ink-faint">{component.language}</span>
-        <span className="flex gap-1.5" aria-hidden="true">
-          <span className="h-2.5 w-2.5 rounded-full border border-ink bg-red-soft" />
-          <span className="h-2.5 w-2.5 rounded-full border border-ink bg-yellow-soft" />
-          <span className="h-2.5 w-2.5 rounded-full border border-ink bg-green-soft" />
-        </span>
-      </div>
-      <pre className="overflow-x-auto p-4 font-mono text-sm leading-relaxed text-ink">
-        <code>
-          {lines.map((line, i) => (
-            <span key={i} className="flex">
-              <span className="w-8 shrink-0 select-none text-right text-pencil">
-                {i + 1}
-              </span>
-              <span className="pl-4">{line || ' '}</span>
-            </span>
-          ))}
-        </code>
-      </pre>
-      {component.caption && (
-        <figcaption className="border-t-2 border-dashed border-pencil px-4 py-2 text-sm italic text-ink-soft">
-          <Kara k={`code:${ci}`} current={current}>
-            {component.caption}
-          </Kara>
-        </figcaption>
-      )}
-    </figure>
-  );
+  return <CodeDeck snippets={[component]} ci={ci} current={current} />;
 }
 
 /* ------------------------------------------------------------------ */

@@ -1,7 +1,7 @@
-import { Link } from 'react-router';
 import { motion } from 'framer-motion';
-import { ArrowLeft, MessageCircle, UserRound } from 'lucide-react';
+import { ArrowLeft, MessageCircle } from 'lucide-react';
 import SketchButton from '../sketch/SketchButton';
+import { AuthorProfileLink } from './EndingActions';
 import WashiTape from '../sketch/WashiTape';
 import { DoodleSparkle } from '../sketch/DoodleIcons';
 import type { CommercialInfo } from '@contracts/types';
@@ -66,15 +66,7 @@ export default function CommercialFinish({
               Contact {owner.name} through WhatsApp
             </a>
           )}
-          {owner.ownerId != null && (
-            <Link
-              to={`/users/${owner.ownerId}`}
-              className="inline-flex items-center gap-1.5 font-heading text-sm font-semibold text-ink-soft underline underline-offset-4 transition-colors hover:text-ink"
-            >
-              <UserRound className="h-4 w-4" strokeWidth={2} />
-              Visit {owner.name}'s profile
-            </Link>
-          )}
+          <AuthorProfileLink ownerId={owner.ownerId} ownerName={owner.name} />
           {!wa && owner.ownerId == null && (
             <p className="text-sm text-ink-faint">The seller hasn't added contact details yet.</p>
           )}
