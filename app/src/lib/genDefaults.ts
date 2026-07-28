@@ -25,6 +25,23 @@ export const BASE_GEN_DEFAULTS: GenDefaults = {
   textDensity: 'standard',
 };
 
+/**
+ * The image-style presets offered in the UI, in display order. Shared so the
+ * "New slide tool" wizard and the tool's own settings page offer exactly the
+ * same choices — if they drifted, a style picked at creation could be one the
+ * settings page cannot show.
+ */
+export const STYLE_PRESETS: Exclude<ImageStyle, 'none'>[] = [
+  'sketch',
+  'watercolor',
+  'flat',
+  'photo',
+];
+
+/** Slide-count range shared by the creation wizard and the settings page. */
+export const SLIDE_COUNT_MIN = 4;
+export const SLIDE_COUNT_MAX = 15;
+
 function storageKey(userId?: number | null): string {
   return `sketchlearn:gendefaults:${userId ?? 'guest'}`;
 }
