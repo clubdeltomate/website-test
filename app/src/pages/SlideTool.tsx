@@ -26,7 +26,16 @@ import type {
   Tone,
   WalkthroughInfo,
 } from '@contracts/types';
-import { LEVELS, LEVEL_LABEL, levelTier, TONES, TONE_LABEL, TONE_HINT } from '@contracts/types';
+import {
+  LEVELS,
+  LEVEL_LABEL,
+  levelTier,
+  TONES,
+  TONE_LABEL,
+  TONE_HINT,
+  TEXT_DENSITIES,
+  TEXT_DENSITY_META,
+} from '@contracts/types';
 import SketchButton from '@/components/sketch/SketchButton';
 import Chip from '@/components/sketch/Chip';
 import StickyNote from '@/components/sketch/StickyNote';
@@ -380,10 +389,10 @@ function ToolStudio({
   // box (off) as the way to submit a worked solution.
   const [useScratchpad, setUseScratchpad] = useState(false);
   // Advanced: pinned layout template per slide (name | null = auto). Index i → slide i+1.
-  const [templatePlan, setTemplatePlan] = useState<(string | null)[]>([]);
+  const [templatePlan, setTemplatePlan] = useState<(string | null)[]>(remembered.templatePlan);
   // Subject filter for the template catalog: Auto follows topic detection,
   // STEM/Humanities force the choice (detection can misread e.g. derivatives).
-  const [subjectMode, setSubjectMode] = useState<'auto' | 'stem' | 'humanities'>('auto');
+  const [subjectMode, setSubjectMode] = useState<'auto' | 'stem' | 'humanities'>(remembered.subject);
   // Packets act as FILTERS (like the STEM/Humanities buttons): selecting one
   // narrows the per-slide template pickers to that packet's layouts. Nothing
   // is pinned automatically — templates are only set when clicked per slide.
@@ -550,7 +559,16 @@ function ToolStudio({
     canceledRef.current = false;
     setGenError(null);
     // Remember this user's choices so they become the defaults next time.
-    saveGenDefaults(user?.id, { slideCount, level, imageStyle, textDensity, includeQuiz });
+    saveGenDefaults(user?.id, {
+      ...remembered,
+      slideCount,
+      level,
+      imageStyle,
+      textDensity,
+      includeQuiz,
+      subject: subjectMode,
+      templatePlan,
+    });
     const isSet = canPublishPreset && !!seed;
     setFlowRef.current = isSet;
     customizeFlowRef.current = !!seed && !isSet && !isGuest;
@@ -1336,33 +1354,28 @@ function ToolStudio({
                     Text amount — how much explanation each slide carries
                   </span>
                   <p className="micro mb-2 text-ink-faint">
-                    Same ideas, more or fewer words. Detailed builds each point out further (or
-                    reinforces it from another angle); brief trims to the essentials. Every type
-                    still shows a real explanation.
+                    Same ideas, more or fewer words — the figure is roughly how much prose each
+                    slide carries. Every amount still shows a real explanation.
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {(
-                      [
-                        { id: 'minimal', label: 'Minimal', hint: 'Two sentences max per slide' },
-                        { id: 'brief', label: 'Brief', hint: 'Fewer words, same idea' },
-                        { id: 'standard', label: 'Standard', hint: 'A balanced amount (default)' },
-                        { id: 'detailed', label: 'Detailed', hint: 'Fuller explanations, more detail' },
-                      ] as { id: TextDensity; label: string; hint: string }[]
-                    ).map((d) => (
+                    {TEXT_DENSITIES.map((d) => (
                       <button
-                        key={d.id}
+                        key={d}
                         type="button"
-                        onClick={() => setTextDensity(d.id)}
-                        aria-pressed={textDensity === d.id}
-                        title={d.hint}
+                        onClick={() => setTextDensity(d)}
+                        aria-pressed={textDensity === d}
+                        title={TEXT_DENSITY_META[d].hint}
                         className={cn(
                           'rounded-wobble-sm border-2 px-3.5 py-1.5 text-sm font-bold transition-all',
-                          textDensity === d.id
+                          textDensity === d
                             ? 'border-ink bg-blue-soft text-ink shadow-offset'
                             : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
                         )}
                       >
-                        {d.label}
+                        {TEXT_DENSITY_META[d].label}
+                        <span className="ml-1.5 font-mono text-[0.62rem] font-normal text-ink-faint">
+                          {TEXT_DENSITY_META[d].approxChars}
+                        </span>
                       </button>
                     ))}
                   </div>
