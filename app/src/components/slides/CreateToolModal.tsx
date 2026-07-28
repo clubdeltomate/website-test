@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { ArrowLeft, ArrowRight, X } from 'lucide-react';
 import { trpc } from '@/providers/trpc';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -143,10 +143,17 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
   );
   const [flavor, setFlavor] = useState<string | null>(remembered.flavor);
   const [textDensity, setTextDensity] = useState<TextDensity>(remembered.textDensity);
-  /** How many slides each layout should fill, keyed by layout name. */
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  /** The plan in running order — rebuilt from counts, reordered by Shuffle. */
-  const [plan, setPlan] = useState<string[]>([]);
+  /**
+   * One entry per slide, in running order: a layout name, or null for "let the
+   * AI pick". This is the only state the plan step keeps.
+   *
+   * It used to be two — a per-layout tally and a separate order — which had to
+   * be kept in agreement by rebuilding the order from the tally on every
+   * change. That threw away any shuffle the moment a counter moved, and it
+   * offered no way to say anything about ONE slide: clearing slide 3, or
+   * swapping it for a different layout, is not expressible as a tally.
+   */
+  const [plan, setPlan] = useState<(string | null)[]>([]);
   const [instructions, setInstructions] = useState('');
   const [topic, setTopic] = useState('');
 
@@ -209,7 +216,6 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
     setSubject(current.subject === 'humanities' ? 'humanities' : 'stem');
     setFlavor(current.flavor);
     setTextDensity(current.textDensity);
-    setCounts({});
     setPlan([]);
     setInstructions('');
     setTopic('');
@@ -284,40 +290,53 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
     return hit.length > 0 ? hit : scoped;
   })();
 
-  const assigned = Object.values(counts).reduce((a, b) => a + b, 0);
+  /** The plan, always exactly one entry per slide. */
+  const slots: (string | null)[] = Array.from({ length: slideCount }, (_, i) => plan[i] ?? null);
+  const counts = slots.reduce<Record<string, number>>((acc, name) => {
+    if (name) acc[name] = (acc[name] ?? 0) + 1;
+    return acc;
+  }, {});
+  const assigned = slots.filter(Boolean).length;
   const slotsLeft = slideCount - assigned;
 
-  /** Expand the per-layout counts into one entry per slide, in menu order. */
-  const rebuildPlan = (next: Record<string, number>) => {
-    const out: string[] = [];
-    for (const [name, n] of Object.entries(next)) {
-      for (let i = 0; i < n; i++) out.push(name);
-    }
-    setPlan(out);
+  /** Fill the first free slide with this layout. */
+  const addOne = (name: string) => {
+    const next = [...slots];
+    const free = next.indexOf(null);
+    if (free === -1) return;
+    next[free] = name;
+    setPlan(next);
   };
 
-  const bump = (name: string, delta: number) => {
-    setCounts((prev) => {
-      const cur = prev[name] ?? 0;
-      const room = slideCount - Object.values(prev).reduce((a, b) => a + b, 0);
-      const next = Math.max(0, Math.min(cur + delta, cur + room));
-      const merged = { ...prev, [name]: next };
-      if (next === 0) delete merged[name];
-      rebuildPlan(merged);
-      return merged;
-    });
+  /** Free the LAST slide using this layout — the one most recently added. */
+  const removeOne = (name: string) => {
+    const next = [...slots];
+    const at = next.lastIndexOf(name);
+    if (at === -1) return;
+    next[at] = null;
+    setPlan(next);
   };
+
+  /** Clear one specific slide, so a single slot can be changed without
+   *  unpicking everything that came after it. */
+  const clearSlot = (i: number) => {
+    const next = [...slots];
+    next[i] = null;
+    setPlan(next);
+  };
+
+  const clearAll = () => setPlan([]);
 
   const shuffle = () => {
-    setPlan((prev) => {
-      const out = [...prev];
-      // Fisher-Yates: every ordering equally likely, unlike sort(() => …).
-      for (let i = out.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [out[i], out[j]] = [out[j], out[i]];
-      }
-      return out;
-    });
+    // Fisher-Yates over the whole plan: every ordering equally likely, unlike
+    // sort(() => Math.random() - 0.5). Empty slots move too, which is right —
+    // they are positions in the deck like any other.
+    const next = [...slots];
+    for (let i = next.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [next[i], next[j]] = [next[j], next[i]];
+    }
+    setPlan(next);
   };
 
   const kindLabel = CATEGORIES.find((c) => c.id === template)?.label ?? '';
@@ -639,7 +658,6 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                             // The flavour list changes with the field, so a
                             // stale pick would filter against the wrong tags.
                             setFlavor(null);
-                            setCounts({});
                             setPlan([]);
                           }}
                           aria-pressed={subject === sub.id}
@@ -689,7 +707,6 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                         type="button"
                         onClick={() => {
                           setFlavor(null);
-                          setCounts({});
                           setPlan([]);
                         }}
                         aria-pressed={flavor === null}
@@ -709,7 +726,6 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                           title={f.hint}
                           onClick={() => {
                             setFlavor(f.id);
-                            setCounts({});
                             setPlan([]);
                           }}
                           aria-pressed={flavor === f.id}
@@ -747,32 +763,53 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                       <span className="micro block text-ink-soft">
                         Layouts — {assigned} of {slideCount} slides
                       </span>
-                      <SketchButton
-                        variant="ghost"
-                        size="sm"
-                        onClick={shuffle}
-                        disabled={plan.length < 2}
-                      >
-                        <Shuffle className="mr-1 h-3.5 w-3.5" />
-                        Shuffle
-                      </SketchButton>
+                      <span className="flex shrink-0 items-center gap-1">
+                        <SketchButton
+                          variant="ghost"
+                          size="sm"
+                          onClick={clearAll}
+                          disabled={assigned === 0}
+                        >
+                          Clear all
+                        </SketchButton>
+                        <SketchButton
+                          variant="ghost"
+                          size="sm"
+                          onClick={shuffle}
+                          disabled={assigned < 2}
+                        >
+                          <Shuffle className="mr-1 h-3.5 w-3.5" />
+                          Shuffle
+                        </SketchButton>
+                      </span>
                     </div>
 
                     {/* the running order, one chip per slide */}
                     <div className="flex flex-wrap gap-1.5 rounded-wobble-sm border-2 border-dashed border-pencil p-2">
-                      {Array.from({ length: slideCount }).map((_, i) => (
-                        <span
-                          key={i}
-                          className={cn(
-                            'rounded-wobble-sm border-2 px-2 py-1 text-[0.62rem] font-bold',
-                            plan[i]
-                              ? 'border-ink bg-yellow-soft text-ink'
-                              : 'border-dotted border-pencil text-ink-faint',
-                          )}
-                        >
-                          {i + 1}. {plan[i] ?? 'AI picks'}
-                        </span>
-                      ))}
+                      {slots.map((name, i) =>
+                        name ? (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => clearSlot(i)}
+                            title={`Clear slide ${i + 1} — back to the AI's choice`}
+                            aria-label={`Clear slide ${i + 1}, currently ${name}`}
+                            className="group flex items-center gap-1 rounded-wobble-sm border-2 border-ink bg-yellow-soft px-2 py-1 text-[0.62rem] font-bold text-ink transition-colors hover:bg-red-soft"
+                          >
+                            <span>
+                              {i + 1}. {name}
+                            </span>
+                            <X className="h-3 w-3 shrink-0 text-ink-soft group-hover:text-red" />
+                          </button>
+                        ) : (
+                          <span
+                            key={i}
+                            className="rounded-wobble-sm border-2 border-dotted border-pencil px-2 py-1 text-[0.62rem] font-bold text-ink-faint"
+                          >
+                            {i + 1}. AI picks
+                          </span>
+                        ),
+                      )}
                     </div>
 
                     <div className="flex flex-col gap-1.5">
@@ -803,7 +840,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                             <button
                               type="button"
                               aria-label={`One fewer ${t.name}`}
-                              onClick={() => bump(t.name, -1)}
+                              onClick={() => removeOne(t.name)}
                               disabled={n === 0}
                               className="h-6 w-6 shrink-0 rounded-wobble-sm border-2 border-ink font-bold leading-none text-ink disabled:opacity-30"
                             >
@@ -815,7 +852,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                             <button
                               type="button"
                               aria-label={`One more ${t.name}`}
-                              onClick={() => bump(t.name, 1)}
+                              onClick={() => addOne(t.name)}
                               disabled={slotsLeft === 0}
                               className="h-6 w-6 shrink-0 rounded-wobble-sm border-2 border-ink bg-yellow font-bold leading-none text-ink disabled:opacity-30"
                             >
@@ -827,8 +864,8 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
                     </div>
                     <p className="text-xs text-ink-faint">
                       {slotsLeft > 0
-                        ? `${slotsLeft} slide${slotsLeft === 1 ? '' : 's'} left for the AI to choose — or fill them yourself.`
-                        : 'Every slide has a layout. Shuffle to change the running order.'}
+                        ? `${slotsLeft} slide${slotsLeft === 1 ? '' : 's'} left for the AI to choose — or fill them yourself. Click a filled slide above to clear it.`
+                        : 'Every slide has a layout. Click one above to clear it and pick a different layout, or shuffle the running order.'}
                     </p>
                   </motion.div>
                 ) : step === 'text' ? (
