@@ -699,13 +699,18 @@ export const generateRouter = createRouter({
             const result = await completeText({
               userId: ctx.user?.id,
               // The whole request lives inside one serverless invocation
-              // (vercel.json caps it at 60s). Seven configured keys tried at
-              // 25s each is over two minutes, so a single sick provider used
-              // to take the request past the ceiling: the browser got a
-              // dropped connection and the deck was lost. Two candidates at
-              // 22s is a real fallback that still fits.
+              // (vercel.json caps it at 60s), so the budget is two tries.
+              // completeText orders candidates so those two hit DIFFERENT
+              // services — otherwise a platform key and an env key for the
+              // same API eat both slots and the other providers, healthy and
+              // configured, are never asked.
+              //
+              // 26s each (52s total) rather than 22s: a full deck is a lot of
+              // JSON and a provider that is merely slow should still be
+              // allowed to finish. The cap exists to stop a DEAD provider from
+              // running out the invocation, not to cut off a live one.
               maxCandidates: 2,
-              timeoutMs: 22_000,
+              timeoutMs: 26_000,
               collectErrors: providerErrors,
               messages: [
                 { role: "system", content: systemPrompt },
