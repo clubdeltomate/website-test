@@ -312,6 +312,7 @@ export default function CreateToolModal({
 
   /* ---- the repo-lesson path: generate here, then go nowhere ---- */
   const genSlides = trpc.generate.slides.useMutation();
+  const ensureStudyTool = trpc.repos.ensureStudyTool.useMutation();
   const setPreset = trpc.repos.setLessonPreset.useMutation();
   const saveCustom = trpc.repos.saveMyCustomization.useMutation();
   const [busy, setBusy] = useState<string | null>(null);
@@ -336,10 +337,15 @@ export default function CreateToolModal({
    * the repo, so the author stays on the repo and the lesson's button flips from
    * Set to Play once the invalidation lands.
    */
-  const runForLesson = async (slug: string, paddedPlan: (string | null)[]) => {
+  const runForLesson = async (paddedPlan: (string | null)[]) => {
     if (!seed) return;
     setBusy('Sketching the slides…');
     try {
+      // Resolve the tool server-side rather than trusting the slug the repo is
+      // carrying. Half of the repos here have no study tool and a deleted one
+      // leaves a slug pointing at nothing; both used to surface as a dead Set
+      // button or "Slide tool not found" after every question was answered.
+      const { slug } = await ensureStudyTool.mutateAsync({ repoSlug: seed.repoSlug });
       const res = await genSlides.mutateAsync({
         toolSlug: slug,
         seed,
@@ -412,10 +418,11 @@ export default function CreateToolModal({
       flavor,
       templatePlan: paddedPlan.some(Boolean) ? paddedPlan : [],
     });
-    // A repo lesson generates into the tool the repo already owns — creating
-    // another would leave an orphan behind on every "Set".
-    if (toolSlug && seed) {
-      void runForLesson(toolSlug, paddedPlan);
+    // A repo lesson generates into the repo's own study tool, resolved (or
+    // created) inside runForLesson — creating one here would leave an orphan
+    // behind on every "Set".
+    if (seed) {
+      void runForLesson(paddedPlan);
       return;
     }
     if (toolSlug) {
@@ -1166,10 +1173,12 @@ export default function CreateToolModal({
                   disabled={!!busy}
                   onClick={submit}
                 >
-                  {/* A repo lesson creates nothing — it generates into the tool
-                      the repo already owns, so promising a "Create" would be
-                      describing a step that does not happen. */}
-                  {busy ?? (toolSlug ? 'Generate' : 'Create & generate')}
+                  {/* Keyed on the seed, not on toolSlug: the repo's tool is
+                      resolved server-side now, so a lesson run has no slug to
+                      recognise itself by. A repo lesson creates nothing, and
+                      promising a "Create" would describe a step that does not
+                      happen. */}
+                  {busy ?? (seed ? 'Generate' : 'Create & generate')}
                 </SketchButton>
               ) : (
                 <SketchButton

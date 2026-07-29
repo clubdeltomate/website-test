@@ -38,7 +38,6 @@ export interface UnitCardProps {
   repoSlug: string;
   repoRef: string;
   template: RepoTemplate;
-  studyToolSlug: string | null;
   lessonSeqTotal: number;
   /** id of the first unplayed lesson (the "next-up" one) */
   nextUpLessonId: number | null;
@@ -69,7 +68,6 @@ export default function UnitCard({
   repoSlug,
   repoRef,
   template,
-  studyToolSlug,
   lessonSeqTotal,
   nextUpLessonId,
   playedCount,
@@ -346,7 +344,6 @@ export default function UnitCard({
                     badge={`${meta.lessonNoun} ${lesson.globalSeq} of ${lessonSeqTotal}`}
                     seed={buildSeed(lesson)}
                     objectiveLabel={meta.objectiveNoun}
-                    studyToolSlug={studyToolSlug}
                     purpose={purpose}
                     template={template}
                     isNextUp={lesson.id === nextUpLessonId}
@@ -363,8 +360,7 @@ export default function UnitCard({
                         badge={`${meta.lessonNoun} ${lesson.globalSeq}.${subIdx + 1} of ${lessonSeqTotal}`}
                         seed={buildSeed(sub)}
                         objectiveLabel={meta.objectiveNoun}
-                        studyToolSlug={studyToolSlug}
-                        purpose={purpose}
+                            purpose={purpose}
                         template={template}
                         isNextUp={sub.id === nextUpLessonId}
                         playedCount={playedCount}
@@ -448,7 +444,6 @@ function LessonCard({
   badge,
   seed,
   objectiveLabel,
-  studyToolSlug,
   purpose,
   template,
   isNextUp,
@@ -462,7 +457,6 @@ function LessonCard({
   badge: string;
   seed: LessonSeed;
   objectiveLabel: string;
-  studyToolSlug: string | null;
   purpose: RepoPurpose;
   template: RepoTemplate;
   isNextUp: boolean;
@@ -537,7 +531,6 @@ function LessonCard({
           <Wand2 className="h-3 w-3" strokeWidth={2} /> Configure
         </button>
       );
-    if (!studyToolSlug) return null;
     const hasCfg = lesson.myHasCustomization;
     // Owner/admin can configure without a ticket (charged to their credits);
     // a non-owner spends a moderator-issued ticket.
@@ -587,13 +580,11 @@ function LessonCard({
       ? `Opens the slide tool with this lesson's prompt · Builds on ${playedCount} completed lesson${playedCount === 1 ? '' : 's'} ✦`
       : "Opens the slide tool with this lesson's prompt";
 
+  // Never disabled for a missing study tool: the repo creates one on demand
+  // when the wizard runs. Half the repos here have none, and a dead accent
+  // button reading "Set" was the worst of both — it looked like the way in.
   const ActionBtn = ({ label, title }: { label: string; title?: string }) => (
-    <SketchButton
-      variant="accent"
-      size="sm"
-      disabled={!studyToolSlug}
-      title={title ?? (studyToolSlug ? studyTitle : 'No slide tool linked to this notebook yet')}
-    >
+    <SketchButton variant="accent" size="sm" title={title ?? studyTitle}>
       <Clapperboard className="h-4 w-4" strokeWidth={2} />
       {label}
     </SketchButton>
@@ -646,12 +637,10 @@ function LessonCard({
         <span onClick={onGuestStudy}>
           <ActionBtn label="Set" title="Generate this item's presentation, then save it as a preset" />
         </span>
-      ) : studyToolSlug ? (
+      ) : (
         <span onClick={() => setWizard('set')}>
           <ActionBtn label="Set" title="Generate this item's presentation, then save it as a preset" />
         </span>
-      ) : (
-        <ActionBtn label="Set" />
       );
     }
     // Education. Two paths, per the free/paid model:
@@ -668,12 +657,12 @@ function LessonCard({
         <span onClick={onGuestStudy}>
           <ActionBtn label={label} title={title} />
         </span>
-      ) : studyToolSlug ? (
+      ) : (
+        // Not gated on studyToolSlug: the repo grows one on demand when the
+        // wizard runs, so a repo without a tool is no longer a dead button.
         <span onClick={() => setWizard('set')} title={title ?? studyTitle}>
           <ActionBtn label={label} title={title} />
         </span>
-      ) : (
-        <ActionBtn label={label} title={title} />
       );
 
     // Owner: build / edit the free preset with their own credits.
@@ -985,11 +974,10 @@ function LessonCard({
           study tool rather than making a new one. The kind is fixed by the
           repo and the prompt starts from the lesson's objective, so it opens on
           the questions that are actually still open. */}
-      {wizard && studyToolSlug && (
+      {wizard && (
         <CreateToolModal
           open
           onClose={() => setWizard(null)}
-          toolSlug={studyToolSlug}
           seed={seed}
           intent={wizard}
           lockedTemplate={template}

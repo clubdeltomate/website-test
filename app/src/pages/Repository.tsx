@@ -426,7 +426,6 @@ export default function Repository() {
             repoSlug={data.slug}
             repoRef={data.ref}
             template={data.template}
-            studyToolSlug={data.studyToolSlug}
             lessonSeqTotal={data.lessonCount}
             nextUpLessonId={nextUp?.lesson.id ?? null}
             playedCount={playedCount}

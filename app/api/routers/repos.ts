@@ -337,6 +337,17 @@ export const reposRouter = createRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
+      if (input.studyToolSlug) {
+        const tool = await db.query.slideTools.findFirst({
+          where: eq(slideTools.slug, input.studyToolSlug),
+        });
+        if (!tool) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `No slide tool called "${input.studyToolSlug}"`,
+          });
+        }
+      }
       const base = slugify(input.title);
       let slug = base;
       for (let i = 2; await db.query.repos.findFirst({ where: eq(repos.slug, slug) }); i++) {
@@ -349,11 +360,66 @@ export const reposRouter = createRouter({
         description: input.description,
         template: input.template,
         ownerId: ctx.user.id,
+        // Same check as update(): a slug that resolves to nothing is worse than
+        // none at all, because the UI treats it as a working link.
         studyToolSlug: input.studyToolSlug ?? null,
         source: input.source,
         isPublic: true,
       });
       return { slug, ref: repoRef(slug) };
+    }),
+
+  /**
+   * Resolve the repo's study tool, creating it if there isn't a usable one.
+   *
+   * A repo's studyToolSlug is a free-text column that nothing validated: a repo
+   * built by hand never got one at all, and a slug whose tool was later deleted
+   * kept pointing at nothing. Either way the lesson's "Set" button had no tool
+   * to generate into — it either did nothing or failed with "Slide tool not
+   * found" after the author had answered every question.
+   *
+   * Rather than make the author go and build a tool by hand and link it, the
+   * repo grows one on demand. A study tool is an implementation detail of
+   * generating a repo's lessons, so needing one is not news the author should
+   * have to act on.
+   */
+  ensureStudyTool: authedProcedure
+    .input(z.object({ repoSlug: z.string() }))
+    .mutation(async ({ ctx, input }): Promise<{ slug: string; created: boolean }> => {
+      const db = getDb();
+      const repo = await db.query.repos.findFirst({ where: eq(repos.slug, input.repoSlug) });
+      if (!repo) throw new TRPCError({ code: "NOT_FOUND", message: "Repository not found" });
+      if (repo.ownerId !== ctx.user.id && ctx.user.role !== "admin") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only the repo's owner can set up its slide tool",
+        });
+      }
+      if (repo.studyToolSlug) {
+        const existing = await db.query.slideTools.findFirst({
+          where: eq(slideTools.slug, repo.studyToolSlug),
+        });
+        if (existing) return { slug: existing.slug, created: false };
+      }
+      // Named after the repo so it is recognisable in the author's shelf, and
+      // owned by the repo's owner so they can edit it like any other tool.
+      const base = slugify(`${repo.title} studio`);
+      let slug = base;
+      for (let i = 2; await db.query.slideTools.findFirst({ where: eq(slideTools.slug, slug) }); i++) {
+        slug = `${base}-${i}`;
+      }
+      await db.insert(slideTools).values({
+        slug,
+        name: `${repo.title} — studio`.slice(0, 255),
+        description: `Generates the lessons in ${repo.title}.`.slice(0, 4000),
+        topic: repo.title.slice(0, 2000),
+        instructions: "",
+        template: repo.template,
+        ownerId: repo.ownerId ?? ctx.user.id,
+        isPublic: repo.isPublic,
+      });
+      await db.update(repos).set({ studyToolSlug: slug }).where(eq(repos.id, repo.id));
+      return { slug, created: true };
     }),
 
   update: authedProcedure
@@ -378,7 +444,23 @@ export const reposRouter = createRouter({
       if (input.title !== undefined) set.title = input.title;
       if (input.description !== undefined) set.description = input.description;
       if (input.isPublic !== undefined) set.isPublic = input.isPublic;
-      if (input.studyToolSlug !== undefined) set.studyToolSlug = input.studyToolSlug;
+      if (input.studyToolSlug !== undefined) {
+        // Refuse a slug with no tool behind it. Storing one was how a repo
+        // ended up with a "Set" button that failed at the last step; the column
+        // has no foreign key, so this is the only place to catch it.
+        if (input.studyToolSlug) {
+          const tool = await db.query.slideTools.findFirst({
+            where: eq(slideTools.slug, input.studyToolSlug),
+          });
+          if (!tool) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `No slide tool called "${input.studyToolSlug}"`,
+            });
+          }
+        }
+        set.studyToolSlug = input.studyToolSlug;
+      }
       if (Object.keys(set).length > 0) {
         await db.update(repos).set(set).where(eq(repos.id, repo.id));
       }

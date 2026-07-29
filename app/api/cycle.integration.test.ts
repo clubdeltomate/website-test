@@ -23,7 +23,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { eq } from "drizzle-orm";
 import { appRouter } from "./router.js";
 import { getDb } from "./queries/connection.js";
-import { customizations, users, slideTools, type User } from "@db/schema";
+import { customizations, repos as reposTable, users, slideTools, type User } from "@db/schema";
 import { autoTicketPrice, estimateCost, ticketPrice, TICKET_MAX_SLIDES } from "./cost.js";
 import { getSettings } from "./settings.js";
 import { consumeOne, countAvailable, countSpendable } from "./tickets.js";
@@ -536,6 +536,42 @@ describe.runIf(HAS_DB)("full coins ↔ tickets cycle", () => {
     // Drain them again so test 10's demotion check starts where it expects.
     const left = (await reload(student.id)).tokenBalance;
     if (left > 0) await applyTokenDelta(student.id, -left, "drain after customization test");
+  });
+
+  it("9d) a repo grows a study tool on demand, however broken its link was", async () => {
+    const db = getDb();
+    const repoSlug = (globalThis as Record<string, unknown>).__repoSlug as string;
+    const repo = await db.query.repos.findFirst({ where: (r, { eq: e }) => e(r.slug, repoSlug) });
+
+    // A repo's studyToolSlug is free text that nothing validated, so it arrives
+    // in three states in the wild. All three have to end up generatable, or the
+    // lesson's "Set" button is a dead end after every question was answered.
+    for (const broken of [null, "tool-that-was-deleted"]) {
+      await db
+        .update(reposTable)
+        .set({ studyToolSlug: broken })
+        .where(eq(reposTable.id, repo!.id));
+
+      const { slug, created } = await call(moderator).repos.ensureStudyTool({ repoSlug });
+      expect(created).toBe(true);
+      expect(slug).toBeTruthy();
+      // The tool really exists and the repo now points at it.
+      const tool = await db.query.slideTools.findFirst({
+        where: (t, { eq: e }) => e(t.slug, slug),
+      });
+      expect(tool).toBeTruthy();
+      expect(tool!.ownerId).toBe(moderator.id);
+      const fresh = await db.query.repos.findFirst({ where: (r, { eq: e }) => e(r.id, repo!.id) });
+      expect(fresh!.studyToolSlug).toBe(slug);
+
+      // Idempotent: asking again reuses it rather than piling up tools.
+      const again = await call(moderator).repos.ensureStudyTool({ repoSlug });
+      expect(again.created).toBe(false);
+      expect(again.slug).toBe(slug);
+    }
+
+    // Only the owner (or an admin) may set a repo up this way.
+    await expect(call(student).repos.ensureStudyTool({ repoSlug })).rejects.toThrow(/owner/i);
   });
 
   it("10) draining a moderator's credits demotes them to a user", async () => {
