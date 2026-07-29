@@ -9,7 +9,7 @@ import {
   MessageCircle,
   Play,
   Presentation,
-  Sparkles,
+  Search,
   Star,
   Ticket,
 } from 'lucide-react';
@@ -23,9 +23,22 @@ import { SketchInput, SketchSelect } from '@/components/admin/controls';
 import SketchToaster from '@/components/admin/SketchToaster';
 import RepoCard from '@/components/repo/RepoCard';
 import { TemplateIcon } from '@/components/repo/shared';
-import type { RepoSummary, RepoTemplate, SlideToolSummary, UserProfile as Profile } from '@contracts/types';
+import type {
+  ContentSource,
+  RepoSummary,
+  RepoTemplate,
+  SlideToolSummary,
+  UserProfile as Profile,
+} from '@contracts/types';
 
 const CATEGORIES = ['all', 'course', 'restaurant', 'service', 'shop', 'walkthrough', 'news'] as const;
+
+/** Authorship filter options — the two halves the cards already badge, plus all. */
+const MADE_BY: { id: ContentSource | 'all'; label: string }[] = [
+  { id: 'all', label: 'Anyone' },
+  { id: 'ai', label: 'AI' },
+  { id: 'human', label: 'Hand' },
+];
 const PAGE = 6;
 
 /** A user's public profile: repos + slide tools, filters, contact + requests. */
@@ -38,7 +51,16 @@ export default function UserProfile() {
   const [tab, setTab] = useState<'repos' | 'slides'>('repos');
   const [category, setCategory] = useState<RepoTemplate | 'all'>('all');
   const [search, setSearch] = useState('');
-  const [aiOnly, setAiOnly] = useState(false);
+  /**
+   * Which authorship to show. This used to be a lone "Made with AI" toggle
+   * sitting beside the search box, wearing the same label and sparkle icon as
+   * the badge on a card — which read as "search using AI" and implied a cost.
+   * Nothing here calls AI: it is a filter over the repos already on screen.
+   * Naming both halves makes it unmistakably a filter, and lets someone find
+   * hand-built work too, which the badges advertised but the filter couldn't
+   * reach.
+   */
+  const [madeBy, setMadeBy] = useState<ContentSource | 'all'>('all');
   const [page, setPage] = useState(0);
   const [ticketOpen, setTicketOpen] = useState(false);
   const [coinOpen, setCoinOpen] = useState(false);
@@ -74,22 +96,22 @@ export default function UserProfile() {
       repos
         .filter((r) => category === 'all' || r.template === category)
         .filter((r) => !q || r.title.toLowerCase().includes(q))
-        .filter((r) => !aiOnly || r.source === 'ai'),
-    [repos, category, q, aiOnly],
+        .filter((r) => madeBy === 'all' || r.source === madeBy),
+    [repos, category, q, madeBy],
   );
   const filteredTools = useMemo(
     () =>
       tools
         .filter((t) => !q || t.name.toLowerCase().includes(q))
-        .filter((t) => !aiOnly || t.source === 'ai'),
-    [tools, q, aiOnly],
+        .filter((t) => madeBy === 'all' || t.source === madeBy),
+    [tools, q, madeBy],
   );
 
   const items: (RepoSummary | SlideToolSummary)[] = tab === 'repos' ? filteredRepos : filteredTools;
   const pageCount = Math.max(1, Math.ceil(items.length / PAGE));
   const safePage = Math.min(page, pageCount - 1);
   const pageItems = items.slice(safePage * PAGE, safePage * PAGE + PAGE);
-  useEffect(() => setPage(0), [tab, category, q, aiOnly]);
+  useEffect(() => setPage(0), [tab, category, q, madeBy]);
 
   if (profile.isLoading) {
     return <div className="mx-auto w-full max-w-content px-4 py-10 text-center text-ink-faint">Opening their shelf…</div>;
@@ -262,29 +284,23 @@ export default function UserProfile() {
 
       {/* filters */}
       <div className="flex flex-col gap-2 rounded-wobble-2 border-2 border-ink bg-paper-3 p-3 shadow-offset">
-        <div className="flex flex-wrap items-center gap-2">
+        {/* The search box gets its own row and says what it does. It is a plain
+            name match over what is already on the page — no request, no AI, no
+            credits — and it used to share a line with an AI-badged button,
+            which made it look like the search itself was the AI feature. */}
+        <label className="relative flex items-center">
+          <Search className="pointer-events-none absolute left-3 h-4 w-4 text-ink-faint" strokeWidth={2} />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={tab === 'repos' ? 'Search repos by name…' : 'Search slides by name…'}
-            className="min-w-[200px] flex-1 rounded-wobble-sm border-2 border-ink bg-paper px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
+            className="w-full rounded-wobble-sm border-2 border-ink bg-paper py-2 pl-9 pr-3 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
           />
-          <button
-            type="button"
-            onClick={() => setAiOnly((a) => !a)}
-            className={cn(
-              'flex items-center gap-1.5 rounded-wobble-sm border-2 px-3 py-2 text-xs font-bold transition-colors',
-              aiOnly
-                ? 'border-ink bg-purple-soft text-purple shadow-offset'
-                : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
-            )}
-          >
-            <Sparkles className="h-4 w-4" /> Made with AI
-          </button>
-        </div>
-        {tab === 'repos' && (
-          <div className="flex flex-wrap gap-2 border-t-2 border-dashed border-pencil pt-2.5">
-            {CATEGORIES.map((c) => (
+        </label>
+
+        <div className="flex flex-wrap items-center gap-2 border-t-2 border-dashed border-pencil pt-2.5">
+          {tab === 'repos' &&
+            CATEGORIES.map((c) => (
               <button
                 key={c}
                 type="button"
@@ -300,8 +316,28 @@ export default function UserProfile() {
                 {c}
               </button>
             ))}
-          </div>
-        )}
+
+          {/* Authorship filter. "Made by:" in front is what turns it from a
+              button you press into a property you filter on. */}
+          <span className="micro ml-auto flex items-center gap-2 text-ink-faint">
+            Made by:
+            {MADE_BY.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setMadeBy(m.id)}
+                className={cn(
+                  'rounded-wobble-sm border-2 px-2.5 py-1 text-xs font-bold transition-colors',
+                  madeBy === m.id
+                    ? 'border-ink bg-yellow text-ink shadow-offset'
+                    : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+          </span>
+        </div>
       </div>
 
       {/* grid */}
