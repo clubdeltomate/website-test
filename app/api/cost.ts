@@ -1,13 +1,15 @@
+import { TICKET_DECK_LIMITS } from "../contracts/types.js";
 import type { CostEstimate, ImageStyle, Level } from "../contracts/types.js";
 import { getSettings } from "./settings.js";
 
 /**
- * The largest number of slides a single customization can request (mirrors
- * MAX_SLIDES in the generate router). A ticket is priced to cover the most
- * expensive customization possible, so it always fully covers any in-bounds
- * generation — a cheaper deck simply uses less of that ceiling.
+ * The largest number of slides a single customization can request. A ticket is
+ * priced to cover the most expensive customization possible, so it always
+ * fully covers any in-bounds generation — a cheaper deck simply uses less of
+ * that ceiling. Taken from the shared cap rather than restated, so the price
+ * and the entitlement can never disagree about how big a deck can be.
  */
-export const TICKET_MAX_SLIDES = 15;
+export const TICKET_MAX_SLIDES = TICKET_DECK_LIMITS.maxSlides;
 
 /** The automatic ticket price for a given price config: the cost of the most
  *  expensive customization — MAX_SLIDES slides, an image on every slide, at

@@ -251,7 +251,13 @@ export const tickets = appSchema.table(
   "tickets",
   {
     id: serial("id").primaryKey(),
-    repoId: fk("repoId").notNull(),
+    /**
+     * The repo this ticket customizes, or NULL for a general ticket that is
+     * not tied to one. A general ticket pays for a slide-tool deck; a
+     * repo-scoped one is meant for that repo but is still accepted by the
+     * slide tool, because a ticket is a ticket to the person holding it.
+     */
+    repoId: fk("repoId"),
     holderId: fk("holderId").notNull(), // the user who may spend it
     issuedById: fk("issuedById").notNull(), // the moderator who gifted it
     consumed: boolean("consumed").notNull().default(false),

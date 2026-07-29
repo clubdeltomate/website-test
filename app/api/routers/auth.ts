@@ -6,7 +6,7 @@ import { authedProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
 import { users, tokenLedger, type User } from "../../db/schema.js";
 import { hashPassword, verifyPassword, signAuthToken } from "../auth-utils.js";
-import type { SessionUser } from "../../contracts/types.js";
+import { normalizeUsername, type SessionUser } from "../../contracts/types.js";
 
 function toSessionUser(u: User): SessionUser {
   return {
@@ -65,10 +65,16 @@ export const authRouter = createRouter({
       if (existing) {
         throw new TRPCError({ code: "CONFLICT", message: "That email already has a notebook" });
       }
+      // One word — spaces are closed up rather than rejected (see
+      // normalizeUsername). A name that was nothing but spaces leaves nothing.
+      const name = normalizeUsername(input.name);
+      if (!name) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Pick a username with some letters in it" });
+      }
       // The display name doubles as the unique USERNAME (bare-username sign-in
       // matches it), so it can't repeat — case-insensitively.
       const nameTaken = await db.query.users.findFirst({
-        where: sql`LOWER(${users.name}) = ${input.name.trim().toLowerCase()}`,
+        where: sql`LOWER(${users.name}) = ${name.toLowerCase()}`,
       });
       if (nameTaken) {
         throw new TRPCError({ code: "CONFLICT", message: "That username is taken — pick another" });
@@ -77,7 +83,7 @@ export const authRouter = createRouter({
         .insert(users)
         .values({
           email,
-          name: input.name.trim(),
+          name,
           passwordHash: hashPassword(input.password),
           role: "user",
           tokenBalance: STARTER_TOKENS,
@@ -168,15 +174,19 @@ export const authRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       const set: Partial<Pick<User, "name" | "passwordHash" | "whatsapp" | "contactNote" | "socials">> = {};
-      if (input.name && input.name.trim().toLowerCase() !== ctx.user.name.toLowerCase()) {
+      const name = input.name === undefined ? undefined : normalizeUsername(input.name);
+      if (input.name !== undefined && !name) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Pick a username with some letters in it" });
+      }
+      if (name && name.toLowerCase() !== ctx.user.name.toLowerCase()) {
         const taken = await db.query.users.findFirst({
-          where: sql`LOWER(${users.name}) = ${input.name.trim().toLowerCase()}`,
+          where: sql`LOWER(${users.name}) = ${name.toLowerCase()}`,
         });
         if (taken && taken.id !== ctx.user.id) {
           throw new TRPCError({ code: "CONFLICT", message: "That username is taken — pick another" });
         }
       }
-      if (input.name) set.name = input.name.trim();
+      if (name) set.name = name;
       if (input.whatsapp !== undefined) set.whatsapp = input.whatsapp.trim() || null;
       if (input.contactNote !== undefined) set.contactNote = input.contactNote.trim() || null;
       if (input.socials !== undefined) set.socials = input.socials.map((s) => s.trim()).filter(Boolean);

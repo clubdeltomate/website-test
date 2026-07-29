@@ -24,6 +24,36 @@ export type AiCapability = "text" | "image" | "tts";
 
 export const LEVELS: Level[] = ["A0", "A1", "A2", "B1", "B2", "C1", "C2"];
 
+/**
+ * A username is one word. It doubles as a sign-in identifier — you can type it
+ * instead of an email — and an identifier that can contain a space is a
+ * guessing game about how many spaces and where. Rather than reject a name
+ * with spaces, we close them up: "Sam Sketcher" signs in as "SamSketcher".
+ * Shared with the client so the field can normalize as you type and nobody
+ * discovers the rule only when the server refuses their form.
+ */
+export function normalizeUsername(raw: string): string {
+  return raw.normalize("NFC").replace(/\s+/gu, "").slice(0, 255);
+}
+
+/** The most slides any single generation may produce. */
+export const MAX_DECK_SLIDES = 15;
+
+/**
+ * What one customization ticket buys: one deck, up to this size and level.
+ *
+ * These are deliberately the ceiling of what the generator will make at all,
+ * which is what makes a ticket a coherent unit of generosity — the ticket
+ * price is computed from the same numbers (see autoTicketPrice), so a ticket
+ * always covers any deck it is allowed to pay for. Keeping one source for the
+ * cap is the point: if the deck ceiling moves and the ticket price doesn't,
+ * tickets quietly start selling below cost.
+ */
+export const TICKET_DECK_LIMITS = {
+  maxSlides: MAX_DECK_SLIDES,
+  maxLevel: LEVELS[LEVELS.length - 1],
+};
+
 /** Short human label for each CEFR level. */
 export const LEVEL_LABEL: Record<Level, string> = {
   A0: "A0 · Pre-beginner",
@@ -305,7 +335,8 @@ export interface SessionUser {
 
 /** One repo the signed-in user holds unused customization tickets for. */
 export interface MyTicketGroup {
-  repoSlug: string;
+  /** null for general tickets — those belong to no repo. */
+  repoSlug: string | null;
   repoTitle: string;
   count: number;
 }

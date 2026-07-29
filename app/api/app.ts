@@ -17,6 +17,7 @@ import {
   ensureElevenLabsProvider,
   ensureWalkthroughTemplate,
 } from "./lib/migrate-annotations.js";
+import { ensureAccountRules } from "./lib/migrate-accounts.js";
 
 /**
  * The tRPC/Hono API app, WITHOUT any host bootstrap. Import this from a host
@@ -39,6 +40,7 @@ const runMigrations = () => {
   void ensureUserFavoriteType().catch(warn("user-favorite enum"));
   void ensureCustomizationSchema().catch(warn("customization schema"));
   void ensureSlideToolAuthoring().catch(warn("slide-tool authoring"));
+  void ensureAccountRules().catch(warn("account rules"));
 };
 
 // Running these probes on every cold start can lock heavily-used tables (e.g.

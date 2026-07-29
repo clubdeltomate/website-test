@@ -27,7 +27,7 @@ import {
 } from "../ai/prompts.js";
 import { estimateCost } from "../cost.js";
 import { applyTokenDelta, refundTokens } from "../tokens.js";
-import { consumeOne, countAvailable } from "../tickets.js";
+import { consumeOne, countSpendable, type TicketJob } from "../tickets.js";
 import { buildPreviouslyTaught } from "../memory.js";
 import { loadTemplateCatalog } from "./templates.js";
 import {
@@ -41,10 +41,19 @@ import {
 } from "../../contracts/slide-templates.js";
 import { isStemTopic } from "../../contracts/stem.js";
 import { typedOverlapCorrect } from "../../contracts/grade.js";
-import { repoPurpose, templateFilterPurpose, type CoachReply, type SlideDeck } from "../../contracts/types.js";
+import {
+  LEVELS,
+  MAX_DECK_SLIDES,
+  repoPurpose,
+  templateFilterPurpose,
+  TICKET_DECK_LIMITS,
+  type CoachReply,
+  type SlideDeck,
+} from "../../contracts/types.js";
 
 export const GUEST_MAX_SLIDES = 6;
-const MAX_SLIDES = 15;
+/** Shared with the ticket price and the ticket entitlement — see TICKET_DECK_LIMITS. */
+const MAX_SLIDES = MAX_DECK_SLIDES;
 /** Token fee for one AI vision review of a handwritten worked solution. */
 const VISION_GRADE_COST = 6;
 /** Token fee a moderator pays to recalibrate one slide's explanation length
@@ -515,32 +524,43 @@ export const generateRouter = createRouter({
         };
       }
 
-      // Token gate — signed-in users only; guests get the free limited path.
-      // Two paid paths:
-      //  • OWNER builds their own repo (or a standalone tool): charged in
-      //    credits, as usual — owners buy credits from the admin.
-      //  • A NON-OWNER customizing someone's repo spends a customization
-      //    TICKET the owner gifted them; personal credits are never charged
-      //    for repo customization. The ticket is priced to cover the most
-      //    expensive possible deck, so it always fully covers this one.
+      // Payment gate — signed-in users only; guests get the free limited path.
+      // A ticket and coins are alternative currencies, and a ticket is spent
+      // first whenever it is valid, because someone holding one was given it
+      // precisely so they would not have to spend coins:
+      //  • CUSTOMIZING someone else's repo: a ticket, else coins. It used to be
+      //    ticket-or-nothing, which left a user with a full coin balance shut
+      //    out of the one thing coins are for.
+      //  • A STANDALONE deck from the slide tool: a ticket, else coins. A
+      //    ticket covers one deck up to TICKET_DECK_LIMITS, so an unbounded
+      //    deck cannot be bought with a fixed-price ticket.
+      //  • OWNER building their own repo: always coins. An owner funds their
+      //    own repo, and letting a gifted ticket pay for it would let the
+      //    ticket economy leak into repo authorship.
       let cost = 0;
       let reason = "";
-      let spendTicketOnRepo: number | null = null;
+      let spendTicket: TicketJob | null = null;
       if (ctx.user) {
         const isRepoOwner = seedRepo
           ? seedRepo.ownerId === ctx.user.id || ctx.user.role === "admin"
           : false;
-        if (seedRepo && !isRepoOwner) {
-          const available = await countAvailable(ctx.user.id, seedRepo.id);
-          if (available < 1) {
-            throw new TRPCError({
-              code: "FORBIDDEN",
-              message:
-                "NEED_TICKET: customizing this repo needs a ticket from its owner. You can still watch the free version.",
-            });
-          }
+        const ticketJob: TicketJob | null = seedRepo
+          ? isRepoOwner
+            ? null
+            : { repoId: seedRepo.id }
+          : { repoId: null };
+        // A ticket only covers a bounded deck. Over the cap the deck falls
+        // through to coins rather than being refused — the user asked for a
+        // bigger deck, not for the generation to stop.
+        const withinTicketLimits =
+          slideCount <= TICKET_DECK_LIMITS.maxSlides &&
+          LEVELS.indexOf(input.level) <= LEVELS.indexOf(TICKET_DECK_LIMITS.maxLevel);
+        const ticketOnHand =
+          ticketJob && withinTicketLimits ? (await countSpendable(ctx.user.id, ticketJob)) > 0 : false;
+
+        if (ticketJob && ticketOnHand) {
           // Consumed on success (below) so a failed generation costs nothing.
-          spendTicketOnRepo = seedRepo.id;
+          spendTicket = ticketJob;
           reason = `slides: ${tool.slug} (ticket · ${slideCount} slides)`;
         } else {
           const usingOwnKey = await userHasKey(ctx.user.id, "text");
@@ -552,9 +572,19 @@ export const generateRouter = createRouter({
             usingOwnKey,
           });
           if (ctx.user.tokenBalance < estimate.total) {
+            // Say which door they are standing at. A non-owner short on coins
+            // needs to know a ticket also opens it, and a deck that overran the
+            // ticket cap needs to say so or the refusal looks arbitrary.
+            const ticketWouldHaveWorked = ticketJob !== null;
+            const overCap = ticketWouldHaveWorked && !withinTicketLimits;
+            const hint = overCap
+              ? ` A ticket covers up to ${TICKET_DECK_LIMITS.maxSlides} slides at ${TICKET_DECK_LIMITS.maxLevel} — shorten the deck to use one instead.`
+              : ticketWouldHaveWorked
+                ? " A customization ticket would cover this deck too."
+                : "";
             throw new TRPCError({
               code: "FORBIDDEN",
-              message: `INSUFFICIENT_TOKENS: this deck needs ${estimate.total} 🪙, you have ${ctx.user.tokenBalance} 🪙`,
+              message: `INSUFFICIENT_TOKENS: this deck needs ${estimate.total} 🪙, you have ${ctx.user.tokenBalance} 🪙.${hint}`,
             });
           }
           cost = estimate.total;
@@ -1002,10 +1032,10 @@ export const generateRouter = createRouter({
         };
       });
 
-      // The customization succeeded — spend the ticket now (skip mock decks,
-      // which cost nothing to make).
-      if (spendTicketOnRepo != null && ctx.user && !usedMock) {
-        await consumeOne(ctx.user.id, spendTicketOnRepo);
+      // The deck generated — spend the ticket now (skip mock decks, which cost
+      // nothing to make).
+      if (spendTicket && ctx.user && !usedMock) {
+        await consumeOne(ctx.user.id, spendTicket);
       }
 
       let balance: number | null = null;

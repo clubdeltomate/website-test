@@ -122,6 +122,12 @@ export async function ensureTicketSchema(): Promise<void> {
          "createdAt" timestamp NOT NULL DEFAULT now()
        )`,
     );
+    // A ticket no longer has to belong to a repo: NULL marks a general ticket
+    // that pays for a slide-tool deck. Older databases created the column NOT
+    // NULL, so drop the constraint rather than the column.
+    await client.query(
+      `ALTER TABLE sketchlearn.tickets ALTER COLUMN "repoId" DROP NOT NULL`,
+    );
     await client.query(
       `CREATE INDEX IF NOT EXISTS tickets_holder_repo_idx ON sketchlearn.tickets ("holderId", "repoId", consumed)`,
     );

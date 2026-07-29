@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Menu, Plus, LibraryBig, Presentation, Route, ChevronDown, LogOut, Ticket } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { trpc } from '@/providers/trpc';
 
 const ROLE_CHIP: Record<string, string> = {
   user: 'bg-blue-soft text-ink',
@@ -41,6 +42,8 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
   const newRef = useDismiss(() => setNewOpen(false));
   const avatarRef = useDismiss(() => setAvatarOpen(false));
   const { user, logout } = useAuth();
+  const spendable = trpc.tickets.spendable.useQuery(undefined, { enabled: !!user });
+  const spendableTickets = spendable.data?.count ?? 0;
 
   return (
     <header className="sticky top-0 z-30 border-b-2 border-dashed border-pencil bg-paper/90 backdrop-blur-sm">
@@ -71,15 +74,24 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
               </Link>
               {/* Tickets sit beside coins because they are the other thing a
                   learner spends, and until now the only way to find out how
-                  many you held was to try to use one. */}
+                  many you held was to try to use one.
+
+                  The count is SPENDABLE tickets, not user.ticketBalance — that
+                  field is a moderator's undistributed pool, so a learner who
+                  had been gifted three tickets saw a zero here right up until
+                  they spent one. The pool is still worth showing to whoever has
+                  one, so it goes in the tooltip. */}
               <Link
                 to="/settings?tab=tokens"
                 className="flex items-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-green-soft px-2.5 py-1 font-mono text-sm font-bold text-ink no-underline shadow-offset transition-transform hover:-translate-y-0.5"
-                title={`${user.ticketBalance} customization ticket${user.ticketBalance === 1 ? '' : 's'}`}
-                aria-label={`${user.ticketBalance} customization tickets`}
+                title={
+                  `${spendableTickets} ticket${spendableTickets === 1 ? '' : 's'} to spend` +
+                  (user.ticketBalance > 0 ? ` · ${user.ticketBalance} in your pool to give away` : '')
+                }
+                aria-label={`${spendableTickets} tickets to spend`}
               >
                 <Ticket className="h-4 w-4" strokeWidth={2} />
-                <span>{user.ticketBalance}</span>
+                <span>{spendableTickets}</span>
               </Link>
             </>
           ) : (

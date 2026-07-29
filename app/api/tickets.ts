@@ -16,36 +16,68 @@ export async function countAvailable(userId: number, repoId: number): Promise<nu
 }
 
 /**
- * Spend ONE unused ticket the user holds for this repo. Returns true if a
- * ticket was consumed, false if the user had none. Atomic: the row is claimed
- * inside a transaction so two concurrent generations can't double-spend it.
+ * What a ticket is being spent on. A repo customization names the repo; a
+ * slide-tool deck names nothing, because it belongs to no repo.
  */
-export async function consumeOne(userId: number, repoId: number): Promise<boolean> {
-  const db = getDb();
-  return db.transaction(async (tx) => {
-    const row = await tx.query.tickets.findFirst({
-      where: and(
-        eq(tickets.holderId, userId),
-        eq(tickets.repoId, repoId),
-        eq(tickets.consumed, false),
-      ),
-    });
-    if (!row) return false;
-    await tx
-      .update(tickets)
-      .set({ consumed: true, consumedAt: new Date() })
-      .where(eq(tickets.id, row.id));
-    return true;
-  });
+export type TicketJob = { repoId: number } | { repoId: null };
+
+/**
+ * The user's unused tickets, best candidate for this job first.
+ *
+ * Preference is what keeps the two ticket kinds from cannibalising each other.
+ * Customizing repo X spends a ticket issued for X before a general one, so the
+ * general ticket stays available for anything. A slide-tool deck spends a
+ * general ticket before a repo-scoped one, so a ticket someone was given for a
+ * specific repo is the last thing taken for an unrelated deck. Both still fall
+ * through to the other kind, because a ticket is a ticket to the person
+ * holding it and refusing one they own would be a technicality.
+ */
+async function spendable(userId: number, job: TicketJob) {
+  const rows = await getDb()
+    .select({ id: tickets.id, repoId: tickets.repoId })
+    .from(tickets)
+    .where(and(eq(tickets.holderId, userId), eq(tickets.consumed, false)));
+  const rank = (repoId: number | null) =>
+    job.repoId === null ? (repoId === null ? 0 : 1) : repoId === job.repoId ? 0 : 1;
+  return rows.sort((a, b) => rank(a.repoId) - rank(b.repoId) || a.id - b.id);
+}
+
+/** How many tickets the user could spend on this job. */
+export async function countSpendable(userId: number, job: TicketJob): Promise<number> {
+  return (await spendable(userId, job)).length;
 }
 
 /**
- * A moderator gifts `count` tickets to a user for a repo they own, drawn from
- * the moderator's ticket pool. Throws if the pool is too small.
+ * Spend ONE unused ticket the user can use for this job. Returns true if a
+ * ticket was consumed, false if the user had none. Atomic: the row is claimed
+ * inside a transaction with a consumed=false guard, so two concurrent
+ * generations can't double-spend the same ticket.
+ */
+export async function consumeOne(userId: number, job: TicketJob): Promise<boolean> {
+  const candidates = await spendable(userId, job);
+  const db = getDb();
+  for (const candidate of candidates) {
+    const claimed = await db.transaction(async (tx) => {
+      const rows = await tx
+        .update(tickets)
+        .set({ consumed: true, consumedAt: new Date() })
+        .where(and(eq(tickets.id, candidate.id), eq(tickets.consumed, false)))
+        .returning({ id: tickets.id });
+      return rows.length > 0;
+    });
+    if (claimed) return true;
+  }
+  return false;
+}
+
+/**
+ * A moderator gifts `count` tickets to a user, drawn from the moderator's
+ * ticket pool. `repoId` scopes them to one repo; null issues general tickets
+ * the holder can spend on the slide tool. Throws if the pool is too small.
  */
 export async function grantToUser(
   moderatorId: number,
-  repoId: number,
+  repoId: number | null,
   holderId: number,
   count: number,
 ): Promise<{ remaining: number }> {
