@@ -51,7 +51,7 @@ import type {
   TokenLedgerRow,
   TokenPack,
 } from '@contracts/types';
-import { IMAGE_STYLES, LEVELS, normalizeUsername } from '@contracts/types';
+import { IMAGE_STYLES, LEVELS, normalizeUsername, USERNAME_MAX_LENGTH } from '@contracts/types';
 import { TTS_VOICE_STORAGE_KEY } from '@/components/player/TtsReader';
 
 const TABS = [
@@ -183,8 +183,15 @@ function ProfileTab() {
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          <LabeledField label="Username" helper="One word — spaces are closed up as you type.">
-            <SketchInput value={name} onChange={(e) => setName(normalizeUsername(e.target.value))} />
+          <LabeledField
+            label="Username"
+            helper={`One word, max ${USERNAME_MAX_LENGTH} characters — spaces are closed up as you type. ${name.length}/${USERNAME_MAX_LENGTH}`}
+          >
+            <SketchInput
+              value={name}
+              maxLength={USERNAME_MAX_LENGTH}
+              onChange={(e) => setName(normalizeUsername(e.target.value))}
+            />
           </LabeledField>
           <LabeledField label="Email" helper="Email is your sign-in — it can't be changed yet.">
             <SketchInput value={user.email} disabled className="opacity-60" />

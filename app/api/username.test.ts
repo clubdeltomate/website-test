@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeUsername } from "../contracts/types.js";
+import { normalizeUsername, USERNAME_MAX_LENGTH } from "../contracts/types.js";
 
 describe("normalizeUsername", () => {
   it("closes up spaces rather than rejecting the name", () => {
@@ -28,7 +28,11 @@ describe("normalizeUsername", () => {
     expect(normalizeUsername("")).toBe("");
   });
 
-  it("stays inside the column width", () => {
-    expect(normalizeUsername("a".repeat(400))).toHaveLength(255);
+  it("clips to the username limit, not the column width", () => {
+    expect(USERNAME_MAX_LENGTH).toBe(20);
+    expect(normalizeUsername("a".repeat(400))).toHaveLength(USERNAME_MAX_LENGTH);
+    // Spaces come out BEFORE the clip, so a spaced name keeps its real letters
+    // rather than losing them to whitespace that was never going to be stored.
+    expect(normalizeUsername("Jonathan The Magnificent Third")).toBe("JonathanTheMagnifice");
   });
 });

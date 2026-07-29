@@ -55,6 +55,8 @@ export const authRouter = createRouter({
       z.object({
         email: z.string().email().max(320),
         password: z.string().min(8, "Password must be at least 8 characters").max(128),
+        // Raw input: normalizeUsername closes up spaces and clips to
+        // USERNAME_MAX_LENGTH, so this bound only rejects absurd payloads.
         name: z.string().min(1).max(255),
       }),
     )

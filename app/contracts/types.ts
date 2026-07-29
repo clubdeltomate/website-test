@@ -25,15 +25,24 @@ export type AiCapability = "text" | "image" | "tts";
 export const LEVELS: Level[] = ["A0", "A1", "A2", "B1", "B2", "C1", "C2"];
 
 /**
- * A username is one word. It doubles as a sign-in identifier — you can type it
- * instead of an email — and an identifier that can contain a space is a
- * guessing game about how many spaces and where. Rather than reject a name
- * with spaces, we close them up: "Sam Sketcher" signs in as "SamSketcher".
- * Shared with the client so the field can normalize as you type and nobody
- * discovers the rule only when the server refuses their form.
+ * How long a username may be. Short on purpose: it is typed at sign-in, shown
+ * on every card and badge, and printed beside every repo. The column holds 255
+ * because that is what varchar was given, which is a storage limit rather than
+ * a rule — an identifier nobody can type or fit on a card is not a good one.
+ */
+export const USERNAME_MAX_LENGTH = 20;
+
+/**
+ * A username is one word, no longer than USERNAME_MAX_LENGTH. It doubles as a
+ * sign-in identifier — you can type it instead of an email — and an identifier
+ * that can contain a space is a guessing game about how many spaces and where.
+ * Rather than reject a name that breaks either rule, we fix it: spaces are
+ * closed up and the result is clipped to length, so "Sam Sketcher" signs in as
+ * "SamSketcher". Shared with the client so the field can normalize as you type
+ * and nobody discovers the rules only when the server refuses their form.
  */
 export function normalizeUsername(raw: string): string {
-  return raw.normalize("NFC").replace(/\s+/gu, "").slice(0, 255);
+  return raw.normalize("NFC").replace(/\s+/gu, "").slice(0, USERNAME_MAX_LENGTH);
 }
 
 /** The most slides any single generation may produce. */
