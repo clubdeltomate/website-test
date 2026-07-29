@@ -23,7 +23,13 @@ function toSessionUser(u: User): SessionUser {
   };
 }
 
-const STARTER_TOKENS = 50;
+/**
+ * Zero, not 50. Holding credits is now what makes an account a moderator, so a
+ * free starting balance would promote every new signup the moment it landed
+ * and empty the role of meaning. A new account starts with nothing and becomes
+ * a moderator when someone actually credits it.
+ */
+const STARTER_TOKENS = 0;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -77,12 +83,15 @@ export const authRouter = createRouter({
           tokenBalance: STARTER_TOKENS,
         })
         .returning({ id: users.id });
-      await db.insert(tokenLedger).values({
-        userId: id,
-        delta: STARTER_TOKENS,
-        reason: "welcome bonus",
-        balanceAfter: STARTER_TOKENS,
-      });
+      // No row for a zero bonus — an empty movement is noise in the ledger.
+      if (STARTER_TOKENS > 0) {
+        await db.insert(tokenLedger).values({
+          userId: id,
+          delta: STARTER_TOKENS,
+          reason: "welcome bonus",
+          balanceAfter: STARTER_TOKENS,
+        });
+      }
       const user = (await db.query.users.findFirst({ where: eq(users.id, id) }))!;
       return { token: signAuthToken({ sub: user.id, email: user.email }), user: toSessionUser(user) };
     }),

@@ -81,20 +81,20 @@ export const paymentsRouter = createRouter({
       if (payment.status !== "pending") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Payment already resolved" });
       }
+      // Read the role BEFORE crediting, so the promotion can be reported.
+      const before = await db.query.users.findFirst({ where: eq(users.id, payment.userId) });
+      const wasPlainUser = before?.role === "user";
       const balance = await applyTokenDelta(
         payment.userId,
         payment.packTokens,
         `payment #${payment.id} approved (${payment.packId})`,
       );
-      // Buying credits is what turns a plain user into a moderator (they run
-      // repos and sell customizations). Admins keep their role; a user is
-      // demoted back automatically once the balance runs out (see applyTokenDelta).
+      // applyTokenDelta already did the promotion — holding credits is what
+      // makes a moderator, whichever path delivered the coins. This only has to
+      // REPORT whether it happened, so the caller can say so; doing it again
+      // here would be a second write of a role that is already correct.
       const buyer = await db.query.users.findFirst({ where: eq(users.id, payment.userId) });
-      let promoted = false;
-      if (buyer && buyer.role === "user" && balance > 0) {
-        await db.update(users).set({ role: "moderator" }).where(eq(users.id, buyer.id));
-        promoted = true;
-      }
+      const promoted = wasPlainUser && buyer?.role === "moderator";
       await db
         .update(payments)
         .set({ status: "credited", resolvedBy: ctx.user.id, resolvedAt: new Date() })

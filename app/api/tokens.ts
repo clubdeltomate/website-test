@@ -30,17 +30,26 @@ export async function applyTokenDelta(
     if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
     const next = user.tokenBalance + delta;
     if (next < 0) throw new InsufficientTokensError(user.tokenBalance, -delta);
-    // Being a moderator requires available credits. A moderator whose balance
-    // runs out is automatically demoted back to a regular user. Admins are
-    // never demoted this way.
+    // Role follows credits, in both directions. Holding credits IS what makes
+    // someone a moderator, so any credit promotes and running the balance down
+    // to nothing demotes — whichever path moved the coins, since every credit
+    // and debit in the app comes through here.
+    //
+    // Admins are exempt in both directions: an admin who spends their last
+    // coin stays an admin, and one is never "promoted" to a lesser role.
+    const promote = user.role === "user" && next > 0;
     const demote = user.role === "moderator" && next <= 0;
+    const role = promote ? ("moderator" as const) : demote ? ("user" as const) : null;
     await tx
       .update(users)
-      .set({ tokenBalance: next, ...(demote ? { role: "user" as const } : {}) })
+      .set({ tokenBalance: next, ...(role ? { role } : {}) })
       .where(eq(users.id, userId));
     await tx
       .insert(tokenLedger)
       .values({ userId, delta, reason, balanceAfter: next });
+    if (promote) {
+      console.info(`[tokens] user ${userId} holds credits — promoted to moderator`);
+    }
     if (demote) {
       console.warn(`[tokens] moderator ${userId} ran out of credits — demoted to user`);
     }
