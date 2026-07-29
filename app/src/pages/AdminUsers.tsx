@@ -30,7 +30,7 @@ function AddUserForm({ onDone }: { onDone: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<Role>('user');
-  const [tokens, setTokens] = useState(50);
+  const [tokens, setTokens] = useState(0);
 
   const create = trpc.users.createUser.useMutation({
     onSuccess: () => {

@@ -184,7 +184,7 @@ export const usersRouter = createRouter({
         email: z.string().email().max(320),
         password: z.string().min(6).max(128),
         role: z.enum(["user", "moderator", "admin"]).default("user"),
-        tokens: z.number().int().min(0).max(100000).default(50),
+        tokens: z.number().int().min(0).max(100000).default(0),
       }),
     )
     .mutation(async ({ input }) => {
@@ -200,13 +200,20 @@ export const usersRouter = createRouter({
       if (nameTaken) {
         throw new TRPCError({ code: "CONFLICT", message: "That username is already used by another user" });
       }
+      // Holding credits is what makes someone a moderator, and this insert
+      // writes a balance straight into the row rather than going through
+      // applyTokenDelta — so the rule has to be applied here too, or an account
+      // created as a "user" with coins would sit in a state the rest of the app
+      // says cannot exist. Admins keep the role they were given.
+      const role =
+        input.role === "user" && input.tokens > 0 ? ("moderator" as const) : input.role;
       const [{ id }] = await db
         .insert(users)
         .values({
           email,
           name: input.name.trim(),
           passwordHash: hashPassword(input.password),
-          role: input.role,
+          role,
           tokenBalance: input.tokens,
         })
         .returning({ id: users.id });
