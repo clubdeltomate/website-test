@@ -574,6 +574,56 @@ describe.runIf(HAS_DB)("full coins ↔ tickets cycle", () => {
     await expect(call(student).repos.ensureStudyTool({ repoSlug })).rejects.toThrow(/owner/i);
   });
 
+  it("9e) finishing a lesson records the play even when the repo has no study tool", async () => {
+    const db = getDb();
+    const repoSlug = (globalThis as Record<string, unknown>).__repoSlug as string;
+    const repoRef = (globalThis as Record<string, unknown>).__repoRef as string;
+    const lessonSeq = (globalThis as Record<string, unknown>).__lessonSeq as number;
+    const repo = await db.query.repos.findFirst({ where: (r, { eq: e }) => e(r.slug, repoSlug) });
+
+    // A hand-built repo has a playable lesson and no study tool, so playing its
+    // preset sends an empty toolSlug. That used to fail input validation, which
+    // discarded the finished play in silence — the lesson went on reporting
+    // itself unplayed, with no score and no time.
+    await db
+      .update(reposTable)
+      .set({ studyToolSlug: null })
+      .where(eq(reposTable.id, repo!.id));
+
+    const res = await call(student).runs.complete({
+      toolSlug: "",
+      seed: {
+        repoSlug,
+        repoRef,
+        unitTitle: "Cells",
+        lessonTitle: "Photosynthesis",
+        lessonIndex: 1,
+        lessonCount: 1,
+        lessonSeq,
+        lessonSeqTotal: 1,
+      },
+      level: "B1",
+      imageStyle: "none",
+      slideCount: 4,
+      elapsedSec: 42,
+      perSlide: [],
+    });
+    expect(res.runId).toBeGreaterThan(0);
+
+    // The repo grew the tool the run needed, rather than the play being dropped.
+    const healed = await db.query.repos.findFirst({ where: (r, { eq: e }) => e(r.id, repo!.id) });
+    expect(healed!.studyToolSlug).toBeTruthy();
+
+    // And the lesson now reports itself played, with the figures the repo shows.
+    const detail = await call(student).repos.getBySlug({ slug: repoSlug });
+    const lesson = detail!.units.flatMap((u) => u.lessons).find((l) => l.globalSeq === lessonSeq)!;
+    // No quizzes were answered, so a finished read counts as completed.
+    expect(lesson.myStatus).toBe("completed");
+    expect(lesson.myAttempts).toBeGreaterThanOrEqual(1);
+    expect(lesson.myBestElapsedSec).toBe(42);
+    expect(lesson.myBestLevel).toBe("B1");
+  });
+
   it("10) draining a moderator's credits demotes them to a user", async () => {
     const m = await reload(moderator.id);
     expect(m.role).toBe("moderator");

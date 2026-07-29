@@ -13,6 +13,7 @@ import PlayerHeader from './PlayerHeader';
 import SlideComponentView, { Kara, CodeDeck, ImageDeck, ChartDeck } from './SlideComponents';
 import QuizCard, { type QuizAnswer } from './QuizCard';
 import FinishScreen from './FinishScreen';
+import SketchToaster from '@/components/admin/SketchToaster';
 import CommercialFinish from './CommercialFinish';
 import WalkthroughFinish from './WalkthroughFinish';
 import AnnotationLayer, { type AnnTool } from './AnnotationLayer';
@@ -496,6 +497,10 @@ export default function DeckPlayer({
 
   return (
     <TtsReaderProvider>
+    {/* The player is a fixed full-screen layer over whatever page opened it, so
+        it needs its own toast mount — there is no global one, and without this
+        a play that failed to save reported the failure to nobody. */}
+    <SketchToaster />
     <div
       className="paper-grain fixed inset-0 z-[65] flex min-h-[100dvh] flex-col bg-paper"
       data-lenis-prevent

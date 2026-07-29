@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { motion, useReducedMotion } from 'framer-motion';
 import confetti from 'canvas-confetti';
+import { toast } from 'sonner';
 import { ArrowRight, PlayCircle, RotateCcw, TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { trpc } from '@/providers/trpc';
@@ -83,6 +84,11 @@ export default function FinishScreen({
   const passed = isPassingScore(scoreCorrect, scoreTotal);
 
   const complete = trpc.runs.complete.useMutation({
+    // A play that fails to save used to fail in silence: the finish screen
+    // congratulated you and the repo went on saying the lesson was unplayed,
+    // with no stats and no way to tell something had gone wrong.
+    onError: (e) =>
+      toast.error(`This play wasn't recorded — ${e.message}`, { duration: 9000 }),
     onSuccess: () => {
       // refresh the repo page so the lesson chip (completed / try again)
       // and next-up marker reflect this run when the player goes back
