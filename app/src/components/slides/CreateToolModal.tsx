@@ -40,6 +40,7 @@ import { Shuffle } from 'lucide-react';
 import { TemplateIcon } from '@/components/repo/shared';
 import TemplateBar from '@/components/templates/TemplateBar';
 import { studyUrl } from '@/components/repo/shared';
+import { useLessonGeneration } from '@/providers/lesson-generation';
 import { TemplateBadges } from '@/components/templates/TemplatePicker';
 import SketchButton from '../sketch/SketchButton';
 import WashiTape from '../sketch/WashiTape';
@@ -310,89 +311,67 @@ export default function CreateToolModal({
     onError: (err) => toast.error(err.message),
   });
 
-  /* ---- the repo-lesson path: generate here, then go nowhere ---- */
-  const genSlides = trpc.generate.slides.useMutation();
-  const ensureStudyTool = trpc.repos.ensureStudyTool.useMutation();
-  const setPreset = trpc.repos.setLessonPreset.useMutation();
-  const saveCustom = trpc.repos.saveMyCustomization.useMutation();
-  const [busy, setBusy] = useState<string | null>(null);
-  // Dismissing mid-generation would abandon a deck the author is already being
-  // charged for, with nowhere left to report the result.
-  const guardedClose = () => {
-    if (busy) return;
-    onClose();
-  };
+  /* ---- the repo-lesson path: hand the work off and get out of the way ---- */
+  const lessonGen = useLessonGeneration();
+  const guardedClose = () => onClose();
 
   /**
-   * Build the lesson without leaving the repo.
+   * Build the lesson in the background and close immediately.
    *
-   * The first version redirected to the slide tool's page with ?generate=1 and
-   * let that screen do the work. That is the wrong shape twice over: it is a
-   * detour through a page the author was not asking for, and the redirect could
-   * land on "Couldn't find that slide tool" — a dead end at the exact moment
-   * the deck was supposed to appear. Generating from here means the only thing
-   * that can fail is the generation itself, which is reported in place.
+   * The wizard used to own the wait — modal open, spinner turning, author pinned
+   * to the page for the thirty to sixty seconds a deck takes. The job is handed
+   * to a provider that lives above the router instead, so the wizard can shut
+   * straight away and the lesson's own button carries the spinner. Leave the
+   * repo, come back, and it is either still turning or it says Play.
    *
-   * Nothing navigates on success. Setting a lesson's presentation is a change to
-   * the repo, so the author stays on the repo and the lesson's button flips from
-   * Set to Play once the invalidation lands.
+   * Deliberately the vanilla client, not mutation hooks: this promise outlives
+   * the component that started it, and a hook does not.
    */
-  const runForLesson = async (paddedPlan: (string | null)[]) => {
+  const runForLesson = (paddedPlan: (string | null)[]) => {
     if (!seed) return;
-    setBusy('Sketching the slides…');
-    try {
-      // Resolve the tool server-side rather than trusting the slug the repo is
-      // carrying. Half of the repos here have no study tool and a deleted one
-      // leaves a slug pointing at nothing; both used to surface as a dead Set
-      // button or "Slide tool not found" after every question was answered.
-      const { slug } = await ensureStudyTool.mutateAsync({ repoSlug: seed.repoSlug });
-      const res = await genSlides.mutateAsync({
-        toolSlug: slug,
-        seed,
-        topic: topic.trim(),
-        instructions: instructions.trim(),
-        level,
-        slideCount,
-        imageStyle,
-        textDensity,
-        subject,
-        purpose: repoPurpose(template),
-        templatePlan: paddedPlan.some(Boolean) ? paddedPlan : undefined,
-      });
-      // "Normal" means no questions at all, so strip them before anything is
-      // stored — the same thing the tool page does before it plays a deck.
-      const deck = wantsQuiz
-        ? res.deck
-        : { ...res.deck, slides: res.deck.slides.map((sl) => ({ ...sl, quiz: undefined })) };
-
-      if (intent === 'configure') {
-        setBusy('Saving your version…');
-        await saveCustom.mutateAsync({
-          repoSlug: seed.repoSlug,
-          lessonSeq: seed.lessonSeq,
-          deck,
+    const lesson = seed;
+    const client = utils.client;
+    onClose();
+    lessonGen.start(lesson.repoSlug, lesson.lessonSeq, async () => {
+      try {
+        // Resolve the tool server-side rather than trusting the slug the repo is
+        // carrying. Half of the repos here have no study tool and a deleted one
+        // leaves a slug pointing at nothing; both used to surface as a dead Set
+        // button or "Slide tool not found" after every question was answered.
+        const { slug } = await client.repos.ensureStudyTool.mutate({
+          repoSlug: lesson.repoSlug,
+        });
+        // ONE request that generates AND saves. Two requests meant a tab closed
+        // in between lost a deck the author had already been charged for; the
+        // server now finishes whether or not anyone is still watching.
+        await client.generate.slides.mutate({
+          persist: intent === 'configure' ? 'customization' : 'preset',
           toolSlug: slug,
+          seed: lesson,
+          topic: topic.trim(),
+          instructions: instructions.trim(),
+          level,
+          slideCount,
+          imageStyle,
+          textDensity,
+          subject,
+          purpose: repoPurpose(template),
+          includeQuiz: wantsQuiz,
+          templatePlan: paddedPlan.some(Boolean) ? paddedPlan : undefined,
         });
-        toast.success('Your version is ready — press "Play yours" ✓');
-      } else {
-        setBusy('Saving the presentation…');
-        await setPreset.mutateAsync({
-          repoSlug: seed.repoSlug,
-          lessonSeq: seed.lessonSeq,
-          deck,
-        });
-        toast.success('Presentation set — the lesson can be played now ✓');
+        toast.success(
+          intent === 'configure'
+            ? 'Your version is ready — press "Play yours" ✓'
+            : 'Presentation set — the lesson can be played now ✓',
+        );
+      } catch (err) {
+        toast.error(readableGenError(err), { duration: 9000 });
+      } finally {
+        // Refresh either way: a failure needs the button to come back.
+        await utils.repos.getBySlug.invalidate({ slug: lesson.repoSlug });
+        void utils.repos.courseMemory.invalidate({ slug: lesson.repoSlug });
       }
-      await utils.repos.getBySlug.invalidate({ slug: seed.repoSlug });
-      void utils.repos.courseMemory.invalidate({ slug: seed.repoSlug });
-      onClose();
-    } catch (err) {
-      // Stay open on failure. Closing would hide both the error and every
-      // answer the author just gave, forcing them to fill it all in again.
-      toast.error(readableGenError(err), { duration: 9000 });
-    } finally {
-      setBusy(null);
-    }
+    });
   };
 
   const submit = () => {
@@ -422,7 +401,7 @@ export default function CreateToolModal({
     // created) inside runForLesson — creating one here would leave an orphan
     // behind on every "Set".
     if (seed) {
-      void runForLesson(paddedPlan);
+      runForLesson(paddedPlan);
       return;
     }
     if (toolSlug) {
@@ -1157,7 +1136,7 @@ export default function CreateToolModal({
 
             <div className="mt-6 flex items-center justify-end gap-3">
               {stepIdx === 0 ? (
-                <SketchButton variant="ghost" disabled={!!busy} onClick={guardedClose}>
+                <SketchButton variant="ghost" onClick={guardedClose}>
                   Cancel
                 </SketchButton>
               ) : (
@@ -1167,18 +1146,13 @@ export default function CreateToolModal({
                 </SketchButton>
               )}
               {isLastStep ? (
-                <SketchButton
-                  variant="accent"
-                  loading={create.isPending || !!busy}
-                  disabled={!!busy}
-                  onClick={submit}
-                >
+                <SketchButton variant="accent" loading={create.isPending} onClick={submit}>
                   {/* Keyed on the seed, not on toolSlug: the repo's tool is
                       resolved server-side now, so a lesson run has no slug to
                       recognise itself by. A repo lesson creates nothing, and
                       promising a "Create" would describe a step that does not
                       happen. */}
-                  {busy ?? (seed ? 'Generate' : 'Create & generate')}
+                  {seed ? 'Generate' : 'Create & generate'}
                 </SketchButton>
               ) : (
                 <SketchButton

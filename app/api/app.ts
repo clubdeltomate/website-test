@@ -11,6 +11,7 @@ import {
   ensureRunAnnotationsColumn,
   ensureCommercialSchema,
   ensureTicketSchema,
+  ensureSlideImages,
   ensureUserFavoriteType,
   ensureCustomizationSchema,
   ensureSlideToolAuthoring,
@@ -18,6 +19,7 @@ import {
   ensureWalkthroughTemplate,
 } from "./lib/migrate-annotations.js";
 import { ensureAccountRules } from "./lib/migrate-accounts.js";
+import { loadSlideImage } from "./deck-images.js";
 
 /**
  * The tRPC/Hono API app, WITHOUT any host bootstrap. Import this from a host
@@ -35,6 +37,7 @@ const runMigrations = () => {
   void ensureRunAnnotationsColumn().catch(warn("run annotations column"));
   void ensureCommercialSchema().catch(warn("commercial schema"));
   void ensureTicketSchema().catch(warn("ticket schema"));
+  void ensureSlideImages().catch(warn("slide images table"));
   void ensureWalkthroughTemplate().catch(warn("walkthrough/news template enum"));
   void ensureElevenLabsProvider().catch(warn("elevenlabs provider enum"));
   void ensureUserFavoriteType().catch(warn("user-favorite enum"));
@@ -214,6 +217,26 @@ app.get("/api/wolfram", async (c) => {
     });
   } catch {
     return c.json({ error: "wolfram_unreachable" }, 502);
+  }
+});
+
+/**
+ * Serve a stored slide image. Immutable — a row is written once and never
+ * changed, so the browser may keep it forever and a replayed deck costs no
+ * transfer at all.
+ */
+app.get("/api/img/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  if (!Number.isInteger(id) || id <= 0) return c.json({ error: "bad_id" }, 400);
+  try {
+    const img = await loadSlideImage(id);
+    if (!img) return c.json({ error: "not_found" }, 404);
+    return c.body(img.bytes, 200, {
+      "content-type": img.mime,
+      "cache-control": "public, max-age=31536000, immutable",
+    });
+  } catch {
+    return c.json({ error: "unavailable" }, 500);
   }
 });
 

@@ -17,6 +17,7 @@ import {
   type User,
 } from "../../db/schema.js";
 import { repoRef, slugify, templateSchema } from "../ai/prompts.js";
+import { externalizeDeckImages } from "../deck-images.js";
 import { generateImage } from "../ai/provider.js";
 import { courseMemory } from "../memory.js";
 import { isPassingScore } from "../../contracts/progress.js";
@@ -61,7 +62,64 @@ async function prepPresetDeck(
       }),
     );
   }
-  return { ...deck, slides };
+  // Images generated above arrive as base64 data URIs. Store them out of line
+  // before this deck is written, or the row becomes megabytes that have to be
+  // returned whole on every play.
+  const { deck: lean } = await externalizeDeckImages({ ...deck, slides }, userId);
+  return lean;
+}
+
+/**
+ * Save a deck as a lesson's preset. A plain function rather than only a
+ * procedure because the generator calls it directly: generating and saving used
+ * to be two client-driven requests, so a tab that closed in between lost the
+ * deck it had already paid for.
+ */
+export async function writeLessonPreset(
+  repoSlug: string,
+  lessonSeq: number,
+  deck: unknown,
+  user: User,
+): Promise<void> {
+  const db = getDb();
+  const repo = await db.query.repos.findFirst({ where: eq(repos.slug, repoSlug) });
+  if (!repo) throw new TRPCError({ code: "NOT_FOUND", message: "Repository not found" });
+  if (!canEdit(repo, user)) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Only the owner can set the preset" });
+  }
+  const lesson = await lessonBySeq(repo.id, lessonSeq);
+  if (!lesson) throw new TRPCError({ code: "NOT_FOUND", message: "Item not found" });
+  const prepared = deck
+    ? await prepPresetDeck(deck as SlideDeck, repoPurpose(repo.template), user.id)
+    : null;
+  await db
+    .update(lessons)
+    .set({ presetDeckJson: prepared, presetAt: new Date() })
+    .where(eq(lessons.id, lesson.id));
+}
+
+/** Save a user's own generated deck for a lesson. See writeLessonPreset. */
+export async function writeCustomization(
+  repoSlug: string,
+  lessonSeq: number,
+  deck: unknown,
+  userId: number,
+  toolSlug?: string,
+): Promise<void> {
+  const db = getDb();
+  const repo = await db.query.repos.findFirst({ where: eq(repos.slug, repoSlug) });
+  if (!repo) throw new TRPCError({ code: "NOT_FOUND", message: "Repository not found" });
+  const lesson = await lessonBySeq(repo.id, lessonSeq);
+  if (!lesson) throw new TRPCError({ code: "NOT_FOUND", message: "Item not found" });
+  const { deck: lean } = await externalizeDeckImages(deck as SlideDeck, userId);
+  const tool = toolSlug ?? repo.studyToolSlug ?? null;
+  await db
+    .insert(customizations)
+    .values({ lessonId: lesson.id, repoId: repo.id, userId, toolSlug: tool, deckJson: lean })
+    .onConflictDoUpdate({
+      target: [customizations.userId, customizations.lessonId],
+      set: { deckJson: lean, toolSlug: tool, repoId: repo.id, updatedAt: new Date() },
+    });
 }
 
 type RunLite = Pick<
@@ -566,21 +624,7 @@ export const reposRouter = createRouter({
   setLessonPreset: authedProcedure
     .input(z.object({ repoSlug: z.string(), lessonSeq: z.number().int(), deck: z.unknown() }))
     .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
-      const db = getDb();
-      const repo = await db.query.repos.findFirst({ where: eq(repos.slug, input.repoSlug) });
-      if (!repo) throw new TRPCError({ code: "NOT_FOUND", message: "Repository not found" });
-      if (!canEdit(repo, ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Only the owner can set the preset" });
-      }
-      const lesson = await lessonBySeq(repo.id, input.lessonSeq);
-      if (!lesson) throw new TRPCError({ code: "NOT_FOUND", message: "Item not found" });
-      const prepared = input.deck
-        ? await prepPresetDeck(input.deck as SlideDeck, repoPurpose(repo.template), ctx.user.id)
-        : null;
-      await db
-        .update(lessons)
-        .set({ presetDeckJson: prepared, presetAt: new Date() })
-        .where(eq(lessons.id, lesson.id));
+      await writeLessonPreset(input.repoSlug, input.lessonSeq, input.deck, ctx.user);
       return { ok: true };
     }),
 
@@ -612,9 +656,10 @@ export const reposRouter = createRouter({
             : s,
         ),
       };
+      const { deck: lean } = await externalizeDeckImages(cleaned, ctx.user.id);
       await db
         .update(lessons)
-        .set({ presetDeckJson: cleaned, presetAt: new Date() })
+        .set({ presetDeckJson: lean, presetAt: new Date() })
         .where(eq(lessons.id, lesson.id));
       return { ok: true };
     }),
@@ -730,24 +775,7 @@ export const reposRouter = createRouter({
       if (!repo) throw new TRPCError({ code: "NOT_FOUND", message: "Repository not found" });
       const lesson = await lessonBySeq(repo.id, input.lessonSeq);
       if (!lesson) throw new TRPCError({ code: "NOT_FOUND", message: "Item not found" });
-      await db
-        .insert(customizations)
-        .values({
-          lessonId: lesson.id,
-          repoId: repo.id,
-          userId: ctx.user.id,
-          toolSlug: input.toolSlug ?? repo.studyToolSlug ?? null,
-          deckJson: input.deck as SlideDeck,
-        })
-        .onConflictDoUpdate({
-          target: [customizations.userId, customizations.lessonId],
-          set: {
-            deckJson: input.deck as SlideDeck,
-            toolSlug: input.toolSlug ?? repo.studyToolSlug ?? null,
-            repoId: repo.id,
-            updatedAt: new Date(),
-          },
-        });
+      await writeCustomization(input.repoSlug, input.lessonSeq, input.deck, ctx.user.id, input.toolSlug);
       return { ok: true };
     }),
 

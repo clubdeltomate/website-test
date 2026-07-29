@@ -23,11 +23,12 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import Chip from '@/components/sketch/Chip';
-import SketchButton from '@/components/sketch/SketchButton';
+import SketchButton, { PencilSpinner } from '@/components/sketch/SketchButton';
 import WashiTape from '@/components/sketch/WashiTape';
 import { DoodleCheck } from '@/components/sketch/DoodleIcons';
 import { trpc } from '@/providers/trpc';
 import CreateToolModal from '@/components/slides/CreateToolModal';
+import { useLessonGeneration } from '@/providers/lesson-generation';
 import type { LessonSeed, RepoLesson, RepoPurpose, RepoTemplate, RepoUnit } from '@contracts/types';
 import { repoPurpose } from '@contracts/types';
 import { TEMPLATE_META } from './shared';
@@ -478,6 +479,11 @@ function LessonCard({
    * questions.
    */
   const [wizard, setWizard] = useState<'set' | 'configure' | null>(null);
+  // A generation started here keeps running above the router, so this reads the
+  // shared state rather than owning it — the spinner is still here after the
+  // author wanders off to another page and comes back.
+  const lessonGen = useLessonGeneration();
+  const generating = lessonGen.isRunning(seed.repoSlug, seed.lessonSeq);
   // Progress chips reflect ONLY the signed-in viewer's own runs
   const completed = lesson.myStatus === 'completed';
   const tryAgain = lesson.myStatus === 'try-again';
@@ -592,6 +598,22 @@ function LessonCard({
 
   /** The right button for this item, given purpose / ownership / preset. */
   const renderAction = () => {
+    // One control while a deck is being made: neither Set nor Play is true yet,
+    // and offering either would misdescribe what pressing it does.
+    if (generating) {
+      // Spinner AND label: this wait runs 30-60 seconds, so a bare spinner
+      // leaves the author guessing which of the row's buttons it replaced.
+      return (
+        <SketchButton
+          variant="accent"
+          size="sm"
+          disabled
+          title="Building this presentation — you can leave this page, it keeps going"
+        >
+          <PencilSpinner /> Building…
+        </SketchButton>
+      );
+    }
     // Menu / service / shop / walkthrough: generate ONCE, then everyone watches
     // the preset (no quizzes, no per-viewer customization).
     if (presetOnly) {

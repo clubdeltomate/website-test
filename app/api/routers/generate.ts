@@ -28,6 +28,7 @@ import {
 import { estimateCost } from "../cost.js";
 import { applyTokenDelta, refundTokens } from "../tokens.js";
 import { consumeOne, countSpendable, type TicketJob } from "../tickets.js";
+import { writeCustomization, writeLessonPreset } from "./repos.js";
 import { buildPreviouslyTaught } from "../memory.js";
 import { loadTemplateCatalog } from "./templates.js";
 import {
@@ -398,6 +399,21 @@ export const generateRouter = createRouter({
         // Advanced: pin a specific layout template per slide (by template
         // name). null / missing entry = let the AI choose. Index i → slide i+1.
         templatePlan: z.array(z.string().max(120).nullable()).max(MAX_SLIDES).optional(),
+        /**
+         * Save the finished deck server-side instead of handing it back for the
+         * client to store. The client used to run generate → save as two calls,
+         * which meant a tab that navigated away mid-generation lost the deck it
+         * had already been charged for. With this, the work is one request and
+         * finishes whether or not anyone is still watching.
+         */
+        persist: z.enum(["preset", "customization"]).optional(),
+        /**
+         * false strips every question before the deck is stored — a "Normal"
+         * deck was asked to present, not to test. The client used to do this
+         * after the fact; with `persist` it never sees the deck, so the rule has
+         * to live where the saving happens.
+         */
+        includeQuiz: z.boolean().default(true),
         seed: z
           .object({
             repoSlug: z.string(),
@@ -1056,6 +1072,23 @@ export const generateRouter = createRouter({
           ? await db.query.users.findFirst({ where: eq(users.id, authorId) })
           : null;
         if (owner) author = { ownerId: owner.id, name: owner.name };
+      }
+      // Persist here when asked, so the deck survives the client walking away.
+      if (input.persist && input.seed && ctx.user) {
+        const toStore = input.includeQuiz
+          ? deck
+          : { ...deck, slides: deck.slides.map((sl) => ({ ...sl, quiz: undefined })) };
+        if (input.persist === "preset") {
+          await writeLessonPreset(input.seed.repoSlug, input.seed.lessonSeq, toStore, ctx.user);
+        } else {
+          await writeCustomization(
+            input.seed.repoSlug,
+            input.seed.lessonSeq,
+            toStore,
+            ctx.user.id,
+            tool.slug,
+          );
+        }
       }
       return { deck, usedMock, cost, balance, previouslyTaught, slidePlan, commercial, walkthrough, author };
     }),
