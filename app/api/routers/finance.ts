@@ -4,7 +4,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { createRouter } from "../middleware.js";
 import { adminProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
-import { payments, tokenLedger, users } from "../../db/schema.js";
+import { payments, runs as runsTable, tokenLedger, users } from "../../db/schema.js";
 import { applyTokenDelta } from "../tokens.js";
 import { getSettings, saveSettings } from "../settings.js";
 import { autoTicketPrice, ticketPrice } from "../cost.js";
@@ -244,6 +244,80 @@ export const financeRouter = createRouter({
     }),
 
   /** One past receipt, for re-printing from the history list. */
+  /**
+   * One user's coin history, in the same buckets as the platform ledger.
+   *
+   * "Where did this person's coins go" was only answerable by reading raw
+   * ledger rows, which is how a balance that looks wrong stays unexplained.
+   * Admin-granted is netted against admin-removed here for the same reason it
+   * is platform-wide: coins handed over and then taken back did not go
+   * anywhere, and showing the gross figure invites the reader to believe they
+   * did.
+   */
+  userLedger: adminProcedure
+    .input(z.object({ userId: z.number().int() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const user = await db.query.users.findFirst({ where: eq(users.id, input.userId) });
+      if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+
+      const only = eq(tokenLedger.userId, input.userId);
+      const [led] = await db
+        .select({
+          purchased: sql<string>`COALESCE(SUM(CASE WHEN ${tokenLedger.delta} > 0 AND (${tokenLedger.reason} ILIKE '%receipt%' OR ${tokenLedger.reason} ILIKE 'payment #%') THEN ${tokenLedger.delta} ELSE 0 END), 0)`,
+          adminGranted: sql<string>`COALESCE(SUM(CASE WHEN ${tokenLedger.delta} > 0 AND ${tokenLedger.reason} ILIKE 'manual %' THEN ${tokenLedger.delta} ELSE 0 END), 0)`,
+          starting: sql<string>`COALESCE(SUM(CASE WHEN ${tokenLedger.delta} > 0 AND ${tokenLedger.reason} ILIKE '%starting balance%' THEN ${tokenLedger.delta} ELSE 0 END), 0)`,
+          refunds: sql<string>`COALESCE(SUM(CASE WHEN ${tokenLedger.delta} > 0 AND ${tokenLedger.reason} ILIKE '%refund%' THEN ${tokenLedger.delta} ELSE 0 END), 0)`,
+          otherCredits: sql<string>`COALESCE(SUM(CASE WHEN ${tokenLedger.delta} > 0 AND NOT (${tokenLedger.reason} ILIKE '%receipt%' OR ${tokenLedger.reason} ILIKE 'payment #%' OR ${tokenLedger.reason} ILIKE 'manual %' OR ${tokenLedger.reason} ILIKE '%starting balance%' OR ${tokenLedger.reason} ILIKE '%refund%') THEN ${tokenLedger.delta} ELSE 0 END), 0)`,
+          spentOnGenerations: sql<string>`COALESCE(SUM(CASE WHEN ${tokenLedger.delta} < 0 AND NOT (${tokenLedger.reason} ILIKE 'manual %' OR ${tokenLedger.reason} ILIKE 'bought %ticket%') THEN -${tokenLedger.delta} ELSE 0 END), 0)`,
+          ticketCoins: sql<string>`COALESCE(SUM(CASE WHEN ${tokenLedger.delta} < 0 AND ${tokenLedger.reason} ILIKE 'bought %ticket%' THEN -${tokenLedger.delta} ELSE 0 END), 0)`,
+          adminRemoved: sql<string>`COALESCE(SUM(CASE WHEN ${tokenLedger.delta} < 0 AND ${tokenLedger.reason} ILIKE 'manual %' THEN -${tokenLedger.delta} ELSE 0 END), 0)`,
+        })
+        .from(tokenLedger)
+        .where(only);
+
+      const recent = await db
+        .select({
+          id: tokenLedger.id,
+          delta: tokenLedger.delta,
+          reason: tokenLedger.reason,
+          createdAt: tokenLedger.createdAt,
+        })
+        .from(tokenLedger)
+        .where(only)
+        .orderBy(desc(tokenLedger.id))
+        .limit(20);
+
+      const runs = await db
+        .select({ n: sql<string>`COUNT(*)` })
+        .from(runsTable)
+        .where(eq(runsTable.userId, input.userId));
+
+      return {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          tokenBalance: user.tokenBalance,
+          ticketBalance: user.ticketBalance,
+          createdAt: user.createdAt,
+        },
+        generations: Number(runs[0]?.n ?? 0),
+        ledger: {
+          purchased: Number(led.purchased),
+          adminGranted: Number(led.adminGranted),
+          starting: Number(led.starting),
+          refunds: Number(led.refunds),
+          otherCredits: Number(led.otherCredits),
+          spentOnGenerations: Number(led.spentOnGenerations),
+          ticketCoins: Number(led.ticketCoins),
+          adminRemoved: Number(led.adminRemoved),
+        },
+        recent,
+      };
+    }),
+
   receipt: adminProcedure
     .input(z.object({ receiptNo: z.number().int() }))
     .query(async ({ input }) => {
