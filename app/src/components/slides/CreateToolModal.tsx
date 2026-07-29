@@ -27,6 +27,7 @@ import {
   type Level,
   type RepoTemplate,
   type TextDensity,
+  type LessonSeed,
 } from '@contracts/types';
 import {
   templatesForContext,
@@ -38,6 +39,7 @@ import {
 import { Shuffle } from 'lucide-react';
 import { TemplateIcon } from '@/components/repo/shared';
 import TemplateBar from '@/components/templates/TemplateBar';
+import { studyUrl } from '@/components/repo/shared';
 import { TemplateBadges } from '@/components/templates/TemplatePicker';
 import SketchButton from '../sketch/SketchButton';
 import WashiTape from '../sketch/WashiTape';
@@ -45,6 +47,25 @@ import WashiTape from '../sketch/WashiTape';
 export interface CreateToolModalProps {
   open: boolean;
   onClose: () => void;
+  /**
+   * Generate INTO an existing tool instead of making a new one. A repo lesson
+   * already has its study tool and its subject; the wizard is being borrowed to
+   * ask how the deck should look, not to invent another tool.
+   */
+  toolSlug?: string;
+  /** The repo lesson this deck is for — carried through to the generation. */
+  seed?: LessonSeed;
+  /** "configure" saves a personal customization; otherwise the repo preset. */
+  intent?: 'set' | 'configure';
+  /**
+   * The repo's own category, which fixes what kind of deck this is. Supplied
+   * with a seed so the wizard skips asking — a lesson inside a course repo is
+   * a course deck, and offering "Menu item" there is a question with a wrong
+   * answer.
+   */
+  lockedTemplate?: RepoTemplate;
+  /** Prefills the prompt from the lesson's objective. */
+  initialTopic?: string;
 }
 
 const CATEGORIES: { id: RepoTemplate; label: string; hint: string }[] = [
@@ -64,10 +85,13 @@ type Step = 'topic' | 'kind' | 'look' | 'type' | 'subject' | 'focus' | 'plan' | 
  * sense, and making someone answer it — then pick a lesson flavour — is two
  * screens of nothing. Those go straight from the slides type to the plan.
  */
-function stepsFor(template: RepoTemplate): Step[] {
-  return template === 'course'
-    ? ['topic', 'kind', 'look', 'type', 'subject', 'focus', 'plan', 'text']
-    : ['topic', 'kind', 'look', 'type', 'plan', 'text'];
+function stepsFor(template: RepoTemplate, lockedKind: boolean): Step[] {
+  const steps: Step[] =
+    template === 'course'
+      ? ['topic', 'kind', 'look', 'type', 'subject', 'focus', 'plan', 'text']
+      : ['topic', 'kind', 'look', 'type', 'plan', 'text'];
+  // The repo already decided what kind of thing this is.
+  return lockedKind ? steps.filter((s) => s !== 'kind') : steps;
 }
 
 const SUBTITLES: Record<Step, (kind: string, slides: number) => string> = {
@@ -127,7 +151,15 @@ const SLIDE_TYPES: { id: 'quiz' | 'normal'; label: string; hint: string; art: st
  * The name is still not asked for: the tool starts as "Untitled …" and takes
  * its real name and description from the AI's first generated deck.
  */
-export default function CreateToolModal({ open, onClose }: CreateToolModalProps) {
+export default function CreateToolModal({
+  open,
+  onClose,
+  toolSlug,
+  seed,
+  intent,
+  lockedTemplate,
+  initialTopic,
+}: CreateToolModalProps) {
   const navigate = useNavigate();
   const utils = trpc.useUtils();
   const { user } = useAuth();
@@ -168,7 +200,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
 
   const templatesQuery = trpc.templates.list.useQuery(undefined, { enabled: open });
 
-  const STEPS = stepsFor(template);
+  const STEPS = stepsFor(template, !!lockedTemplate);
 
   // A0/A1 offer the short amounts only. If the level is changed after the text
   // amount was picked — easy, since Back is right there — the selection is
@@ -217,7 +249,7 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
     if (!open) return;
     const current = loadGenDefaults(user?.id);
     setStep('topic');
-    setTemplate('course');
+    setTemplate(lockedTemplate ?? 'course');
     setSlideCount(current.slideCount);
     setImageStyle(current.imageStyle);
     setIncludeQuiz(current.includeQuiz);
@@ -227,16 +259,31 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
     setTextDensity(current.textDensity);
     setPlan([]);
     setInstructions('');
-    setTopic('');
-  }, [open, user?.id]);
+    setTopic(initialTopic ?? '');
+  }, [open, user?.id, lockedTemplate, initialTopic]);
+
+  /**
+   * Where the answers get spent. A standalone deck makes a new tool first; a
+   * repo lesson already has one and only needs the seed and the intent carried
+   * across. Either way the destination is the same page with ?generate=1, which
+   * runs immediately instead of asking everything a second time.
+   */
+  const runOn = (slug: string) => {
+    onClose();
+    // studyUrl already encodes the seed, so build the rest with URLSearchParams
+    // and append — hand-splicing '?' and '&' around an optional middle segment
+    // is how query strings quietly come out malformed.
+    const params = new URLSearchParams();
+    if (intent === 'configure') params.set('intent', 'configure');
+    params.set('generate', '1');
+    const base = seed ? studyUrl(slug, seed) : `/slides/${slug}`;
+    navigate(`${base}${base.includes('?') ? '&' : '?'}${params}`);
+  };
 
   const create = trpc.slideTools.create.useMutation({
     onSuccess: async ({ slug }) => {
       await utils.slideTools.list.invalidate();
-      onClose();
-      // The wizard already asked everything the tool page would ask, so go
-      // straight into the generation rather than through the settings screen.
-      navigate(`/slides/${slug}?generate=1`);
+      runOn(slug);
     },
     onError: (err) => toast.error(err.message),
   });
@@ -264,6 +311,12 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
       flavor,
       templatePlan: paddedPlan.some(Boolean) ? paddedPlan : [],
     });
+    // A repo lesson generates into the tool the repo already owns — creating
+    // another would leave an orphan behind on every "Set".
+    if (toolSlug) {
+      runOn(toolSlug);
+      return;
+    }
     create.mutate({
       name: `Untitled ${label}`,
       template,
@@ -1003,7 +1056,10 @@ export default function CreateToolModal({ open, onClose }: CreateToolModalProps)
               )}
               {isLastStep ? (
                 <SketchButton variant="accent" loading={create.isPending} onClick={submit}>
-                  Create &amp; generate
+                  {/* A repo lesson creates nothing — it generates into the tool
+                      the repo already owns, so promising a "Create" would be
+                      describing a step that does not happen. */}
+                  {toolSlug ? 'Generate' : 'Create & generate'}
                 </SketchButton>
               ) : (
                 <SketchButton
