@@ -1167,9 +1167,13 @@ function FinanceBody() {
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-8 px-4 py-8 lg:px-8">
+      {/* Back to Home, not to Projects. Finance has its own tile on the hub
+          now, so Projects is no longer the way in and sending people there on
+          the way out drops them on a shelf holding the one thing they just
+          left. Every other admin page goes back to Home too. */}
       <HubHeader
-        backTo="/admin/projects"
-        backLabel="Projects"
+        backTo="/admin"
+        backLabel="Home"
         title="Finance"
         blurb="Your income, your expenses, and what every generation really costs."
         chip={
