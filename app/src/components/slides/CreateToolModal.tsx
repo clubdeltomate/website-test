@@ -80,6 +80,28 @@ const CATEGORIES: { id: RepoTemplate; label: string; hint: string }[] = [
 type Step = 'topic' | 'kind' | 'look' | 'type' | 'subject' | 'focus' | 'plan' | 'text';
 
 /**
+ * Turn a generation failure into something worth reading. The server prefixes
+ * these with a machine code so callers can branch on them, and the codes are
+ * useful — but INSUFFICIENT_TOKENS is not a sentence, and the provider
+ * diagnostics that follow a blank line belong nowhere near a toast.
+ */
+function readableGenError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : '';
+  const [first] = raw.split('\n\n');
+  const msg = (first || 'That generation did not finish').trim();
+  if (msg.startsWith('AI_UNAVAILABLE')) {
+    return 'No deck was generated and your credits were refunded — every AI provider refused the request. Try again in a moment.';
+  }
+  if (msg.startsWith('NEED_TICKET')) {
+    return "You need a customization ticket for this repo — ask its owner. The free version is still watchable.";
+  }
+  // Strip the leading CODE: and capitalise, since what follows it was written
+  // as a continuation ("this deck needs 16 🪙") rather than a sentence.
+  const bare = msg.replace(/^[A-Z_]{4,}:\s*/, '');
+  return bare.charAt(0).toUpperCase() + bare.slice(1);
+}
+
+/**
  * Only a Lesson asks which field it is. A walkthrough, a news briefing, a menu
  * item, a service and a product are not STEM or humanities in any useful
  * sense, and making someone answer it — then pick a lesson flavour — is two
@@ -288,6 +310,85 @@ export default function CreateToolModal({
     onError: (err) => toast.error(err.message),
   });
 
+  /* ---- the repo-lesson path: generate here, then go nowhere ---- */
+  const genSlides = trpc.generate.slides.useMutation();
+  const setPreset = trpc.repos.setLessonPreset.useMutation();
+  const saveCustom = trpc.repos.saveMyCustomization.useMutation();
+  const [busy, setBusy] = useState<string | null>(null);
+  // Dismissing mid-generation would abandon a deck the author is already being
+  // charged for, with nowhere left to report the result.
+  const guardedClose = () => {
+    if (busy) return;
+    onClose();
+  };
+
+  /**
+   * Build the lesson without leaving the repo.
+   *
+   * The first version redirected to the slide tool's page with ?generate=1 and
+   * let that screen do the work. That is the wrong shape twice over: it is a
+   * detour through a page the author was not asking for, and the redirect could
+   * land on "Couldn't find that slide tool" — a dead end at the exact moment
+   * the deck was supposed to appear. Generating from here means the only thing
+   * that can fail is the generation itself, which is reported in place.
+   *
+   * Nothing navigates on success. Setting a lesson's presentation is a change to
+   * the repo, so the author stays on the repo and the lesson's button flips from
+   * Set to Play once the invalidation lands.
+   */
+  const runForLesson = async (slug: string, paddedPlan: (string | null)[]) => {
+    if (!seed) return;
+    setBusy('Sketching the slides…');
+    try {
+      const res = await genSlides.mutateAsync({
+        toolSlug: slug,
+        seed,
+        topic: topic.trim(),
+        instructions: instructions.trim(),
+        level,
+        slideCount,
+        imageStyle,
+        textDensity,
+        subject,
+        purpose: repoPurpose(template),
+        templatePlan: paddedPlan.some(Boolean) ? paddedPlan : undefined,
+      });
+      // "Normal" means no questions at all, so strip them before anything is
+      // stored — the same thing the tool page does before it plays a deck.
+      const deck = wantsQuiz
+        ? res.deck
+        : { ...res.deck, slides: res.deck.slides.map((sl) => ({ ...sl, quiz: undefined })) };
+
+      if (intent === 'configure') {
+        setBusy('Saving your version…');
+        await saveCustom.mutateAsync({
+          repoSlug: seed.repoSlug,
+          lessonSeq: seed.lessonSeq,
+          deck,
+          toolSlug: slug,
+        });
+        toast.success('Your version is ready — press "Play yours" ✓');
+      } else {
+        setBusy('Saving the presentation…');
+        await setPreset.mutateAsync({
+          repoSlug: seed.repoSlug,
+          lessonSeq: seed.lessonSeq,
+          deck,
+        });
+        toast.success('Presentation set — the lesson can be played now ✓');
+      }
+      await utils.repos.getBySlug.invalidate({ slug: seed.repoSlug });
+      void utils.repos.courseMemory.invalidate({ slug: seed.repoSlug });
+      onClose();
+    } catch (err) {
+      // Stay open on failure. Closing would hide both the error and every
+      // answer the author just gave, forcing them to fill it all in again.
+      toast.error(readableGenError(err), { duration: 9000 });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const submit = () => {
     const label = CATEGORIES.find((c) => c.id === template)?.label ?? 'presentation';
     // Store the choices on the tool AND as this user's remembered defaults.
@@ -313,6 +414,10 @@ export default function CreateToolModal({
     });
     // A repo lesson generates into the tool the repo already owns — creating
     // another would leave an orphan behind on every "Set".
+    if (toolSlug && seed) {
+      void runForLesson(toolSlug, paddedPlan);
+      return;
+    }
     if (toolSlug) {
       runOn(toolSlug);
       return;
@@ -428,7 +533,7 @@ export default function CreateToolModal({
           <div
             data-lenis-prevent
             className="absolute inset-0 bg-ink/30"
-            onClick={onClose}
+            onClick={guardedClose}
             aria-hidden="true"
           />
           <motion.div
@@ -1045,7 +1150,7 @@ export default function CreateToolModal({
 
             <div className="mt-6 flex items-center justify-end gap-3">
               {stepIdx === 0 ? (
-                <SketchButton variant="ghost" onClick={onClose}>
+                <SketchButton variant="ghost" disabled={!!busy} onClick={guardedClose}>
                   Cancel
                 </SketchButton>
               ) : (
@@ -1055,11 +1160,16 @@ export default function CreateToolModal({
                 </SketchButton>
               )}
               {isLastStep ? (
-                <SketchButton variant="accent" loading={create.isPending} onClick={submit}>
+                <SketchButton
+                  variant="accent"
+                  loading={create.isPending || !!busy}
+                  disabled={!!busy}
+                  onClick={submit}
+                >
                   {/* A repo lesson creates nothing — it generates into the tool
                       the repo already owns, so promising a "Create" would be
                       describing a step that does not happen. */}
-                  {toolSlug ? 'Generate' : 'Create & generate'}
+                  {busy ?? (toolSlug ? 'Generate' : 'Create & generate')}
                 </SketchButton>
               ) : (
                 <SketchButton
