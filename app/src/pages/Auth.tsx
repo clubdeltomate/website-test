@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import SketchButton from '@/components/sketch/SketchButton';
 import { Squiggle } from '@/components/sketch/Squiggle';
-import { normalizeUsername } from '@contracts/types';
+import { normalizeUsername, USERNAME_MAX_LENGTH } from '@contracts/types';
 
 type Mode = 'signin' | 'signup';
 
@@ -270,7 +270,7 @@ export default function Auth() {
                   transition={{ duration: 0.22 }}
                 >
                   <label className="micro mb-1 block text-ink-soft" htmlFor="auth-name">
-                    Username — one word (shown publicly, also lets you sign in without email)
+                    Username — one word, max {USERNAME_MAX_LENGTH} characters
                   </label>
                   {/* Normalized as you type, so the name in the box is the name
                       you'll get. Discovering the rule from a rejected form after
@@ -282,7 +282,12 @@ export default function Auth() {
                     onChange={(e) => setName(normalizeUsername(e.target.value))}
                     placeholder="SamSketcher"
                     autoComplete="username"
+                    maxLength={USERNAME_MAX_LENGTH}
                   />
+                  <p className="micro mt-1 text-ink-faint">
+                    Shown publicly, and lets you sign in without your email.{' '}
+                    {name.length}/{USERNAME_MAX_LENGTH}
+                  </p>
                   {errors.name && <p className="mt-1 text-xs font-bold text-red">{errors.name}</p>}
                 </motion.div>
               )}

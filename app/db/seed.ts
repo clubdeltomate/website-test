@@ -15,6 +15,7 @@ import { hashPassword } from "../api/auth-utils";
 import { repoRef } from "../api/ai/prompts";
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "../api/settings";
 import type { LessonLogSlide, Level } from "../contracts/types";
+import { normalizeUsername } from "../contracts/types.js";
 
 /* ------------------------------------------------------------------ */
 /* SketchLearn seed — users, settings, two demo repos with linked slide */
@@ -37,7 +38,7 @@ async function upsertUser(
   }
   const [{ id }] = await db
     .insert(users)
-    .values({ email, name, passwordHash: hashPassword(password), role, tokenBalance })
+    .values({ email, name: normalizeUsername(name), passwordHash: hashPassword(password), role, tokenBalance })
     .returning({ id: users.id });
   await db.insert(tokenLedger).values({
     userId: id,

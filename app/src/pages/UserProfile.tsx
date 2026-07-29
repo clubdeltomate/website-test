@@ -9,6 +9,7 @@ import {
   MessageCircle,
   Play,
   Presentation,
+  Pencil,
   Search,
   Ticket,
   UserCheck,
@@ -24,6 +25,7 @@ import { SketchInput, SketchSelect } from '@/components/admin/controls';
 import SketchToaster from '@/components/admin/SketchToaster';
 import RepoCard from '@/components/repo/RepoCard';
 import { TemplateIcon } from '@/components/repo/shared';
+import { normalizeUsername, USERNAME_MAX_LENGTH } from '@contracts/types';
 import type {
   ContentSource,
   RepoSummary,
@@ -68,6 +70,7 @@ export default function UserProfile() {
   const [grantOpen, setGrantOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [sendOpen, setSendOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
 
   const profile = trpc.users.profile.useQuery({ userId }, { enabled: Number.isFinite(userId) });
 
@@ -151,6 +154,8 @@ export default function UserProfile() {
   const canGrantTickets = viewerIsAdmin && !isSelf && sellsTickets;
   const canAdjustCoins = viewerIsAdmin && !isSelf;
   const canSendTickets = role === 'moderator' && !isSelf && sellsTickets;
+  // Your own name, or anyone's if you're the admin.
+  const canRename = isSelf || viewerIsAdmin;
 
   const onFollow = () => {
     if (isGuest) return toast.error('Sign in to follow');
@@ -180,6 +185,20 @@ export default function UserProfile() {
             <h2 className="font-display text-3xl font-bold text-ink">{p.name}</h2>
             <Chip kind={p.role}>{p.role}</Chip>
             {isSelf && <Chip kind="neutral">you</Chip>}
+            {/* Rename from the page you are already looking at. An admin fixing
+                someone else's typo had to go find them in the admin table, and
+                your own name was only editable in Settings. */}
+            {canRename && (
+              <button
+                type="button"
+                onClick={() => setRenameOpen(true)}
+                aria-label={isSelf ? 'Edit your username' : `Edit ${p.name}'s username`}
+                title="Edit username"
+                className="rounded-wobble-sm border-2 border-dashed border-pencil p-1 text-ink-soft hover:border-ink hover:text-ink"
+              >
+                <Pencil className="h-4 w-4" strokeWidth={2} />
+              </button>
+            )}
           </div>
           <p className="micro mt-1 text-ink-faint">
             {p.repos.length} published repo{p.repos.length === 1 ? '' : 's'} · member since{' '}
@@ -389,6 +408,9 @@ export default function UserProfile() {
       {grantOpen && <GiveTicketsModal profile={p} onClose={() => setGrantOpen(false)} />}
       {sendOpen && <SendTicketsModal profile={p} onClose={() => setSendOpen(false)} />}
       {adjustOpen && <AdjustCoinsModal profile={p} onClose={() => setAdjustOpen(false)} />}
+      {renameOpen && (
+        <RenameModal profile={p} isSelf={isSelf} onClose={() => setRenameOpen(false)} />
+      )}
       {/* No global toast mount exists in the shell, so a page that calls toast()
           has to carry its own — without this every confirmation and every
           rejection here (not enough tickets, not a moderator) went nowhere. */}
@@ -595,6 +617,81 @@ function ModalShell({
         {children}
       </div>
     </div>
+  );
+}
+
+/**
+ * Rename from the profile page. Which endpoint it calls depends on whose page
+ * it is: your own name goes through auth.updateProfile (the same call Settings
+ * makes), someone else's through the admin-only users.updateIdentity. Two doors
+ * to one field, because "change my name" and "fix that user's name" are
+ * different permissions wearing the same button.
+ */
+function RenameModal({
+  profile,
+  isSelf,
+  onClose,
+}: {
+  profile: Profile;
+  isSelf: boolean;
+  onClose: () => void;
+}) {
+  const utils = trpc.useUtils();
+  const [name, setName] = useState(profile.name);
+
+  const done = (newName: string) => {
+    toast.success(`Now known as ${newName}`);
+    void utils.users.profile.invalidate({ userId: profile.id });
+    void utils.users.directory.invalidate();
+    void utils.auth.me.invalidate();
+    onClose();
+  };
+  const mine = trpc.auth.updateProfile.useMutation({
+    onSuccess: (u) => done(u.name),
+    onError: (e) => toast.error(e.message),
+  });
+  const theirs = trpc.users.updateIdentity.useMutation({
+    onSuccess: (r) => done(r.name),
+    onError: (e) => toast.error(e.message),
+  });
+
+  const clean = normalizeUsername(name);
+  const pending = mine.isPending || theirs.isPending;
+  const save = () => {
+    if (!clean) return toast.error('A username needs some letters in it');
+    if (isSelf) mine.mutate({ name: clean });
+    else theirs.mutate({ userId: profile.id, name: clean });
+  };
+
+  return (
+    <ModalShell title={isSelf ? 'Change your username' : `Rename ${profile.name}`} onClose={onClose}>
+      <p className="text-sm text-ink-soft">
+        One word, up to {USERNAME_MAX_LENGTH} characters. It's how people find you and how you can
+        sign in instead of typing your email.
+      </p>
+      <label className="micro mt-4 block text-ink-soft" htmlFor="rename-name">
+        Username · {clean.length}/{USERNAME_MAX_LENGTH}
+      </label>
+      <SketchInput
+        id="rename-name"
+        value={name}
+        maxLength={USERNAME_MAX_LENGTH}
+        onChange={(e) => setName(normalizeUsername(e.target.value))}
+      />
+      <div className="mt-5 flex justify-end gap-2">
+        <SketchButton variant="ghost" onClick={onClose}>
+          Cancel
+        </SketchButton>
+        <SketchButton
+          variant="accent"
+          loading={pending}
+          disabled={!clean || clean === profile.name}
+          onClick={save}
+        >
+          Save
+        </SketchButton>
+      </div>
+    </ModalShell>
   );
 }
 

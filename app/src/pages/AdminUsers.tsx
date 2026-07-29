@@ -20,7 +20,7 @@ import {
   SkeletonBlock,
 } from '@/components/admin/controls';
 import { errMsg, formatDate, formatRelative } from '@/components/admin/utils';
-import { normalizeUsername } from '@contracts/types';
+import { normalizeUsername, USERNAME_MAX_LENGTH } from '@contracts/types';
 import type { AdminUserRow, Role } from '@contracts/types';
 
 /** Inline "create account" panel for the Manage users toolbar (admin only —
@@ -55,9 +55,10 @@ function AddUserForm({ onDone }: { onDone: () => void }) {
         New account — they can sign in right away with this email and password.
       </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <LabeledField label="Username (unique, one word)">
+        <LabeledField label={`Username (unique, one word, \u2264${USERNAME_MAX_LENGTH})`}>
           <SketchInput
             value={name}
+            maxLength={USERNAME_MAX_LENGTH}
             onChange={(e) => setName(normalizeUsername(e.target.value))}
             placeholder="SamSketcher"
           />
@@ -486,8 +487,15 @@ function EditIdentityModal({
   return (
     <SketchModal open onClose={onClose} title={`Edit ${target.name}`} maxWidth="max-w-[460px]">
       <div className="grid gap-3">
-        <LabeledField label="Username" helper="One word — spaces are closed up as you type.">
-          <SketchInput value={name} onChange={(e) => setName(normalizeUsername(e.target.value))} />
+        <LabeledField
+          label="Username"
+          helper={`One word, max ${USERNAME_MAX_LENGTH} characters. ${cleanName.length}/${USERNAME_MAX_LENGTH}`}
+        >
+          <SketchInput
+            value={name}
+            maxLength={USERNAME_MAX_LENGTH}
+            onChange={(e) => setName(normalizeUsername(e.target.value))}
+          />
         </LabeledField>
         <LabeledField label="Email" helper="Also their sign-in — changing it changes how they log in.">
           <SketchInput value={email} type="email" onChange={(e) => setEmail(e.target.value)} />

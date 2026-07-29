@@ -196,6 +196,8 @@ export const usersRouter = createRouter({
   createUser: adminProcedure
     .input(
       z.object({
+        // Raw input — see the note in auth.register; normalizeUsername is
+        // what actually enforces the username rules.
         name: z.string().min(1).max(255),
         email: z.string().email().max(320),
         password: z.string().min(6).max(128),
