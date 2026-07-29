@@ -6,7 +6,7 @@ import { authedProcedure, moderatorProcedure, adminProcedure } from "../procedur
 import { getDb } from "../queries/connection.js";
 import { repos, ticketRequests, tickets, users } from "../../db/schema.js";
 import { ticketPrice } from "../cost.js";
-import { countAvailable, grantToUser, sellToModerator } from "../tickets.js";
+import { countAvailable, grantToUser, sellToModerator, grantFreeTickets, transferTickets } from "../tickets.js";
 import type { MyTicketGroup, TicketRequestRow } from "../../contracts/types.js";
 
 export const ticketsRouter = createRouter({
@@ -85,6 +85,16 @@ export const ticketsRouter = createRouter({
     .mutation(async ({ input }) => {
       return sellToModerator(input.userId, input.count);
     }),
+
+  /** The admin hands tickets over for nothing (no coins move). */
+  grantFree: adminProcedure
+    .input(z.object({ userId: z.number().int(), count: z.number().int().min(1).max(500) }))
+    .mutation(async ({ input }) => grantFreeTickets(input.userId, input.count)),
+
+  /** A holder passes tickets to another holder — moderators trading. */
+  send: moderatorProcedure
+    .input(z.object({ toUserId: z.number().int(), count: z.number().int().min(1).max(500) }))
+    .mutation(async ({ ctx, input }) => transferTickets(ctx.user.id, input.toUserId, input.count)),
 
   /* ------------------------ request (pull) flow ------------------------ */
 
