@@ -787,6 +787,120 @@ function PricingEditor({
  * profit — which is how the question is usually posed ("I want 90% margin"),
  * rather than guessing a rate and reading the margin off afterwards.
  */
+/**
+ * One user's coin history. Picked from the same list the balance-fixer uses,
+ * because the question "why is this balance what it is" almost always arrives
+ * just before someone corrects it.
+ */
+function UserCoinProfile() {
+  const usersList = trpc.users.list.useQuery({ limit: 200 });
+  const [userId, setUserId] = useState<number | ''>('');
+  const q = trpc.finance.userLedger.useQuery(
+    { userId: userId === '' ? 0 : userId },
+    { enabled: userId !== '' },
+  );
+  const d = q.data;
+  const grantedNet = d ? d.ledger.adminGranted - d.ledger.adminRemoved : 0;
+  const rows = d
+    ? [
+        { label: 'Purchased', coins: d.ledger.purchased, dir: 'in' as const },
+        {
+          label: d.ledger.adminRemoved > 0 ? 'Granted (net of removals)' : 'Granted',
+          coins: Math.max(0, grantedNet),
+          dir: 'in' as const,
+        },
+        { label: 'Starting balance', coins: d.ledger.starting, dir: 'in' as const },
+        { label: 'Refunds', coins: d.ledger.refunds, dir: 'in' as const },
+        { label: 'Other credits', coins: d.ledger.otherCredits, dir: 'in' as const },
+        { label: 'Spent on generations', coins: d.ledger.spentOnGenerations, dir: 'out' as const },
+        { label: 'Spent on tickets', coins: d.ledger.ticketCoins, dir: 'out' as const },
+        { label: 'Removed (beyond grants)', coins: Math.max(0, -grantedNet), dir: 'out' as const },
+      ].filter((r) => r.coins > 0)
+    : [];
+  const max = Math.max(1, ...rows.map((r) => r.coins));
+
+  return (
+    <div className="mt-4 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper p-4">
+      <p className="mb-1 font-heading font-semibold text-ink">Look up a user</p>
+      <p className="mb-3 text-xs text-ink-soft">
+        Where one person&apos;s coins came from and where they went.
+      </p>
+      <SketchSelect
+        aria-label="User to inspect"
+        value={String(userId)}
+        onChange={(e) => setUserId(e.target.value ? Number(e.target.value) : '')}
+      >
+        <option value="">Pick a user…</option>
+        {(usersList.data ?? []).map((u) => (
+          <option key={u.id} value={u.id}>
+            {u.name} — {u.email}
+          </option>
+        ))}
+      </SketchSelect>
+
+      {q.isLoading && userId !== '' && <p className="mt-3 text-sm text-ink-faint">Adding it up…</p>}
+
+      {d && (
+        <div className="mt-4">
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <span className="font-heading text-lg font-bold text-ink">{d.user.name}</span>
+            <span className="text-xs text-ink-faint">{d.user.email}</span>
+            <span className="ml-auto font-mono text-sm font-bold text-ink">
+              {d.user.tokenBalance} 🪙 · {d.user.ticketBalance} 🎫 · {d.generations} generation
+              {d.generations === 1 ? '' : 's'}
+            </span>
+          </div>
+
+          {rows.length === 0 ? (
+            <p className="mt-3 text-sm text-ink-faint">No coin movements on this account yet.</p>
+          ) : (
+            <div className="mt-3 flex flex-col gap-1.5">
+              {rows.map((r) => (
+                <div key={r.label} className="flex items-center gap-3">
+                  <span className="w-48 shrink-0 text-sm text-ink">{r.label}</span>
+                  <span className="h-3 flex-1 overflow-hidden rounded-full border-2 border-ink bg-paper-3">
+                    <span
+                      className={`block h-full ${r.dir === 'in' ? 'bg-green' : 'bg-orange'}`}
+                      style={{ width: `${Math.round((r.coins / max) * 100)}%` }}
+                    />
+                  </span>
+                  <span className="w-28 shrink-0 text-right font-mono text-sm text-ink">
+                    {r.coins.toLocaleString()} 🪙
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {d.recent.length > 0 && (
+            <>
+              <p className="micro mb-1 mt-4 text-ink-soft">Most recent movements</p>
+              <div className="flex max-h-56 flex-col gap-1 overflow-y-auto pr-1" data-lenis-prevent>
+                {d.recent.map((r) => (
+                  <div key={r.id} className="flex items-baseline gap-3 text-xs">
+                    <span
+                      className={`w-16 shrink-0 text-right font-mono font-bold ${
+                        r.delta >= 0 ? 'text-green' : 'text-orange'
+                      }`}
+                    >
+                      {r.delta > 0 ? '+' : ''}
+                      {r.delta}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-ink-soft">{r.reason}</span>
+                    <span className="shrink-0 text-ink-faint">
+                      {new Date(r.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PerGenerationPrices({
   packs,
   ticketPriceCoins,
@@ -1198,15 +1312,30 @@ function FinanceBody() {
   const pricingAge = formatRelative(new Date(data.pricing.updatedAt));
   const liabilityUsd = (data.circulationTokens * data.centsPerCoin) / 100;
   const led = data.ledger;
+  /**
+   * Grants are shown NET of removals, and there is no separate "admin-removed"
+   * row. Coins handed over and then taken back never went anywhere: listing
+   * 50,000 granted beside 45,000 removed reads as a huge free giveaway that
+   * did not happen. The sum is unchanged either way — in minus out still
+   * equals what is circulating — so netting costs no accuracy and stops the
+   * gross figure being mistaken for a real obligation.
+   */
+  const grantedNet = led.adminGranted - led.adminRemoved;
   const ledgerRows = [
     { label: 'Purchased (money in)', coins: led.purchased, dir: 'in' as const },
-    { label: 'Admin-granted (free)', coins: led.adminGranted, dir: 'in' as const },
+    {
+      label: led.adminRemoved > 0 ? 'Admin-granted (net of removals)' : 'Admin-granted (free)',
+      coins: Math.max(0, grantedNet),
+      dir: 'in' as const,
+    },
     { label: 'Starting balances', coins: led.starting, dir: 'in' as const },
     { label: 'Refunds', coins: led.refunds, dir: 'in' as const },
     { label: 'Other credits', coins: led.otherCredits, dir: 'in' as const },
     { label: 'Spent on generations', coins: led.spentOnGenerations, dir: 'out' as const },
     { label: 'Spent on tickets', coins: led.ticketCoins, dir: 'out' as const },
-    { label: 'Admin-removed', coins: led.adminRemoved, dir: 'out' as const },
+    // Only when MORE was taken back than was ever granted, which would
+    // otherwise vanish into a clamped-to-zero row and unbalance the picture.
+    { label: 'Admin-removed (beyond grants)', coins: Math.max(0, -grantedNet), dir: 'out' as const },
   ].filter((r) => r.coins > 0);
   const ledgerMax = Math.max(1, ...ledgerRows.map((r) => r.coins));
 
@@ -1678,9 +1807,8 @@ function FinanceBody() {
             <p className="mb-4 text-xs text-ink-soft">
               {data.circulationTokens.toLocaleString()} 🪙 are sitting in user balances right now —
               about {fmtUsd(liabilityUsd)} of generations you've promised but not yet paid API costs
-              for. Coins granted free (including to yourself) create that obligation without
-              matching income, so they're tracked separately below.
-            </p>
+              for. Coins granted free (including to yourself) create that obligation without matching
+        income; grants you have since taken back are already netted out of the figures below.</p>
             <div className="flex flex-col gap-2">
               {ledgerRows.map((r) => (
                 <div key={r.label} className="flex items-center gap-3">
@@ -1709,6 +1837,7 @@ function FinanceBody() {
               </span>
             </div>
             <BalanceFixForm />
+              <UserCoinProfile />
           </div>
         )}
 
