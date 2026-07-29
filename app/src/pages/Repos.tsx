@@ -11,6 +11,7 @@ import {
   Sparkles,
   Star,
   Table2,
+  UserCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -68,6 +69,8 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
   const debouncedQ = useDebounced(q, 250);
   const [template, setTemplate] = useState<RepoTemplate | 'all'>('all');
   const [favsOnly, setFavsOnly] = useState(false);
+  const [followingOnly, setFollowingOnly] = useState(false);
+
   const [sort, setSort] = useState<SortKey>('recent');
   const [view, setView] = useState<'cards' | 'table'>('cards');
   const [page, setPage] = useState(1);
@@ -80,6 +83,7 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
       limit: 100,
       mine,
       excludeMine: !mine,
+      followingOnly: followingOnly && !mine,
     },
     { placeholderData: (prev) => prev },
   );
@@ -147,7 +151,7 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedQ, template, favsOnly, sort]);
+  }, [debouncedQ, template, favsOnly, followingOnly, sort]);
 
   const onPickTemplate = (t: RepoTemplate | 'all') => setTemplate(t);
   const onPickFavs = () => {
@@ -313,6 +317,27 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
           Favorites
         </motion.button>
 
+        {/* Following — gallery only. On your own shelf every item is yours, so
+            filtering by "people I follow" would always come back empty. */}
+        {!mine && (
+          <motion.button
+            type="button"
+            whileTap={{ scale: 1.25 }}
+            onClick={() => setFollowingOnly((f) => !f)}
+            aria-pressed={followingOnly}
+            title="Only work by people you follow"
+            className={cn(
+              'flex items-center gap-1.5 rounded-wobble-sm border-2 px-3 py-2 text-sm font-bold transition-colors',
+              followingOnly
+                ? 'border-ink bg-yellow text-ink shadow-offset'
+                : 'border-pencil text-ink-faint hover:border-ink hover:text-ink',
+            )}
+          >
+            <UserCheck className="h-4 w-4" strokeWidth={2} />
+            Following
+          </motion.button>
+        )}
+
         {/* sort */}
         <label className="flex items-center gap-1.5 text-sm text-ink-soft">
           <span className="micro hidden text-[0.6rem] sm:inline">Sort</span>
@@ -410,7 +435,7 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
         )}
 
         {list.isSuccess && repos.length === 0 && (
-          searching || favsOnly || template !== 'all' ? (
+          searching || favsOnly || followingOnly || template !== 'all' ? (
             <div className="flex flex-col items-center gap-2 py-10 text-center">
               <img src="/empty-repos.svg" alt="" className="w-40" />
               <h2 className="font-display text-3xl text-ink">

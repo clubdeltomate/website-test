@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, eq, like, or, desc, ne } from "drizzle-orm";
+import { and, eq, inArray, like, or, desc, ne } from "drizzle-orm";
 import { createRouter, publicQuery } from "../middleware.js";
 import { authedProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
@@ -195,6 +195,7 @@ export async function repoSummaries(repoRows: Repo[], userId: number | undefined
       myCompletedUnits,
       isPublic: repo.isPublic,
       favorite: favs.has(repo.slug),
+      ownerId: repo.ownerId ?? null,
       ownerName,
       createdAt: repo.createdAt,
     });
@@ -218,6 +219,8 @@ export const reposRouter = createRouter({
           mine: z.boolean().default(false),
           /** community gallery: everyone's work EXCEPT the viewer's own */
           excludeMine: z.boolean().default(false),
+          /** only work owned by people the viewer follows */
+          followingOnly: z.boolean().default(false),
         })
         .optional(),
     )
@@ -227,6 +230,16 @@ export const reposRouter = createRouter({
       const conds = [];
       if (input?.mine && ctx.user) conds.push(eq(repos.ownerId, ctx.user.id));
       if (input?.excludeMine && ctx.user) conds.push(ne(repos.ownerId, ctx.user.id));
+      // Narrowing to followed owners has to happen in the QUERY, not on the
+      // rows that come back: the result is capped, so filtering afterwards
+      // would silently drop work by someone you follow that fell outside the
+      // cap — a filter that quietly under-reports is worse than none.
+      if (input?.followingOnly) {
+        if (!ctx.user) return [];
+        const ids = [...(await favoriteSlugs(ctx.user.id, "user"))].map(Number).filter(Number.isFinite);
+        if (ids.length === 0) return [];
+        conds.push(inArray(repos.ownerId, ids));
+      }
       if (!ctx.user || ctx.user.role === "user") conds.push(eq(repos.isPublic, true));
       if (input?.template) conds.push(eq(repos.template, input.template));
       if (input?.q) {
