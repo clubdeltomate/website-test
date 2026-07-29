@@ -662,17 +662,18 @@ function ToolStudio({
    * in development, and a second run would spend the user's coins again.
    */
   /**
-   * The creation wizard is the settings screen now, so this page no longer
-   * STARTS a generation of its own — its Generate and auto-tune buttons are
-   * off. runGenerate itself stays live, because the wizard sends the user here
-   * with ?generate=1 to run exactly this code.
+   * The creation wizard is the settings screen now, so this page never STARTS
+   * a generation of its own — every Generate and auto-tune button here is off.
+   * runGenerate itself stays live, because the wizard sends the user here with
+   * ?generate=1 to run exactly this code.
    *
-   * Two arrivals keep their buttons: a repo lesson seed and a ticket
-   * customization. Neither is reachable from the wizard, which only ever makes
-   * a brand-new standalone tool, so switching them off would remove the
-   * feature rather than move it.
+   * A repo lesson seed and a ticket customization used to be the two exceptions,
+   * kept live because the wizard could only make a brand-new standalone tool and
+   * disabling them would have removed the feature rather than moved it. The
+   * wizard now generates into an existing tool with a seed (repo "Set" and
+   * "Configure" both open it), so the exception has nothing left to protect.
    */
-  const aiEntryDisabled = !seed && !configureIntent;
+  const aiEntryDisabled = true;
 
   // Lowering the level must lower the text amount with it, or the deck would
   // still be generated at the old length behind a control that no longer

@@ -27,9 +27,10 @@ import SketchButton from '@/components/sketch/SketchButton';
 import WashiTape from '@/components/sketch/WashiTape';
 import { DoodleCheck } from '@/components/sketch/DoodleIcons';
 import { trpc } from '@/providers/trpc';
+import CreateToolModal from '@/components/slides/CreateToolModal';
 import type { LessonSeed, RepoLesson, RepoPurpose, RepoTemplate, RepoUnit } from '@contracts/types';
 import { repoPurpose } from '@contracts/types';
-import { TEMPLATE_META, studyUrl } from './shared';
+import { TEMPLATE_META } from './shared';
 
 export interface UnitCardProps {
   unit: RepoUnit;
@@ -347,6 +348,7 @@ export default function UnitCard({
                     objectiveLabel={meta.objectiveNoun}
                     studyToolSlug={studyToolSlug}
                     purpose={purpose}
+                    template={template}
                     isNextUp={lesson.id === nextUpLessonId}
                     playedCount={playedCount}
                     isGuest={isGuest}
@@ -363,6 +365,7 @@ export default function UnitCard({
                         objectiveLabel={meta.objectiveNoun}
                         studyToolSlug={studyToolSlug}
                         purpose={purpose}
+                        template={template}
                         isNextUp={sub.id === nextUpLessonId}
                         playedCount={playedCount}
                         isGuest={isGuest}
@@ -447,6 +450,7 @@ function LessonCard({
   objectiveLabel,
   studyToolSlug,
   purpose,
+  template,
   isNextUp,
   playedCount,
   isGuest,
@@ -460,6 +464,7 @@ function LessonCard({
   objectiveLabel: string;
   studyToolSlug: string | null;
   purpose: RepoPurpose;
+  template: RepoTemplate;
   isNextUp: boolean;
   playedCount: number;
   isGuest: boolean;
@@ -471,6 +476,14 @@ function LessonCard({
   const [editingObjective, setEditingObjective] = useState(false);
   const [objectiveDraft, setObjectiveDraft] = useState(lesson.objective);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  /**
+   * Which wizard run is open, if any. "set" builds the repo's free preset,
+   * "configure" builds the viewer's own version. Both used to be links to the
+   * slide tool's settings page — the screen the creation wizard replaced
+   * everywhere else, so a repo lesson was the last place still asking the old
+   * questions.
+   */
+  const [wizard, setWizard] = useState<'set' | 'configure' | null>(null);
   // Progress chips reflect ONLY the signed-in viewer's own runs
   const completed = lesson.myStatus === 'completed';
   const tryAgain = lesson.myStatus === 'try-again';
@@ -488,7 +501,6 @@ function LessonCard({
   // once, everyone watches the free preset" model — no quizzes, no per-viewer
   // customization.
   const presetOnly = purpose !== 'education';
-  const setHref = studyToolSlug ? studyUrl(studyToolSlug, seed) : '';
   const playHref = `/repos/${seed.repoSlug}/play/${seed.lessonSeq}`;
   const editHref = `/repos/${seed.repoSlug}/play/${seed.lessonSeq}/edit`;
   const mineHref = `/repos/${seed.repoSlug}/play/${seed.lessonSeq}/mine`;
@@ -508,9 +520,9 @@ function LessonCard({
   });
 
   // "Configure" — generate your OWN playable slide with the settings you like.
-  // The intent flag makes the slide tool save it as a personal customization
-  // (not the repo preset), so even the owner/admin can make their own version.
-  const configureHref = studyToolSlug ? `${setHref}&intent=configure` : '';
+  // The wizard passes intent=configure so the slide tool saves it as a personal
+  // customization (not the repo preset), so even the owner/admin can make their
+  // own version.
   const cfgChip =
     'micro flex items-center gap-1 rounded-wobble-sm border border-ink bg-blue-soft px-1.5 py-0.5 text-[0.58rem] font-semibold text-ink no-underline transition-colors hover:bg-blue/20';
   const cfgChipDashed =
@@ -538,8 +550,9 @@ function LessonCard({
           </Link>
         )}
         {canNow ? (
-          <Link
-            to={configureHref}
+          <button
+            type="button"
+            onClick={() => setWizard('configure')}
             className={cfgChip}
             title={
               isOwner
@@ -553,7 +566,7 @@ function LessonCard({
                 {ticketCount}
               </span>
             )}
-          </Link>
+          </button>
         ) : (
           <button
             type="button"
@@ -634,9 +647,9 @@ function LessonCard({
           <ActionBtn label="Set" title="Generate this item's presentation, then save it as a preset" />
         </span>
       ) : studyToolSlug ? (
-        <Link to={setHref} className="no-underline">
+        <span onClick={() => setWizard('set')}>
           <ActionBtn label="Set" title="Generate this item's presentation, then save it as a preset" />
-        </Link>
+        </span>
       ) : (
         <ActionBtn label="Set" />
       );
@@ -656,9 +669,9 @@ function LessonCard({
           <ActionBtn label={label} title={title} />
         </span>
       ) : studyToolSlug ? (
-        <Link to={setHref} title={title ?? studyTitle} className="no-underline">
+        <span onClick={() => setWizard('set')} title={title ?? studyTitle}>
           <ActionBtn label={label} title={title} />
-        </Link>
+        </span>
       ) : (
         <ActionBtn label={label} title={title} />
       );
@@ -967,6 +980,21 @@ function LessonCard({
             </span>
           </button>
         </div>
+      )}
+      {/* The same wizard the Slides page uses, generating into the repo's own
+          study tool rather than making a new one. The kind is fixed by the
+          repo and the prompt starts from the lesson's objective, so it opens on
+          the questions that are actually still open. */}
+      {wizard && studyToolSlug && (
+        <CreateToolModal
+          open
+          onClose={() => setWizard(null)}
+          toolSlug={studyToolSlug}
+          seed={seed}
+          intent={wizard}
+          lockedTemplate={template}
+          initialTopic={lesson.objective || lesson.title}
+        />
       )}
     </article>
   );
