@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { externalizeDeckImages, loadSlideImage, IMAGE_URL_PREFIX } from "./deck-images.js";
+import { stripInlineImages } from "../contracts/types.js";
 import type { SlideDeck } from "../contracts/types.js";
 
 const HAS_DB = !!process.env.DATABASE_URL;
@@ -68,5 +69,35 @@ describe.runIf(HAS_DB)("externalizeDeckImages", () => {
 
   it("returns null for an id that isn't there rather than throwing", async () => {
     expect(await loadSlideImage(2_000_000_000)).toBeNull();
+  });
+});
+
+describe("stripInlineImages", () => {
+  it("drops data URIs and keeps everything else, so a play can be posted", () => {
+    const deck = deckWith([`data:image/png;base64,${PNG_B64}`, `${IMAGE_URL_PREFIX}7`]);
+    const lean = stripInlineImages(deck);
+    const urls = lean.slides.flatMap((s) =>
+      s.components.map((c) => (c as { imageUrl?: string }).imageUrl),
+    );
+    // the data URI is gone, the real URL survives
+    expect(urls).toContain(undefined);
+    expect(urls).toContain(`${IMAGE_URL_PREFIX}7`);
+    // prose and titles are untouched
+    expect(lean.slides[0].title).toBe("Slide 1");
+    expect(lean.slides[0].components[0]).toEqual({ type: "prose", text: "words" });
+  });
+
+  it("turns an unpostable snapshot into a small one", () => {
+    // What made a finished play fail: the upload was over the request-body limit
+    // and came back as plain text the client tried to read as JSON.
+    const big = `data:image/png;base64,${"A".repeat(1_400_000)}`;
+    const deck = deckWith(Array.from({ length: 4 }, () => big));
+    expect(JSON.stringify(deck).length).toBeGreaterThan(5_000_000);
+    expect(JSON.stringify(stripInlineImages(deck)).length).toBeLessThan(5_000);
+  });
+
+  it("leaves a deck with no images alone", () => {
+    const deck = deckWith([undefined, undefined]);
+    expect(JSON.stringify(stripInlineImages(deck))).toBe(JSON.stringify(deck));
   });
 });

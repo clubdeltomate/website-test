@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
 import { ArrowRight, PlayCircle, RotateCcw, TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { stripInlineImages } from '@contracts/types';
 import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 import { isPassingScore, PASS_THRESHOLD } from '@contracts/progress';
@@ -149,7 +150,10 @@ export default function FinishScreen({
       slideCount: deck.slides.length,
       elapsedSec,
       playerName: user?.name,
-      deck,
+      // Without the inline images. The server takes the snapshot from the
+      // stored preset for a repo lesson anyway, and uploading megabytes of
+      // base64 is what made a finished play fail to record at all.
+      deck: stripInlineImages(deck),
       perSlide,
       annotations: hasMarks ? annotations : undefined,
     });
