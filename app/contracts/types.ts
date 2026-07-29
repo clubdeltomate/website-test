@@ -45,6 +45,29 @@ export function normalizeUsername(raw: string): string {
   return raw.normalize("NFC").replace(/\s+/gu, "").slice(0, USERNAME_MAX_LENGTH);
 }
 
+/**
+ * Drop inline base64 images from a deck, keeping everything else.
+ *
+ * A finished play posts a snapshot of the deck it played so the run can be
+ * replayed exactly. When images are embedded as data URIs that snapshot is
+ * megabytes, which is over the request-body limit of the serverless host —
+ * the upload came back as a plain-text "Request Entity Too Large" that the
+ * client then tried to read as JSON, so a finished lesson was lost to
+ * "Unexpected token 'R'". A URL survives; a data URI does not travel.
+ */
+export function stripInlineImages<T extends { slides: unknown[] }>(deck: T): T {
+  const slides = (deck.slides as { components?: unknown[] }[]).map((slide) => ({
+    ...slide,
+    components: (slide.components ?? []).map((c) => {
+      const comp = c as { imageUrl?: unknown };
+      return typeof comp.imageUrl === "string" && comp.imageUrl.startsWith("data:")
+        ? { ...comp, imageUrl: undefined }
+        : c;
+    }),
+  }));
+  return { ...deck, slides } as T;
+}
+
 /** The most slides any single generation may produce. */
 export const MAX_DECK_SLIDES = 15;
 

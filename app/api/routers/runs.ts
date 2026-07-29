@@ -5,7 +5,8 @@ import { createRouter, publicQuery } from "../middleware.js";
 import { authedProcedure, moderatorProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
 import { resolveStudyTool } from "./repos.js";
-import { lessons, repos, runs, slideTools, units, lessonLogs } from "../../db/schema.js";
+import { customizations, lessons, repos, runs, slideTools, units, lessonLogs } from "../../db/schema.js";
+import { externalizeDeckImages } from "../deck-images.js";
 import { imageStyleSchema, levelSchema } from "../ai/prompts.js";
 import type { LessonLogSlide, RunDetail, RunReplay, RunRow, RunSlideDetail, SlideDeck } from "../../contracts/types.js";
 
@@ -189,6 +190,32 @@ export const runsRouter = createRouter({
         });
       }
 
+      /**
+       * The deck this run replays. The client no longer uploads inline images —
+       * that upload was over the request-body limit and lost the whole play — so
+       * for a repo lesson the snapshot is taken from the stored deck instead,
+       * which already has its images as URLs. Full fidelity, nothing uploaded.
+       */
+      let snapshot = input.deck ?? null;
+      if (lessonId) {
+        const stored = await db.query.lessons.findFirst({ where: eq(lessons.id, lessonId) });
+        const mine = ctx.user
+          ? await db.query.customizations.findFirst({
+              where: and(
+                eq(customizations.lessonId, lessonId),
+                eq(customizations.userId, ctx.user.id),
+              ),
+            })
+          : null;
+        // A viewer playing their own configured version replays that one.
+        snapshot = mine?.deckJson ?? stored?.presetDeckJson ?? snapshot;
+      }
+      // Anything still carrying a data URI gets stored once rather than copied
+      // into every run row.
+      if (snapshot) {
+        snapshot = (await externalizeDeckImages(snapshot as SlideDeck, ctx.user?.id ?? null)).deck;
+      }
+
       const [{ runId }] = await db.transaction(async (tx) => {
         const [{ id }] = await tx
           .insert(runs)
@@ -205,7 +232,7 @@ export const runsRouter = createRouter({
             scoreCorrect,
             scoreTotal,
             elapsedSec: input.elapsedSec,
-            deckJson: input.deck ?? null,
+            deckJson: snapshot,
             annotationsJson: input.annotations ?? null,
           })
           .returning({ id: runs.id });
