@@ -116,3 +116,71 @@ export async function sellToModerator(
     return { ticketBalance: nextTickets, tokenBalance: nextTokens, unitPrice };
   });
 }
+
+/**
+ * Add tickets to someone's pool without charging for them — the admin handing
+ * tickets over rather than selling them. Deliberately separate from
+ * sellToModerator: that one debits coins and writes a coin-ledger row, and a
+ * free grant must not pretend money moved.
+ */
+export async function grantFreeTickets(
+  userId: number,
+  count: number,
+): Promise<{ ticketBalance: number; userName: string }> {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const target = await tx.query.users.findFirst({ where: eq(users.id, userId) });
+    if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+    if (target.role !== "moderator" && target.role !== "admin") {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Only moderators hold customization tickets — credit ${target.name} some coins first and they become one`,
+      });
+    }
+    const next = target.ticketBalance + count;
+    await tx.update(users).set({ ticketBalance: next }).where(eq(users.id, userId));
+    return { ticketBalance: next, userName: target.name };
+  });
+}
+
+/**
+ * Move tickets from one holder to another. Moderators trade among themselves;
+ * the sender must actually have them, checked inside the transaction so two
+ * simultaneous sends cannot both pass on the same last ticket.
+ */
+export async function transferTickets(
+  fromUserId: number,
+  toUserId: number,
+  count: number,
+): Promise<{ senderBalance: number; recipientName: string }> {
+  if (fromUserId === toUserId) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "That is your own profile" });
+  }
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const from = await tx.query.users.findFirst({ where: eq(users.id, fromUserId) });
+    const to = await tx.query.users.findFirst({ where: eq(users.id, toUserId) });
+    if (!from || !to) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+    if (to.role !== "moderator" && to.role !== "admin") {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Only moderators hold customization tickets — ${to.name} is not one yet`,
+      });
+    }
+    if (from.ticketBalance < count) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: `You hold ${from.ticketBalance} ticket${from.ticketBalance === 1 ? "" : "s"} — not enough to send ${count}`,
+      });
+    }
+    await tx
+      .update(users)
+      .set({ ticketBalance: from.ticketBalance - count })
+      .where(eq(users.id, fromUserId));
+    await tx
+      .update(users)
+      .set({ ticketBalance: to.ticketBalance + count })
+      .where(eq(users.id, toUserId));
+    return { senderBalance: from.ticketBalance - count, recipientName: to.name };
+  });
+}

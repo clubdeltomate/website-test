@@ -19,6 +19,8 @@ import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 import Chip from '@/components/sketch/Chip';
 import SketchButton from '@/components/sketch/SketchButton';
+import { SketchInput, SketchSelect } from '@/components/admin/controls';
+import SketchToaster from '@/components/admin/SketchToaster';
 import RepoCard from '@/components/repo/RepoCard';
 import { TemplateIcon } from '@/components/repo/shared';
 import type { RepoSummary, RepoTemplate, SlideToolSummary, UserProfile as Profile } from '@contracts/types';
@@ -40,6 +42,9 @@ export default function UserProfile() {
   const [page, setPage] = useState(0);
   const [ticketOpen, setTicketOpen] = useState(false);
   const [coinOpen, setCoinOpen] = useState(false);
+  const [grantOpen, setGrantOpen] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
 
   const profile = trpc.users.profile.useQuery({ userId }, { enabled: Number.isFinite(userId) });
 
@@ -109,6 +114,20 @@ export default function UserProfile() {
   const viewerIsStaff = role === 'moderator' || role === 'admin';
   const canRequestTickets = !isGuest && !isSelf && sellsTickets;
   const canRequestCoins = !isGuest && !isSelf && isAdmin && viewerIsStaff;
+  /**
+   * What this page offers depends on who is reading it, not only on whose it
+   * is. An admin can hand tickets over and move coins; a moderator can pass
+   * tickets to another holder; everyone else can only ask. Before this the
+   * page showed one button — "Request tickets" — to all three, so an admin
+   * looking at a moderator had no way to do the thing they were there to do.
+   */
+  const viewerIsAdmin = role === 'admin';
+  // Only ticket holders can be handed tickets — a plain user has to be credited
+  // into a moderator first, so an admin on their profile gets "Adjust credits"
+  // rather than a "Give tickets" button that could only ever fail.
+  const canGrantTickets = viewerIsAdmin && !isSelf && sellsTickets;
+  const canAdjustCoins = viewerIsAdmin && !isSelf;
+  const canSendTickets = role === 'moderator' && !isSelf && sellsTickets;
 
   const onFav = () => {
     if (isGuest) return toast.error('Sign in to favorite');
@@ -189,12 +208,31 @@ export default function UserProfile() {
             <Star className={cn('h-4 w-4', p.favorite && 'fill-ink')} strokeWidth={2} />
             {p.favorite ? 'Favorited' : 'Favorite'}
           </button>
-          {canRequestTickets && (
-            <SketchButton variant="accent" size="sm" onClick={() => setTicketOpen(true)}>
+          {canGrantTickets && (
+            <SketchButton variant="accent" size="sm" onClick={() => setGrantOpen(true)}>
+              <Ticket className="h-4 w-4" /> Give tickets
+            </SketchButton>
+          )}
+          {canAdjustCoins && (
+            <SketchButton variant="secondary" size="sm" onClick={() => setAdjustOpen(true)}>
+              <Coins className="h-4 w-4" /> Adjust credits
+            </SketchButton>
+          )}
+          {canSendTickets && (
+            <SketchButton variant="accent" size="sm" onClick={() => setSendOpen(true)}>
+              <Ticket className="h-4 w-4" /> Send tickets
+            </SketchButton>
+          )}
+          {canRequestTickets && !canGrantTickets && (
+            <SketchButton
+              variant={canSendTickets ? 'secondary' : 'accent'}
+              size="sm"
+              onClick={() => setTicketOpen(true)}
+            >
               <Ticket className="h-4 w-4" /> Request tickets
             </SketchButton>
           )}
-          {canRequestCoins && (
+          {canRequestCoins && !canAdjustCoins && (
             <SketchButton variant="secondary" size="sm" onClick={() => setCoinOpen(true)}>
               <Coins className="h-4 w-4" /> Request coins
             </SketchButton>
@@ -303,6 +341,13 @@ export default function UserProfile() {
 
       {ticketOpen && <TicketRequestModal profile={p} onClose={() => setTicketOpen(false)} />}
       {coinOpen && <CoinRequestModal onClose={() => setCoinOpen(false)} />}
+      {grantOpen && <GiveTicketsModal profile={p} onClose={() => setGrantOpen(false)} />}
+      {sendOpen && <SendTicketsModal profile={p} onClose={() => setSendOpen(false)} />}
+      {adjustOpen && <AdjustCoinsModal profile={p} onClose={() => setAdjustOpen(false)} />}
+      {/* No global toast mount exists in the shell, so a page that calls toast()
+          has to carry its own — without this every confirmation and every
+          rejection here (not enough tickets, not a moderator) went nowhere. */}
+      <SketchToaster />
     </div>
   );
 }
@@ -505,5 +550,181 @@ function ModalShell({
         {children}
       </div>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Admin + moderator actions on someone else's profile                 */
+/* ------------------------------------------------------------------ */
+
+/** Admin hands tickets over for nothing. */
+function GiveTicketsModal({ profile, onClose }: { profile: Profile; onClose: () => void }) {
+  const utils = trpc.useUtils();
+  const [count, setCount] = useState(1);
+  const grant = trpc.tickets.grantFree.useMutation({
+    onSuccess: (r) => {
+      toast.success(`${profile.name} now holds ${r.ticketBalance} ticket${r.ticketBalance === 1 ? '' : 's'}`);
+      void utils.users.list.invalidate();
+      void utils.auth.me.invalidate();
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <ModalShell title={`Give tickets to ${profile.name}`} onClose={onClose}>
+      <p className="text-sm text-ink-soft">
+        Free — no coins are taken from them and nothing is recorded as a sale. To charge for
+        tickets, use the Sales desk in Finance.
+      </p>
+      <label className="micro mt-4 block text-ink-soft" htmlFor="give-count">
+        How many
+      </label>
+      <SketchInput
+        id="give-count"
+        type="number"
+        min={1}
+        max={500}
+        value={String(count)}
+        onChange={(e) => setCount(Math.max(1, Math.min(500, Number(e.target.value) || 1)))}
+      />
+      <div className="mt-5 flex justify-end gap-2">
+        <SketchButton variant="ghost" onClick={onClose}>
+          Cancel
+        </SketchButton>
+        <SketchButton
+          variant="accent"
+          loading={grant.isPending}
+          onClick={() => grant.mutate({ userId: profile.id, count })}
+        >
+          Give {count} ticket{count === 1 ? '' : 's'}
+        </SketchButton>
+      </div>
+    </ModalShell>
+  );
+}
+
+/** A holder passes some of their own tickets to another holder. */
+function SendTicketsModal({ profile, onClose }: { profile: Profile; onClose: () => void }) {
+  const utils = trpc.useUtils();
+  const { user } = useAuth();
+  const [count, setCount] = useState(1);
+  const send = trpc.tickets.send.useMutation({
+    onSuccess: (r) => {
+      toast.success(`Sent to ${r.recipientName} — you have ${r.senderBalance} left`);
+      void utils.auth.me.invalidate();
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const mine = user?.ticketBalance ?? 0;
+  return (
+    <ModalShell title={`Send tickets to ${profile.name}`} onClose={onClose}>
+      <p className="text-sm text-ink-soft">
+        Out of your own pool — you hold {mine} ticket{mine === 1 ? '' : 's'}.
+      </p>
+      <label className="micro mt-4 block text-ink-soft" htmlFor="send-count">
+        How many
+      </label>
+      <SketchInput
+        id="send-count"
+        type="number"
+        min={1}
+        max={Math.max(1, mine)}
+        value={String(count)}
+        onChange={(e) => setCount(Math.max(1, Number(e.target.value) || 1))}
+      />
+      <div className="mt-5 flex justify-end gap-2">
+        <SketchButton variant="ghost" onClick={onClose}>
+          Cancel
+        </SketchButton>
+        <SketchButton
+          variant="accent"
+          loading={send.isPending}
+          disabled={mine < 1}
+          onClick={() => send.mutate({ toUserId: profile.id, count })}
+        >
+          Send {count}
+        </SketchButton>
+      </div>
+    </ModalShell>
+  );
+}
+
+/** Admin moves someone's coin balance either way. */
+function AdjustCoinsModal({ profile, onClose }: { profile: Profile; onClose: () => void }) {
+  const utils = trpc.useUtils();
+  const [amount, setAmount] = useState(100);
+  const [direction, setDirection] = useState<'credit' | 'deduct'>('credit');
+  const [reason, setReason] = useState('manual adjustment');
+  const adjust = trpc.users.creditTokens.useMutation({
+    onSuccess: (r) => {
+      toast.success(`${profile.name} now holds ${r.balance} 🪙`);
+      void utils.users.list.invalidate();
+      void utils.users.profile.invalidate();
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <ModalShell title={`Adjust ${profile.name}'s credits`} onClose={onClose}>
+      <p className="text-sm text-ink-soft">
+        Crediting a plain user makes them a moderator; taking their last coin returns them to a
+        user. Admins keep their role either way.
+      </p>
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <span>
+          <label className="micro mb-1 block text-ink-soft" htmlFor="adj-dir">
+            Direction
+          </label>
+          <SketchSelect
+            id="adj-dir"
+            value={direction}
+            onChange={(e) => setDirection(e.target.value as 'credit' | 'deduct')}
+          >
+            <option value="credit">+ Add coins</option>
+            <option value="deduct">− Remove coins</option>
+          </SketchSelect>
+        </span>
+        <span>
+          <label className="micro mb-1 block text-ink-soft" htmlFor="adj-amt">
+            Amount
+          </label>
+          <SketchInput
+            id="adj-amt"
+            type="number"
+            min={1}
+            max={100000}
+            className="w-28"
+            value={String(amount)}
+            onChange={(e) => setAmount(Math.max(1, Number(e.target.value) || 1))}
+          />
+        </span>
+        <span className="min-w-[10rem] flex-1">
+          <label className="micro mb-1 block text-ink-soft" htmlFor="adj-why">
+            Reason (ledger)
+          </label>
+          <SketchInput id="adj-why" value={reason} onChange={(e) => setReason(e.target.value)} />
+        </span>
+      </div>
+      <div className="mt-5 flex justify-end gap-2">
+        <SketchButton variant="ghost" onClick={onClose}>
+          Cancel
+        </SketchButton>
+        <SketchButton
+          variant="accent"
+          loading={adjust.isPending}
+          onClick={() =>
+            adjust.mutate({
+              userId: profile.id,
+              amount,
+              direction,
+              reason: reason.trim() || 'manual adjustment',
+            })
+          }
+        >
+          {direction === 'credit' ? 'Add' : 'Remove'} {amount} 🪙
+        </SketchButton>
+      </div>
+    </ModalShell>
   );
 }
