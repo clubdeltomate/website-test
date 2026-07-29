@@ -14,16 +14,21 @@
  *   6. The user (who had none) is blocked from customizing until they hold a
  *      ticket, then spends exactly one per custom generation and can't
  *      double-spend.
- *   7. Draining a moderator's credits demotes them back to a user.
+ *   7. A general ticket pays for a standalone slide-tool deck, and coins pay
+ *      for a customization when the user holds no ticket — the two currencies
+ *      are interchangeable in both directions.
+ *   8. Draining a moderator's credits demotes them back to a user.
  */
 import { describe, it, expect, beforeAll } from "vitest";
 import { eq } from "drizzle-orm";
 import { appRouter } from "./router.js";
 import { getDb } from "./queries/connection.js";
 import { customizations, users, slideTools, type User } from "@db/schema";
-import { ticketPrice } from "./cost.js";
-import { consumeOne, countAvailable } from "./tickets.js";
+import { autoTicketPrice, estimateCost, ticketPrice, TICKET_MAX_SLIDES } from "./cost.js";
+import { getSettings } from "./settings.js";
+import { consumeOne, countAvailable, countSpendable } from "./tickets.js";
 import { applyTokenDelta } from "./tokens.js";
+import { LEVELS, TICKET_DECK_LIMITS } from "../contracts/types.js";
 
 const HAS_DB = !!process.env.DATABASE_URL;
 
@@ -222,10 +227,11 @@ describe.runIf(HAS_DB)("full coins ↔ tickets cycle", () => {
       lessonSeqTotal: 1,
     };
 
-    // no ticket yet → blocked
+    // No ticket and no coins → blocked, and the refusal names the other door
+    // (a ticket) rather than only the one they're standing at.
     await expect(
       call(student).generate.slides({ toolSlug, level: "B1", slideCount: 4, imageStyle: "none", seed }),
-    ).rejects.toThrow(/NEED_TICKET/);
+    ).rejects.toThrow(/INSUFFICIENT_TOKENS.*ticket would cover/s);
 
     // moderator gifts 2 tickets by email
     const poolBefore = (await reload(moderator.id)).ticketBalance;
@@ -247,12 +253,12 @@ describe.runIf(HAS_DB)("full coins ↔ tickets cycle", () => {
 
     expect(await countAvailable(student.id, repoId)).toBe(2);
     // consumeOne is exactly what generate.slides calls on a successful custom build
-    expect(await consumeOne(student.id, repoId)).toBe(true);
+    expect(await consumeOne(student.id, { repoId })).toBe(true);
     expect(await countAvailable(student.id, repoId)).toBe(1);
-    expect(await consumeOne(student.id, repoId)).toBe(true);
+    expect(await consumeOne(student.id, { repoId })).toBe(true);
     expect(await countAvailable(student.id, repoId)).toBe(0);
     // out of tickets → cannot spend a third
-    expect(await consumeOne(student.id, repoId)).toBe(false);
+    expect(await consumeOne(student.id, { repoId })).toBe(false);
   });
 
   it("7) the creator appears in the public directory & profile; can be favorited", async () => {
@@ -412,7 +418,109 @@ describe.runIf(HAS_DB)("full coins ↔ tickets cycle", () => {
     expect(gen.commercial!.repoSlug).toBeNull();
   });
 
-  it("9) draining a moderator's credits demotes them to a user", async () => {
+  it("9) a general ticket pays for a standalone slide-tool deck instead of coins", async () => {
+    // The student has no coins at all — if the deck generates, only a ticket
+    // could have paid for it. Earlier steps left them holding repo-scoped
+    // tickets, and those are spendable on the slide tool too, so burn them
+    // first or this proves nothing.
+    student = await reload(student.id);
+    expect(student.tokenBalance).toBe(0);
+    while (await consumeOne(student.id, { repoId: null })) {
+      /* drain */
+    }
+
+    // A standalone deck (no seed) is refused with nothing to pay with...
+    await expect(
+      call(student).generate.slides({ toolSlug, level: "B1", slideCount: 4, imageStyle: "none" }),
+    ).rejects.toThrow(/INSUFFICIENT_TOKENS/);
+
+    // ...so the moderator gifts a GENERAL ticket — no repoSlug, so it belongs
+    // to no repo and is spendable on the slide tool.
+    await call(admin).tickets.grantFree({ userId: moderator.id, count: 2 });
+    await call(moderator).tickets.grantToUser({ userEmail: student.email, count: 1 });
+    expect(await countSpendable(student.id, { repoId: null })).toBe(1);
+
+    const gen = await call(student).generate.slides({
+      toolSlug,
+      level: "B1",
+      slideCount: 4,
+      imageStyle: "none",
+    });
+    // The same request that was refused a moment ago now succeeds, and the
+    // balance is still zero — the ticket is the only thing that can have paid.
+    expect(gen.deck.slides.length).toBeGreaterThan(0);
+    expect((await reload(student.id)).tokenBalance).toBe(0);
+    // Spending itself is asserted in step 6: this harness runs on mock AI, and
+    // a mock deck deliberately consumes nothing (a deck that cost nothing to
+    // make must not cost the holder a ticket).
+  });
+
+  it("9b) the ticket entitlement matches what a ticket is priced to cover", async () => {
+    // These are one constant precisely so they cannot drift; if the deck
+    // ceiling ever moves without the ticket price following, tickets start
+    // selling below cost. Guarding it here is cheaper than discovering it in
+    // the ledger.
+    expect(TICKET_DECK_LIMITS.maxSlides).toBe(TICKET_MAX_SLIDES);
+    expect(TICKET_DECK_LIMITS.maxLevel).toBe(LEVELS[LEVELS.length - 1]);
+    // And the AUTO price covers the biggest deck a ticket can buy. Deliberately
+    // the auto price, not the live one: Finance lets the admin pin a ticket
+    // price below cost on purpose (a promotion, a giveaway), so asserting on
+    // the live price would fail on a business decision rather than a bug.
+    const { prices } = await getSettings();
+    const worst = await estimateCost({
+      slideCount: TICKET_DECK_LIMITS.maxSlides,
+      imageStyle: "sketch",
+      withTts: false,
+      level: TICKET_DECK_LIMITS.maxLevel,
+      usingOwnKey: false,
+    });
+    expect(autoTicketPrice(prices)).toBeGreaterThanOrEqual(worst.total);
+  });
+
+  it("9c) coins customize a repo when the user holds no ticket", async () => {
+    const repoSlug = (globalThis as Record<string, unknown>).__repoSlug as string;
+    const repoRef = (globalThis as Record<string, unknown>).__repoRef as string;
+    const lessonSeq = (globalThis as Record<string, unknown>).__lessonSeq as number;
+    const db = getDb();
+    const repo = await db.query.repos.findFirst({ where: (r, { eq: e }) => e(r.slug, repoSlug) });
+
+    // Burn the general ticket left over from 9b so only coins remain.
+    await consumeOne(student.id, { repoId: null });
+    expect(await countSpendable(student.id, { repoId: repo!.id })).toBe(0);
+
+    await applyTokenDelta(student.id, 400, "coins for the customization test");
+    // The caller context carries a SNAPSHOT of the user, and the balance check
+    // reads it — so the credit has to be reloaded into `student` or the router
+    // still sees the old zero.
+    student = await reload(student.id);
+    const before = student.tokenBalance;
+
+    const gen = await call(student).generate.slides({
+      toolSlug,
+      level: "B1",
+      slideCount: 4,
+      imageStyle: "none",
+      seed: {
+        repoSlug,
+        repoRef,
+        unitTitle: "Cells",
+        lessonTitle: "Photosynthesis",
+        lessonIndex: 1,
+        lessonCount: 1,
+        lessonSeq,
+        lessonSeqTotal: 1,
+      },
+    });
+    expect(gen.deck.slides.length).toBeGreaterThan(0);
+    // Charged in coins — the path that used to be ticket-or-nothing.
+    expect((await reload(student.id)).tokenBalance).toBeLessThan(before);
+
+    // Drain them again so test 10's demotion check starts where it expects.
+    const left = (await reload(student.id)).tokenBalance;
+    if (left > 0) await applyTokenDelta(student.id, -left, "drain after customization test");
+  });
+
+  it("10) draining a moderator's credits demotes them to a user", async () => {
     const m = await reload(moderator.id);
     expect(m.role).toBe("moderator");
     await applyTokenDelta(m.id, -m.tokenBalance, "drain for test");

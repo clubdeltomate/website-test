@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { Coins, Plus, Search, ShieldCheck, Ticket, Trash2, UserCog, X } from 'lucide-react';
+import { Coins, Pencil, Plus, Search, ShieldCheck, Ticket, Trash2, UserCog, X } from 'lucide-react';
 import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 import SketchButton from '@/components/sketch/SketchButton';
@@ -20,6 +20,7 @@ import {
   SkeletonBlock,
 } from '@/components/admin/controls';
 import { errMsg, formatDate, formatRelative } from '@/components/admin/utils';
+import { normalizeUsername } from '@contracts/types';
 import type { AdminUserRow, Role } from '@contracts/types';
 
 /** Inline "create account" panel for the Manage users toolbar (admin only —
@@ -42,10 +43,10 @@ function AddUserForm({ onDone }: { onDone: () => void }) {
   });
 
   const submit = () => {
-    if (name.trim().length < 1) return toast.error('Give the user a name');
+    if (normalizeUsername(name).length < 1) return toast.error('Give the user a name');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return toast.error('That email looks smudged');
     if (password.length < 6) return toast.error('Password needs at least 6 characters');
-    create.mutate({ name: name.trim(), email: email.trim(), password, role, tokens });
+    create.mutate({ name: normalizeUsername(name), email: email.trim(), password, role, tokens });
   };
 
   return (
@@ -54,8 +55,12 @@ function AddUserForm({ onDone }: { onDone: () => void }) {
         New account — they can sign in right away with this email and password.
       </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <LabeledField label="Username (unique)">
-          <SketchInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Sam Sketcher" />
+        <LabeledField label="Username (unique, one word)">
+          <SketchInput
+            value={name}
+            onChange={(e) => setName(normalizeUsername(e.target.value))}
+            placeholder="SamSketcher"
+          />
         </LabeledField>
         <LabeledField label="Email">
           <SketchInput value={email} onChange={(e) => setEmail(e.target.value)} placeholder="sam@example.com" type="email" />
@@ -447,6 +452,64 @@ function RoleModal({
   );
 }
 
+/**
+ * Correct a user's name or email from the table. Both are sign-in identifiers,
+ * which is exactly why they need an admin-side fix: a typo in either locks
+ * someone out of their own account and they can't repair it themselves.
+ */
+function EditIdentityModal({
+  target,
+  onClose,
+  onChanged,
+}: {
+  target: AdminUserRow;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [name, setName] = useState(target.name);
+  const [email, setEmail] = useState(target.email);
+
+  const save = trpc.users.updateIdentity.useMutation({
+    onSuccess: (r) => {
+      toast.success(`Saved — ${r.name} · ${r.email}`);
+      onChanged();
+      onClose();
+    },
+    onError: (e) => toast.error(errMsg(e)),
+  });
+
+  const cleanName = normalizeUsername(name);
+  const cleanEmail = email.trim().toLowerCase();
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
+  const changed = cleanName !== target.name || cleanEmail !== target.email;
+
+  return (
+    <SketchModal open onClose={onClose} title={`Edit ${target.name}`} maxWidth="max-w-[460px]">
+      <div className="grid gap-3">
+        <LabeledField label="Username" helper="One word — spaces are closed up as you type.">
+          <SketchInput value={name} onChange={(e) => setName(normalizeUsername(e.target.value))} />
+        </LabeledField>
+        <LabeledField label="Email" helper="Also their sign-in — changing it changes how they log in.">
+          <SketchInput value={email} type="email" onChange={(e) => setEmail(e.target.value)} />
+        </LabeledField>
+      </div>
+      <div className="mt-4 flex gap-2">
+        <SketchButton
+          loading={save.isPending}
+          disabled={!changed || !cleanName || !emailOk}
+          onClick={() => save.mutate({ userId: target.id, name: cleanName, email: cleanEmail })}
+        >
+          <Pencil className="h-4 w-4" strokeWidth={2} /> Save
+        </SketchButton>
+        <SketchButton variant="ghost" onClick={onClose}>
+          Cancel
+        </SketchButton>
+      </div>
+      {!emailOk && <p className="mt-2 text-xs font-bold text-red">That email looks smudged</p>}
+    </SketchModal>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* User detail drawer                                                  */
 /* ------------------------------------------------------------------ */
@@ -614,6 +677,7 @@ function UsersBody() {
   const [crediting, setCrediting] = useState<AdminUserRow | null>(null);
   const [roleEditing, setRoleEditing] = useState<AdminUserRow | null>(null);
   const [deleting, setDeleting] = useState<AdminUserRow | null>(null);
+  const [editing, setEditing] = useState<AdminUserRow | null>(null);
 
   const isAdmin = myRole === 'admin';
 
@@ -796,6 +860,17 @@ function UsersBody() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        setEditing(r);
+                      }}
+                      aria-label={`Edit ${r.name}`}
+                      title="Edit name & email"
+                      className="rounded-wobble-sm border-2 border-dashed border-pencil p-1 text-ink-soft hover:border-ink hover:text-ink"
+                    >
+                      <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setRoleEditing(r);
                       }}
                       className="rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-xs font-bold text-ink-soft hover:border-ink hover:text-ink"
@@ -843,6 +918,16 @@ function UsersBody() {
           target={crediting}
           onClose={() => setCrediting(null)}
           onCredited={() => {
+            void utils.users.list.invalidate();
+            void utils.auth.me.invalidate();
+          }}
+        />
+      )}
+      {editing && (
+        <EditIdentityModal
+          target={editing}
+          onClose={() => setEditing(null)}
+          onChanged={() => {
             void utils.users.list.invalidate();
             void utils.auth.me.invalidate();
           }}

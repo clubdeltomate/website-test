@@ -25,6 +25,7 @@ import { applyTokenDelta } from "../tokens.js";
 import { hashPassword } from "../auth-utils.js";
 import { favoriteSlugs, repoSummaries } from "./repos.js";
 import { toSummary as slideToolSummary } from "./slideTools.js";
+import { normalizeUsername } from "../../contracts/types.js";
 import type { AdminUserRow, DirectoryUser, RepoTemplate, UserProfile } from "../../contracts/types.js";
 
 async function toRow(db: ReturnType<typeof getDb>, u: typeof users.$inferSelect): Promise<AdminUserRow> {
@@ -194,8 +195,12 @@ export const usersRouter = createRouter({
       if (existing) {
         throw new TRPCError({ code: "CONFLICT", message: "That email already has an account" });
       }
+      const name = normalizeUsername(input.name);
+      if (!name) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Pick a username with some letters in it" });
+      }
       const nameTaken = await db.query.users.findFirst({
-        where: sql`LOWER(${users.name}) = ${input.name.trim().toLowerCase()}`,
+        where: sql`LOWER(${users.name}) = ${name.toLowerCase()}`,
       });
       if (nameTaken) {
         throw new TRPCError({ code: "CONFLICT", message: "That username is already used by another user" });
@@ -211,7 +216,7 @@ export const usersRouter = createRouter({
         .insert(users)
         .values({
           email,
-          name: input.name.trim(),
+          name,
           passwordHash: hashPassword(input.password),
           role,
           tokenBalance: input.tokens,
@@ -226,6 +231,57 @@ export const usersRouter = createRouter({
         });
       }
       return { id };
+    }),
+
+  /**
+   * Admin only — correct a user's name or email from the Users table. Both are
+   * sign-in identifiers, so both are checked for collisions against every other
+   * account; the username is normalized to one word like everywhere else.
+   */
+  updateIdentity: adminProcedure
+    .input(
+      z.object({
+        userId: z.number().int(),
+        name: z.string().min(1).max(255).optional(),
+        email: z.string().email().max(320).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const user = await db.query.users.findFirst({ where: eq(users.id, input.userId) });
+      if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+
+      const set: { name?: string; email?: string } = {};
+      if (input.name !== undefined) {
+        const name = normalizeUsername(input.name);
+        if (!name) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Pick a username with some letters in it" });
+        }
+        if (name.toLowerCase() !== user.name.toLowerCase()) {
+          const taken = await db.query.users.findFirst({
+            where: sql`LOWER(${users.name}) = ${name.toLowerCase()}`,
+          });
+          if (taken && taken.id !== user.id) {
+            throw new TRPCError({ code: "CONFLICT", message: `${name} is already taken` });
+          }
+        }
+        set.name = name;
+      }
+      if (input.email !== undefined) {
+        const email = input.email.trim().toLowerCase();
+        if (email !== user.email) {
+          const taken = await db.query.users.findFirst({ where: eq(users.email, email) });
+          if (taken && taken.id !== user.id) {
+            throw new TRPCError({ code: "CONFLICT", message: `${email} already has an account` });
+          }
+        }
+        set.email = email;
+      }
+      if (Object.keys(set).length > 0) {
+        await db.update(users).set(set).where(eq(users.id, input.userId));
+      }
+      const fresh = (await db.query.users.findFirst({ where: eq(users.id, input.userId) }))!;
+      return { name: fresh.name, email: fresh.email };
     }),
 
   /** Admin only — role assignment. */

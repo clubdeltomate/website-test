@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import SketchButton from '@/components/sketch/SketchButton';
 import { Squiggle } from '@/components/sketch/Squiggle';
+import { normalizeUsername } from '@contracts/types';
 
 type Mode = 'signin' | 'signup';
 
@@ -269,15 +270,18 @@ export default function Auth() {
                   transition={{ duration: 0.22 }}
                 >
                   <label className="micro mb-1 block text-ink-soft" htmlFor="auth-name">
-                    Username (shown publicly — also lets you sign in without email)
+                    Username — one word (shown publicly, also lets you sign in without email)
                   </label>
+                  {/* Normalized as you type, so the name in the box is the name
+                      you'll get. Discovering the rule from a rejected form after
+                      filling in the rest would be a worse way to learn it. */}
                   <input
                     id="auth-name"
                     className={fieldCls(errors.name)}
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Sam Sketcher"
-                    autoComplete="name"
+                    onChange={(e) => setName(normalizeUsername(e.target.value))}
+                    placeholder="SamSketcher"
+                    autoComplete="username"
                   />
                   {errors.name && <p className="mt-1 text-xs font-bold text-red">{errors.name}</p>}
                 </motion.div>
