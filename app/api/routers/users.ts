@@ -45,7 +45,7 @@ async function toRow(db: ReturnType<typeof getDb>, u: typeof users.$inferSelect)
 export const usersRouter = createRouter({
   /**
    * Public user directory — anyone (including guests) can browse EVERY user,
-   * favorite them, and open their profile. Each entry carries a repo count and
+   * follow them, and open their profile. Each entry carries a repo count and
    * the categories of their public repos for filtering.
    */
   directory: publicQuery
@@ -76,11 +76,11 @@ export const usersRouter = createRouter({
           role: u.role,
           repoCount: counts.get(u.id) ?? 0,
           templates: [...(cats.get(u.id) ?? [])] as RepoTemplate[],
-          favorite: favs.has(String(u.id)),
+          following: favs.has(String(u.id)),
         }))
         .sort(
           (a, b) =>
-            Number(b.favorite) - Number(a.favorite) ||
+            Number(b.following) - Number(a.following) ||
             b.repoCount - a.repoCount ||
             a.name.localeCompare(b.name),
         );
@@ -114,16 +114,20 @@ export const usersRouter = createRouter({
         whatsapp: user.whatsapp ?? null,
         socials: Array.isArray(user.socials) ? (user.socials as string[]) : [],
         contactNote: user.contactNote ?? null,
-        favorite: favs.has(String(user.id)),
+        following: favs.has(String(user.id)),
         repos: summaries,
         slideTools: toolSummaries,
       };
     }),
 
-  /** Favorite / unfavorite a creator (targetType "user"). */
-  toggleFavorite: authedProcedure
+  /**
+   * Follow / unfollow a creator. Stored as a favorites row with targetType
+   * "user": following someone and starring them were always the same act, so
+   * this is a rename of the concept rather than a second relation beside it.
+   */
+  toggleFollow: authedProcedure
     .input(z.object({ userId: z.number().int() }))
-    .mutation(async ({ ctx, input }): Promise<{ favorite: boolean }> => {
+    .mutation(async ({ ctx, input }): Promise<{ following: boolean }> => {
       const db = getDb();
       const slug = String(input.userId);
       const existing = await db.query.favorites.findFirst({
@@ -135,11 +139,22 @@ export const usersRouter = createRouter({
       });
       if (existing) {
         await db.delete(favorites).where(eq(favorites.id, existing.id));
-        return { favorite: false };
+        return { following: false };
       }
       await db.insert(favorites).values({ userId: ctx.user.id, targetType: "user", targetSlug: slug });
-      return { favorite: true };
+      return { following: true };
     }),
+
+  /**
+   * Ids of the people the viewer follows. The gallery filters work by owner,
+   * and it needs the whole set at once to do that client-side — asking per
+   * card would be one query per tile.
+   */
+  followingIds: publicQuery.query(async ({ ctx }): Promise<number[]> => {
+    if (!ctx.user) return [];
+    const slugs = await favoriteSlugs(ctx.user.id, "user");
+    return [...slugs].map(Number).filter(Number.isFinite);
+  }),
 
   list: moderatorProcedure
     .input(

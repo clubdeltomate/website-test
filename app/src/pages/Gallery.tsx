@@ -7,8 +7,9 @@ import Repos from './Repos';
 /**
  * Community gallery — everything EVERYONE has made, in the same layouts as
  * the personal Slides and Repos shelves (those pages now show only your own
- * work). Browse, play, and favorite freely; favorites marked here are yours
- * and follow you, but the personal shelves list only what you created.
+ * work). Browse, play, favorite freely, or narrow to the people you follow;
+ * favorites marked here are yours, but the personal shelves list only what you
+ * created.
  */
 export default function Gallery() {
   const [tab, setTab] = useState<'slides' | 'repos'>('slides');
@@ -40,7 +41,7 @@ export default function Gallery() {
             </button>
           ))}
           <p className="micro ml-2 text-ink-faint">
-            Everyone's work — favorite what you like; your own shelves stay just yours.
+            Everyone's work — filter to the people you follow; your own shelves stay just yours.
           </p>
         </div>
       </div>

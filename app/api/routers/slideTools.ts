@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, eq, ne, like, or, desc } from "drizzle-orm";
+import { and, eq, inArray, ne, like, or, desc } from "drizzle-orm";
 import { createRouter, publicQuery } from "../middleware.js";
 import { authedProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
+import { favoriteSlugs } from "./repos.js";
 import { favorites, runs, slideTools, users, type SlideTool, type User } from "../../db/schema.js";
 import { imageStyleSchema, levelSchema, slugify, templateSchema } from "../ai/prompts.js";
 import { TONES, repoPurpose } from "../../contracts/types.js";
@@ -50,6 +51,7 @@ export async function toSummary(tool: SlideTool, userId: number | undefined): Pr
     isPublic: tool.isPublic,
     favorite,
     runCount: toolRuns.length,
+    ownerId: tool.ownerId ?? null,
     ownerName,
     createdAt: tool.createdAt,
   };
@@ -70,6 +72,8 @@ export const slideToolsRouter = createRouter({
           mine: z.boolean().default(false),
           /** community gallery: everyone's work EXCEPT the viewer's own */
           excludeMine: z.boolean().default(false),
+          /** only work owned by people the viewer follows */
+          followingOnly: z.boolean().default(false),
         })
         .optional(),
     )
@@ -79,6 +83,13 @@ export const slideToolsRouter = createRouter({
       const conds = [];
       if (input?.mine && ctx.user) conds.push(eq(slideTools.ownerId, ctx.user.id));
       if (input?.excludeMine && ctx.user) conds.push(ne(slideTools.ownerId, ctx.user.id));
+      // In the query, not on the returned rows — see the same note in repos.list.
+      if (input?.followingOnly) {
+        if (!ctx.user) return [];
+        const ids = [...(await favoriteSlugs(ctx.user.id, "user"))].map(Number).filter(Number.isFinite);
+        if (ids.length === 0) return [];
+        conds.push(inArray(slideTools.ownerId, ids));
+      }
       if (!ctx.user || ctx.user.role === "user") conds.push(eq(slideTools.isPublic, true));
       if (input?.q) {
         const q = `%${input.q}%`;

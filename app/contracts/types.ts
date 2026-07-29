@@ -362,7 +362,13 @@ export interface DirectoryUser {
   repoCount: number;
   /** distinct categories of the public repos they own (for topic filtering) */
   templates: RepoTemplate[];
-  favorite: boolean;
+  /**
+   * Whether the viewer follows this person. Stored as a favorites row with
+   * targetType "user" — starring a person and following them were always the
+   * same act (the directory copy said "star the ones you want to follow"), so
+   * there is one relation under one name rather than two that overlap.
+   */
+  following: boolean;
 }
 
 /** A user's public profile: their public repos + slide tools + contact. */
@@ -374,7 +380,8 @@ export interface UserProfile {
   whatsapp: string | null;
   socials: string[];
   contactNote: string | null;
-  favorite: boolean;
+  /** Whether the viewer follows this person (see DirectoryUser.following). */
+  following: boolean;
   repos: RepoSummary[];
   slideTools: SlideToolSummary[];
 }
@@ -403,6 +410,7 @@ export interface RepoSummary {
   myCompletedUnits: number;
   isPublic: boolean;
   favorite: boolean;
+  ownerId: number | null;
   ownerName: string | null;
   createdAt: Date;
 }
@@ -487,6 +495,7 @@ export interface SlideToolSummary {
   isPublic: boolean;
   favorite: boolean;
   runCount: number;
+  ownerId: number | null;
   ownerName: string | null;
   createdAt: Date;
 }

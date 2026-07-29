@@ -261,24 +261,42 @@ describe.runIf(HAS_DB)("full coins ↔ tickets cycle", () => {
     expect(await consumeOne(student.id, { repoId })).toBe(false);
   });
 
-  it("7) the creator appears in the public directory & profile; can be favorited", async () => {
+  it("7) the creator appears in the public directory & profile; can be followed", async () => {
     const repoSlug = (globalThis as Record<string, unknown>).__repoSlug as string;
-    // student favorites the creator
-    const fav = await call(student).users.toggleFavorite({ userId: moderator.id });
-    expect(fav.favorite).toBe(true);
+    // student follows the creator
+    const fav = await call(student).users.toggleFollow({ userId: moderator.id });
+    expect(fav.following).toBe(true);
 
-    // directory (as the student) lists the creator, marked favorite
+    // the id shows up in the set the gallery filters by
+    expect(await call(student).users.followingIds()).toContain(moderator.id);
+
+    // directory (as the student) lists the creator, marked followed
     const dir = await call(student).users.directory({});
     const entry = dir.find((u) => u.id === moderator.id);
     expect(entry).toBeTruthy();
     expect(entry!.repoCount).toBeGreaterThanOrEqual(1);
-    expect(entry!.favorite).toBe(true);
+    expect(entry!.following).toBe(true);
 
     // profile returns their public repo (savable/browsable catalog) + slide tools
     const prof = await call(student).users.profile({ userId: moderator.id });
-    expect(prof.favorite).toBe(true);
+    expect(prof.following).toBe(true);
     expect(prof.repos.some((r) => r.slug === repoSlug)).toBe(true);
     expect(Array.isArray(prof.slideTools)).toBe(true);
+
+    // the gallery narrows to work owned by people you follow. This is filtered
+    // in the QUERY, not on the returned page, so it can't under-report when the
+    // result cap bites.
+    const followed = await call(student).repos.list({ excludeMine: true, followingOnly: true });
+    expect(followed.some((r) => r.slug === repoSlug)).toBe(true);
+    expect(followed.every((r) => r.ownerId === moderator.id)).toBe(true);
+
+    // unfollow and the same query goes empty
+    const off = await call(student).users.toggleFollow({ userId: moderator.id });
+    expect(off.following).toBe(false);
+    expect(await call(student).repos.list({ excludeMine: true, followingOnly: true })).toEqual([]);
+    // a guest follows nobody, so it is empty for them too rather than unfiltered
+    expect(await call().repos.list({ excludeMine: true, followingOnly: true })).toEqual([]);
+    await call(student).users.toggleFollow({ userId: moderator.id }); // restore
 
     // the directory lists EVERY user now — including the student (0 repos)
     const stu = dir.find((u) => u.id === student.id);

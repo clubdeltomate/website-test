@@ -10,8 +10,9 @@ import {
   Play,
   Presentation,
   Search,
-  Star,
   Ticket,
+  UserCheck,
+  UserPlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -70,11 +71,11 @@ export default function UserProfile() {
 
   const profile = trpc.users.profile.useQuery({ userId }, { enabled: Number.isFinite(userId) });
 
-  const toggleFav = trpc.users.toggleFavorite.useMutation({
+  const toggleFollow = trpc.users.toggleFollow.useMutation({
     onMutate: async () => {
       await utils.users.profile.cancel({ userId });
       const prev = utils.users.profile.getData({ userId });
-      utils.users.profile.setData({ userId }, (old) => (old ? { ...old, favorite: !old.favorite } : old));
+      utils.users.profile.setData({ userId }, (old) => (old ? { ...old, following: !old.following } : old));
       return { prev };
     },
     onError: (e, _v, ctx) => {
@@ -151,9 +152,9 @@ export default function UserProfile() {
   const canAdjustCoins = viewerIsAdmin && !isSelf;
   const canSendTickets = role === 'moderator' && !isSelf && sellsTickets;
 
-  const onFav = () => {
-    if (isGuest) return toast.error('Sign in to favorite');
-    toggleFav.mutate({ userId });
+  const onFollow = () => {
+    if (isGuest) return toast.error('Sign in to follow');
+    toggleFollow.mutate({ userId });
   };
   const onRepoFav = (repo: RepoSummary) => {
     if (isGuest) return toast.error('Sign in to favorite');
@@ -219,16 +220,24 @@ export default function UserProfile() {
         <div className="flex flex-col items-end gap-2">
           <button
             type="button"
-            onClick={onFav}
+            onClick={onFollow}
+            aria-pressed={p.following}
             className={cn(
               'flex items-center gap-1.5 rounded-wobble-sm border-2 px-3 py-2 text-sm font-bold transition-colors',
-              p.favorite
+              p.following
                 ? 'border-ink bg-yellow text-ink shadow-offset'
                 : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
             )}
           >
-            <Star className={cn('h-4 w-4', p.favorite && 'fill-ink')} strokeWidth={2} />
-            {p.favorite ? 'Favorited' : 'Favorite'}
+            {p.following ? (
+              <>
+                <UserCheck className="h-4 w-4" strokeWidth={2} /> Following
+              </>
+            ) : (
+              <>
+                <UserPlus className="h-4 w-4" strokeWidth={2} /> Follow
+              </>
+            )}
           </button>
           {canGrantTickets && (
             <SketchButton variant="accent" size="sm" onClick={() => setGrantOpen(true)}>
