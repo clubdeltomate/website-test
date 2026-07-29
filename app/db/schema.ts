@@ -365,6 +365,30 @@ export const favorites = appSchema.table(
   ],
 );
 
+/**
+ * Generated images, stored once and referenced by URL from a deck.
+ *
+ * Image models hand back a base64 data URI, and those used to be written
+ * straight into the deck JSON. That made an illustrated ten-slide deck 10-20 MB
+ * of a single column that has to come back WHOLE every time anyone presses
+ * Play — past the response limit of the serverless host it runs on, and slow
+ * everywhere else. Held here, a deck is kilobytes again and each image is its
+ * own cacheable request.
+ */
+export const slideImages = appSchema.table(
+  "slideImages",
+  {
+    id: serial("id").primaryKey(),
+    /** who paid to generate it — for attribution and cleanup, not access */
+    ownerId: fk("ownerId"),
+    mime: varchar("mime", { length: 100 }).notNull(),
+    /** raw bytes, base64-decoded on the way in */
+    data: text("data").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("slideImages_owner_idx").on(t.ownerId)],
+);
+
 /* Inferred types */
 export type User = typeof users.$inferSelect;
 export type ApiKey = typeof apiKeys.$inferSelect;
@@ -382,4 +406,5 @@ export type TokenLedgerEntry = typeof tokenLedger.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
 export type Favorite = typeof favorites.$inferSelect;
+export type SlideImage = typeof slideImages.$inferSelect;
 export type SlideTemplate = typeof slideTemplates.$inferSelect;

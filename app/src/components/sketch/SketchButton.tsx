@@ -27,8 +27,10 @@ export interface SketchButtonProps extends ButtonHTMLAttributes<HTMLButtonElemen
   children?: ReactNode;
 }
 
-/** Hand-drawn pencil spinner used in loading state */
-function PencilSpinner() {
+/** Hand-drawn pencil spinner used in loading state. Exported so a caller can
+ *  show it BESIDE a label — `loading` replaces the label entirely, which is
+ *  wrong when the wait is long enough that the label is the useful part. */
+export function PencilSpinner() {
   return (
     <svg
       viewBox="0 0 20 20"

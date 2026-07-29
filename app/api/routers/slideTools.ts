@@ -5,6 +5,7 @@ import { createRouter, publicQuery } from "../middleware.js";
 import { authedProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
 import { favoriteSlugs } from "./repos.js";
+import { externalizeDeckImages } from "../deck-images.js";
 import { favorites, runs, slideTools, users, type SlideTool, type User } from "../../db/schema.js";
 import { imageStyleSchema, levelSchema, slugify, templateSchema } from "../ai/prompts.js";
 import { TONES, repoPurpose } from "../../contracts/types.js";
@@ -179,7 +180,7 @@ export const slideToolsRouter = createRouter({
         ownerId: ctx.user.id,
         isPublic: true,
         source: "human",
-        deckJson: deck,
+        deckJson: (await externalizeDeckImages(deck, ctx.user.id)).deck,
         defaultLevel: deck?.level ?? "B1",
         defaultImageStyle: deck?.imageStyle ?? "none",
       });
@@ -202,7 +203,10 @@ export const slideToolsRouter = createRouter({
       }
       await db
         .update(slideTools)
-        .set({ deckJson: input.deck as SlideDeck, updatedAt: new Date() })
+        .set({
+          deckJson: (await externalizeDeckImages(input.deck as SlideDeck, ctx.user.id)).deck,
+          updatedAt: new Date(),
+        })
         .where(eq(slideTools.id, tool.id));
       return { ok: true };
     }),

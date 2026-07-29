@@ -91,6 +91,33 @@ export async function ensureCommercialSchema(): Promise<void> {
 }
 
 /**
+ * The table generated images live in, so a deck stores a URL instead of a
+ * multi-megabyte base64 string. Idempotent.
+ */
+export async function ensureSlideImages(): Promise<void> {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) return;
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    await client.query(
+      `CREATE TABLE IF NOT EXISTS sketchlearn."slideImages" (
+         id serial PRIMARY KEY,
+         "ownerId" integer,
+         mime varchar(100) NOT NULL,
+         data text NOT NULL,
+         "createdAt" timestamp NOT NULL DEFAULT now()
+       )`,
+    );
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS "slideImages_owner_idx" ON sketchlearn."slideImages" ("ownerId")`,
+    );
+  } finally {
+    await client.end();
+  }
+}
+
+/**
  * Idempotently add the customization-ticket pieces on older databases: the
  * moderator ticket-pool column on users, and the tickets table. Best-effort at
  * boot; safe to call repeatedly.
