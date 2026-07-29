@@ -4,6 +4,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { createRouter, publicQuery } from "../middleware.js";
 import { authedProcedure, moderatorProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
+import { resolveStudyTool } from "./repos.js";
 import { lessons, repos, runs, slideTools, units, lessonLogs } from "../../db/schema.js";
 import { imageStyleSchema, levelSchema } from "../ai/prompts.js";
 import type { LessonLogSlide, RunDetail, RunReplay, RunRow, RunSlideDetail, SlideDeck } from "../../contracts/types.js";
@@ -116,7 +117,14 @@ export const runsRouter = createRouter({
   complete: publicQuery
     .input(
       z.object({
-        toolSlug: z.string().min(1),
+        /**
+         * May be blank. A preset play sends whatever the repo has recorded, and
+         * a repo that never had a study tool sends "" — min(1) turned that into
+         * a validation failure, so finishing the lesson was silently discarded
+         * and the repo went on claiming the lesson was unplayed. The tool is
+         * resolved from the seed's repo below instead.
+         */
+        toolSlug: z.string().default(""),
         seed: seedSchema.optional(),
         level: levelSchema,
         imageStyle: imageStyleSchema,
@@ -130,10 +138,6 @@ export const runsRouter = createRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
-      const tool = await db.query.slideTools.findFirst({
-        where: eq(slideTools.slug, input.toolSlug),
-      });
-      if (!tool) throw new TRPCError({ code: "NOT_FOUND", message: "Slide tool not found" });
 
       const answered = input.perSlide.filter((s) => s.correct !== null);
       const scoreTotal = answered.length;
@@ -142,12 +146,14 @@ export const runsRouter = createRouter({
       // Resolve repo/lesson from the seed
       let repoId: number | null = null;
       let lessonId: number | null = null;
+      let seedRepo: typeof repos.$inferSelect | null = null;
       if (input.seed) {
         const repo = await db.query.repos.findFirst({
           where: eq(repos.slug, input.seed.repoSlug),
         });
         if (repo) {
           repoId = repo.id;
+          seedRepo = repo;
           const repoUnits = await db.select().from(units).where(eq(units.repoId, repo.id));
           for (const u of repoUnits) {
             const lesson = await db.query.lessons.findFirst({
@@ -159,6 +165,28 @@ export const runsRouter = createRouter({
             }
           }
         }
+      }
+
+      /**
+       * Which tool this play belongs to. Named slug first, then the repo's own —
+       * a completed lesson is a fact about the learner, and throwing it away
+       * because a bookkeeping row is missing is the wrong trade.
+       */
+      let tool = input.toolSlug
+        ? await db.query.slideTools.findFirst({ where: eq(slideTools.slug, input.toolSlug) })
+        : undefined;
+      if (!tool && seedRepo) {
+        // A hand-built repo can have a playable lesson and no study tool at all,
+        // and a run row needs one. Grow it rather than drop the play — the same
+        // repair repos.ensureStudyTool performs, and it happens once.
+        const { slug } = await resolveStudyTool(seedRepo, ctx.user?.id ?? null);
+        tool = await db.query.slideTools.findFirst({ where: eq(slideTools.slug, slug) });
+      }
+      if (!tool) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Slide tool not found — this play could not be recorded",
+        });
       }
 
       const [{ runId }] = await db.transaction(async (tx) => {

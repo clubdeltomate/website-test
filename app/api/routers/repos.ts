@@ -122,6 +122,44 @@ export async function writeCustomization(
     });
 }
 
+/**
+ * The repo's study tool, created if there isn't a usable one. No permission
+ * check — callers do that. Shared with runs.complete, which needs a tool to
+ * attach a finished play to and must not discard the play when the repo never
+ * had one (a hand-built repo doesn't).
+ */
+export async function resolveStudyTool(
+  repo: Repo,
+  fallbackOwnerId: number | null,
+): Promise<{ slug: string; created: boolean }> {
+  const db = getDb();
+  if (repo.studyToolSlug) {
+    const existing = await db.query.slideTools.findFirst({
+      where: eq(slideTools.slug, repo.studyToolSlug),
+    });
+    if (existing) return { slug: existing.slug, created: false };
+  }
+  // Named after the repo so it is recognisable in the author's shelf, and owned
+  // by the repo's owner so they can edit it like any other tool.
+  const base = slugify(`${repo.title} studio`);
+  let slug = base;
+  for (let i = 2; await db.query.slideTools.findFirst({ where: eq(slideTools.slug, slug) }); i++) {
+    slug = `${base}-${i}`;
+  }
+  await db.insert(slideTools).values({
+    slug,
+    name: `${repo.title} — studio`.slice(0, 255),
+    description: `Generates the lessons in ${repo.title}.`.slice(0, 4000),
+    topic: repo.title.slice(0, 2000),
+    instructions: "",
+    template: repo.template,
+    ownerId: repo.ownerId ?? fallbackOwnerId,
+    isPublic: repo.isPublic,
+  });
+  await db.update(repos).set({ studyToolSlug: slug }).where(eq(repos.id, repo.id));
+  return { slug, created: true };
+}
+
 type RunLite = Pick<
   typeof runs.$inferSelect,
   "id" | "lessonId" | "userId" | "scoreCorrect" | "scoreTotal" | "completedAt" | "level" | "elapsedSec"
@@ -453,31 +491,7 @@ export const reposRouter = createRouter({
           message: "Only the repo's owner can set up its slide tool",
         });
       }
-      if (repo.studyToolSlug) {
-        const existing = await db.query.slideTools.findFirst({
-          where: eq(slideTools.slug, repo.studyToolSlug),
-        });
-        if (existing) return { slug: existing.slug, created: false };
-      }
-      // Named after the repo so it is recognisable in the author's shelf, and
-      // owned by the repo's owner so they can edit it like any other tool.
-      const base = slugify(`${repo.title} studio`);
-      let slug = base;
-      for (let i = 2; await db.query.slideTools.findFirst({ where: eq(slideTools.slug, slug) }); i++) {
-        slug = `${base}-${i}`;
-      }
-      await db.insert(slideTools).values({
-        slug,
-        name: `${repo.title} — studio`.slice(0, 255),
-        description: `Generates the lessons in ${repo.title}.`.slice(0, 4000),
-        topic: repo.title.slice(0, 2000),
-        instructions: "",
-        template: repo.template,
-        ownerId: repo.ownerId ?? ctx.user.id,
-        isPublic: repo.isPublic,
-      });
-      await db.update(repos).set({ studyToolSlug: slug }).where(eq(repos.id, repo.id));
-      return { slug, created: true };
+      return resolveStudyTool(repo, ctx.user.id);
     }),
 
   update: authedProcedure
@@ -748,6 +762,8 @@ export const reposRouter = createRouter({
       return {
         deck: lesson.presetDeckJson as import("../../contracts/types.js").SlideDeck,
         seed,
+        // Empty when the repo never had a study tool. runs.complete resolves it
+        // from the repo, so a play still records; see the note on its input.
         toolSlug: repo.studyToolSlug ?? "",
         commercial,
         walkthrough,
