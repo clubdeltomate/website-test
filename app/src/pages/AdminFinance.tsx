@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Landmark, Printer, ReceiptText, RefreshCw, Scale } from 'lucide-react';
 import {
@@ -923,6 +923,44 @@ function PerGenerationPrices({
   );
 }
 
+/**
+ * The cost calculator's three inputs, kept between visits.
+ *
+ * They describe which deck you are pricing, and that rarely changes from one
+ * visit to the next — someone checking margins on a 15-slide C2 deck wants the
+ * same deck next time, not a reset to the 8-slide B1 default. Stored locally
+ * rather than on the account: it is a view preference, not a platform setting,
+ * and nothing else needs to know about it.
+ */
+const CALC_KEY = 'sketchlearn:finance:calc';
+
+function loadCalc(): { slides: number; images: boolean; level: Level } {
+  const base = { slides: 8, images: true, level: 'B1' as Level };
+  if (typeof window === 'undefined') return base;
+  try {
+    const raw = window.localStorage.getItem(CALC_KEY);
+    if (!raw) return base;
+    const p = JSON.parse(raw) as Partial<{ slides: number; images: boolean; level: Level }>;
+    return {
+      slides:
+        typeof p.slides === 'number' ? Math.min(15, Math.max(1, p.slides)) : base.slides,
+      images: typeof p.images === 'boolean' ? p.images : base.images,
+      level: p.level && LEVELS.includes(p.level) ? p.level : base.level,
+    };
+  } catch {
+    return base;
+  }
+}
+
+function saveCalc(next: { slides: number; images: boolean; level: Level }): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(CALC_KEY, JSON.stringify(next));
+  } catch {
+    /* storage unavailable — the calculator still works, it just forgets */
+  }
+}
+
 function FinanceBody() {
   const utils = trpc.useUtils();
   const overview = trpc.finance.overview.useQuery();
@@ -931,9 +969,16 @@ function FinanceBody() {
   const [tab, setTab] = useState<TabId>('generation');
 
   // per-generation calculator
-  const [calcSlides, setCalcSlides] = useState(8);
-  const [calcImages, setCalcImages] = useState(true);
-  const [calcLevel, setCalcLevel] = useState<Level>('B1');
+  const rememberedCalc = useMemo(() => loadCalc(), []);
+  const [calcSlides, setCalcSlides] = useState(rememberedCalc.slides);
+  const [calcImages, setCalcImages] = useState(rememberedCalc.images);
+  const [calcLevel, setCalcLevel] = useState<Level>(rememberedCalc.level);
+
+  // Written on every change rather than on leaving the page, so a reload or a
+  // closed tab keeps the last thing that was actually typed.
+  useEffect(() => {
+    saveCalc({ slides: calcSlides, images: calcImages, level: calcLevel });
+  }, [calcSlides, calcImages, calcLevel]);
   // "sell N coins" what-if
   const [sellCoins, setSellCoins] = useState(100);
 
