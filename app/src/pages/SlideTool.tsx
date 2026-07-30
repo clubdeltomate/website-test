@@ -339,6 +339,14 @@ function ToolStudio({
   const setPreset = trpc.repos.setLessonPreset.useMutation();
   const saveCustom = trpc.repos.saveMyCustomization.useMutation();
   const saveToolDeck = trpc.slideTools.saveDeck.useMutation();
+  // Every finished presentation gets its card banner drawn right away, so it
+  // never sits bare on the Slides page. onlyIfMissing keeps a re-generation
+  // from buying a second banner; failures stay quiet (the card keeps its
+  // Draw button as the fallback).
+  const autoBanner = trpc.slideTools.generateBanner.useMutation({
+    onSuccess: () => void utils.slideTools.list.invalidate(),
+    onError: () => undefined,
+  });
   const updateTool = trpc.slideTools.update.useMutation();
 
   // Standalone tools carry their own category (course = lesson, restaurant/
@@ -727,6 +735,7 @@ function ToolStudio({
           setPresetSaved(true);
           toast.success('Saved as preset — viewers can now watch it ✓');
           void utils.repos.getBySlug.invalidate({ slug: seed.repoSlug });
+          autoBanner.mutate({ slug: `preset-${seed.repoSlug}-l${seed.lessonSeq}`, onlyIfMissing: true });
         },
         onError: (e) => toast.error(e.message),
       },
@@ -748,7 +757,10 @@ function ToolStudio({
       setPreset.mutate(
         { repoSlug: seed.repoSlug, lessonSeq: seed.lessonSeq, deck: result.deck },
         {
-          onSuccess: () => void utils.repos.getBySlug.invalidate({ slug: seed.repoSlug }),
+          onSuccess: () => {
+            void utils.repos.getBySlug.invalidate({ slug: seed.repoSlug });
+            autoBanner.mutate({ slug: `preset-${seed.repoSlug}-l${seed.lessonSeq}`, onlyIfMissing: true });
+          },
           onError: (e) => toast.error(`Preset didn't save: ${e.message}`),
         },
       );
@@ -779,6 +791,7 @@ function ToolStudio({
           onSuccess: () => {
             void utils.slideTools.list.invalidate();
             void utils.slideTools.getBySlug.invalidate({ slug: tool.slug });
+            autoBanner.mutate({ slug: tool.slug, onlyIfMissing: true });
           },
           onError: (e) => toast.error(`Couldn't save this presentation: ${e.message}`),
         },

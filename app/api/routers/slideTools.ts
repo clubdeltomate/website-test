@@ -227,13 +227,18 @@ export const slideToolsRouter = createRouter({
    * image is reseeded from the same description rather than a new guess.
    */
   generateBanner: authedProcedure
-    .input(z.object({ slug: z.string().min(1) }))
+    .input(z.object({ slug: z.string().min(1), onlyIfMissing: z.boolean().default(false) }))
     .mutation(async ({ ctx, input }): Promise<{ url: string; cost: number }> => {
       const db = getDb();
       const tool = await db.query.slideTools.findFirst({ where: eq(slideTools.slug, input.slug) });
       if (!tool) throw new TRPCError({ code: "NOT_FOUND", message: "Slide tool not found" });
       if (!canEdit(tool, ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only the tool's owner can draw its banner" });
+      }
+      // Auto-hooks fire after every generation; without this guard a re-set
+      // presentation would quietly buy a new banner each time.
+      if (input.onlyIfMissing && tool.bannerImageId != null) {
+        return { url: `${IMAGE_URL_PREFIX}${tool.bannerImageId}`, cost: 0 };
       }
       // The scene is fixed by the card's CATEGORY (course → the aquarium,
       // restaurant → food, …), not by the tool's own content — computed

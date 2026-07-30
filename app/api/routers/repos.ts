@@ -490,13 +490,17 @@ export const reposRouter = createRouter({
    * content and stores it, Refresh reseeds from that stored prompt.
    */
   generateBanner: authedProcedure
-    .input(z.object({ slug: z.string().min(1) }))
+    .input(z.object({ slug: z.string().min(1), onlyIfMissing: z.boolean().default(false) }))
     .mutation(async ({ ctx, input }): Promise<{ url: string; cost: number }> => {
       const db = getDb();
       const repo = await db.query.repos.findFirst({ where: eq(repos.slug, input.slug) });
       if (!repo) throw new TRPCError({ code: "NOT_FOUND", message: "Repository not found" });
       if (!canEdit(repo, ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only the repo's owner can draw its banner" });
+      }
+      // Auto-hooks pass this so a repeat firing never buys a second banner.
+      if (input.onlyIfMissing && repo.bannerImageId != null) {
+        return { url: `${IMAGE_URL_PREFIX}${repo.bannerImageId}`, cost: 0 };
       }
       // Computed fresh every generation (not read back from the stored
       // prompt) so a style change reaches old cards through Refresh. The
