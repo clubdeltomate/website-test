@@ -160,6 +160,33 @@ export async function resolveStudyTool(
   return { slug, created: true };
 }
 
+/**
+ * Runs for one repo, used only for play counts and the viewer's own progress.
+ * Returns an empty list rather than throwing: see the call site.
+ */
+async function runStats(
+  db: ReturnType<typeof getDb>,
+  repoId: number,
+): Promise<
+  { id: number; lessonId: number | null; userId: number | null; scoreCorrect: number; scoreTotal: number }[]
+> {
+  try {
+    return await db
+      .select({
+        id: runs.id,
+        lessonId: runs.lessonId,
+        userId: runs.userId,
+        scoreCorrect: runs.scoreCorrect,
+        scoreTotal: runs.scoreTotal,
+      })
+      .from(runs)
+      .where(and(eq(runs.repoId, repoId), eq(runs.isAnswerKey, false)));
+  } catch (err) {
+    console.warn("[repos] run stats unavailable:", err instanceof Error ? err.message : err);
+    return [];
+  }
+}
+
 type RunLite = Pick<
   typeof runs.$inferSelect,
   "id" | "lessonId" | "userId" | "scoreCorrect" | "scoreTotal" | "completedAt" | "level" | "elapsedSec"
@@ -251,16 +278,13 @@ export async function repoSummaries(repoRows: Repo[], userId: number | undefined
     }
     // Answer keys are excluded from every play count: nobody played them, and
     // counting the teacher's key as a play overstates how used a repo is.
-    const repoRuns = await db
-      .select({
-        id: runs.id,
-        lessonId: runs.lessonId,
-        userId: runs.userId,
-        scoreCorrect: runs.scoreCorrect,
-        scoreTotal: runs.scoreTotal,
-      })
-      .from(runs)
-      .where(and(eq(runs.repoId, repo.id), eq(runs.isAnswerKey, false)));
+    //
+    // Guarded, because a play count is decoration and the shelf is the page. A
+    // database that hasn't caught up with a newly-referenced column made this
+    // query fail, and the whole repo list failed with it — "Couldn't load
+    // repositories" for a statistic nobody was looking at. Progress and counts
+    // degrade to zero; the notebooks still appear.
+    const repoRuns = await runStats(db, repo.id);
     // Viewer's own completed lessons — never another user's activity
     const passedLessonIds = new Set<number>();
     if (userId) {
@@ -371,11 +395,18 @@ export const reposRouter = createRouter({
         .where(eq(units.repoId, repo.id))
         .orderBy(units.orderIndex);
       // Answer keys carry no userId and are filtered out anyway, but excluding
-      // them in the query keeps the per-lesson play count honest too.
-      const repoRuns = await db
-        .select()
-        .from(runs)
-        .where(and(eq(runs.repoId, repo.id), eq(runs.isAnswerKey, false)));
+      // them in the query keeps the per-lesson play count honest too. Guarded
+      // for the same reason as the shelf: a lesson's chips are worth losing, a
+      // whole repo page is not.
+      let repoRuns: (typeof runs.$inferSelect)[] = [];
+      try {
+        repoRuns = await db
+          .select()
+          .from(runs)
+          .where(and(eq(runs.repoId, repo.id), eq(runs.isAnswerKey, false)));
+      } catch (err) {
+        console.warn("[repos] run history unavailable:", err instanceof Error ? err.message : err);
+      }
       // Progress fields are computed ONLY from the viewer's own runs so one
       // user's activity never shows on another user's page (guests: none).
       const viewerRuns: RunLite[] = ctx.user

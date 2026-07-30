@@ -19,6 +19,7 @@ import {
   ensureWalkthroughTemplate,
 } from "./lib/migrate-annotations.js";
 import { ensureAccountRules } from "./lib/migrate-accounts.js";
+import { ensureRequiredSchema } from "./lib/migrate-required.js";
 import { loadSlideImage } from "./deck-images.js";
 
 /**
@@ -50,6 +51,15 @@ const runMigrations = () => {
 // users) and starve auth requests. Keep disabled by default everywhere; opt in
 // explicitly when you intentionally want boot-time schema catch-up.
 const shouldRunBootMigrations = process.env.ENABLE_BOOT_MIGRATIONS === "true";
+
+/**
+ * Required schema runs whatever the flag says. Anything the shipped code
+ * queries has to exist, or the deploy is broken until someone remembers to
+ * migrate by hand — which is exactly how the repo shelf went blank.
+ */
+void ensureRequiredSchema().catch((err) =>
+  console.warn("[migrate] required schema:", err instanceof Error ? err.message : err),
+);
 if (shouldRunBootMigrations) {
   runMigrations();
 }
