@@ -1,4 +1,4 @@
-import { Landmark, Sparkles } from 'lucide-react';
+import { Landmark, Megaphone, Sparkles } from 'lucide-react';
 import AdminGate from '@/components/admin/AdminGate';
 import { HubHeader, PanelTileCard, type PanelTile } from '@/components/admin/PanelTiles';
 
@@ -12,6 +12,13 @@ const PROJECT_TILES: PanelTile[] = [
     tone: 'green',
     title: 'Finance',
     blurb: 'Model costs, coin prices, receipts & API spend',
+  },
+  {
+    to: '/admin/projects/marketing',
+    icon: Megaphone,
+    tone: 'purple',
+    title: 'Marketing',
+    blurb: 'Compose 9:16 posts — AI backdrop, caption band, colour by the word',
   },
 ];
 
