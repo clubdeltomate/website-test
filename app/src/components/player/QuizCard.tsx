@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Pencil, Plus, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { SlideQuiz, SlideAnnotation } from '@contracts/types';
+import { TEXT_GRADE_COST, type SlideQuiz, type SlideAnnotation } from '@contracts/types';
 import { isFillBlankCorrect } from '@contracts/grade';
 import { SourceTag } from './SlideComponents';
 import { trpc } from '@/providers/trpc';
@@ -250,22 +250,35 @@ function TextAnswerCard({
       )}
 
       {!solved && (
-        <button
-          type="button"
-          onClick={submit}
-          disabled={grading || !text.trim()}
-          className={cn(
-            'mt-3 inline-flex items-center gap-1.5 rounded-wobble-sm border-2 border-ink px-3.5 py-1.5 font-heading text-sm font-bold text-ink shadow-offset transition-transform hover:-translate-y-0.5 disabled:opacity-50',
-            'bg-yellow',
+        <div className="mt-3 flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={submit}
+            disabled={grading || !text.trim()}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-wobble-sm border-2 border-ink px-3.5 py-1.5 font-heading text-sm font-bold text-ink shadow-offset transition-transform hover:-translate-y-0.5 disabled:opacity-50',
+              'bg-yellow',
+            )}
+          >
+            <Send className="h-4 w-4" />
+            {grading
+              ? 'Checking…'
+              : canRetry
+                ? `Try again (${triesLeft} left)`
+                : 'Check answer'}
+          </button>
+          {/* Say up front how this answer gets checked — a typed answer costs
+              a coin per AI check, a fill-blank never leaves the device. */}
+          {kind === 'typed' ? (
+            <span className="micro text-[0.6rem] text-ink-faint">
+              ✦ AI-checked · {TEXT_GRADE_COST} 🪙 per check
+            </span>
+          ) : (
+            <span className="micro text-[0.6rem] text-ink-faint">
+              ✓ checked on your device — free
+            </span>
           )}
-        >
-          <Send className="h-4 w-4" />
-          {grading
-            ? 'Checking…'
-            : canRetry
-              ? `Try again (${triesLeft} left)`
-              : 'Check answer'}
-        </button>
+        </div>
       )}
 
       {result && (
@@ -540,8 +553,12 @@ function SolveCard({
                   ? 'Submit work'
                   : 'Submit answer'}
           </button>
-          {scratchpad && (
+          {scratchpad ? (
             <span className="micro text-ink-faint">The AI reads your pages · 6 🪙 per check</span>
+          ) : (
+            <span className="micro text-ink-faint">
+              ✦ AI-checked · {TEXT_GRADE_COST} 🪙 per check
+            </span>
           )}
         </div>
       )}
