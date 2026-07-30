@@ -24,14 +24,14 @@ const ALLOWED_MIME = ["image/png", "image/jpeg", "image/webp", "image/gif", "ima
 const UNIT_BANNER_DIRECTIVE =
   "This image is a decorative unit banner displayed as an ultra-wide horizontal strip, " +
   "about 6:1 (very short for its width) — it will be cropped top and bottom to fit. " +
-  "Style, strictly: a student's hand-drawn sketch on a blank sheet of white notebook paper. " +
-  "Loose pencil-and-ink doodles of things from the unit's subject, with a few short " +
-  "handwritten words or labels from the lesson scattered between them, like margin notes. " +
-  "Sketch lines and paper texture only — NOT a photograph, NOT digital flat design, NOT " +
-  "glossy illustration. Spread the little drawings evenly along the strip and keep " +
-  "everything meaningful in the vertical middle band; nothing important near the top or " +
-  "bottom edges. No faces, no full human figures, no single large centered subject — they " +
-  "would be cut off.";
+  "Style, strictly: a NEAT PAPER COLLAGE — carefully cut-out photographic and printed " +
+  "pictures arranged side by side on a clean, calm background, edges gently layered like " +
+  "good scrapbooking: organized, tidy and pretty, never chaotic. The cut-outs show the " +
+  "unit's activities being done — or, for theoretical material, the objects and things the " +
+  "lessons actually mention. NOT a hand-drawn sketch, NOT a painting, NOT flat digital " +
+  "art. Spread the cut-outs evenly along the strip and keep everything meaningful in the " +
+  "vertical middle band; nothing important near the top or bottom edges. No text, no " +
+  "single large centered subject — it would be cut off.";
 
 async function unitContext(unitId: number): Promise<{ repo: Repo; unitId: number }> {
   const db = getDb();
