@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Check, X, ChevronLeft, PlayCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -21,6 +21,11 @@ const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 export default function Replay() {
   const { runId = '' } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Go back to wherever the viewer actually CAME from — the Slides page, the
+  // repo, the gallery, anywhere. Only a direct link (no in-app history, the
+  // router's 'default' entry) falls back to the run's repo.
+  const cameFromApp = location.key !== 'default';
   const id = Number(runId);
   const replay = trpc.runs.replay.useQuery({ runId: id }, { enabled: Number.isFinite(id), retry: false });
   const [idx, setIdx] = useState(0);
@@ -51,6 +56,10 @@ export default function Replay() {
   // the repos list.
   const backHref = data.repoSlug ? `/repos/${data.repoSlug}` : '/repos';
   const backLabel = data.repoSlug ? 'Back to repo' : 'Back to repos';
+  const goBack = () => {
+    if (cameFromApp) navigate(-1);
+    else navigate(backHref);
+  };
 
   if (slides.length === 0) {
     return (
@@ -78,11 +87,9 @@ export default function Replay() {
     <div className="mx-auto w-full max-w-[900px] px-4 py-6 lg:px-8">
       {/* header */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Link to={backHref} className="no-underline">
-          <SketchButton variant="ghost" size="sm">
-            <ChevronLeft className="h-4 w-4" /> {data.repoSlug ? 'Repo' : 'Repos'}
-          </SketchButton>
-        </Link>
+        <SketchButton variant="ghost" size="sm" onClick={goBack} title="Back to where you came from">
+          <ChevronLeft className="h-4 w-4" /> Back
+        </SketchButton>
         <Chip kind="repo-ref">#{data.repoRef ?? data.toolSlug}</Chip>
         <span className="font-heading font-semibold text-ink">{data.toolName}</span>
         {data.lessonTitle && <span className="text-ink-soft">· {data.lessonTitle}</span>}
@@ -247,7 +254,7 @@ export default function Replay() {
             Next <ArrowRight className="h-4 w-4" />
           </SketchButton>
         ) : (
-          <SketchButton variant="accent" onClick={() => navigate(backHref)}>
+          <SketchButton variant="accent" onClick={goBack}>
             <PlayCircle className="h-4 w-4" /> Done reviewing
           </SketchButton>
         )}

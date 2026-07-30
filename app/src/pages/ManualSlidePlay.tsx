@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import { ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { trpc } from '@/providers/trpc';
@@ -13,7 +13,10 @@ export default function ManualSlidePlay() {
   const { slug = '' } = useParams();
   const navigate = useNavigate();
   const query = trpc.slideTools.deck.useQuery({ slug }, { enabled: !!slug, retry: 1 });
-  const back = () => navigate('/slides');
+  const location = useLocation();
+  // Leave to wherever the viewer came from — Slides, a repo, the gallery.
+  // Only a direct link (no in-app history) falls back to the Slides page.
+  const back = () => (location.key !== 'default' ? navigate(-1) : navigate('/slides'));
 
   // admin length-calibration persists back onto the tool's saved deck
   const utils = trpc.useUtils();
