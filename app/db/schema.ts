@@ -119,6 +119,35 @@ export const lessons = appSchema.table(
   (t) => [index("lessons_unit_idx").on(t.unitId)],
 );
 
+/**
+ * A picture placed in a unit, sitting in the list beside its lessons — a cover,
+ * a diagram, a photo of the board.
+ *
+ * It shares the lesson orderIndex space on purpose: the author wants to move an
+ * image above or below a lesson, so both kinds have to be positions in one
+ * sequence rather than two lists that happen to be drawn together. It is NOT a
+ * lesson — nothing to play, nothing to grade, no globalSeq, so it never shifts
+ * the "Lesson 3 of 8" numbering.
+ *
+ * The bytes live in slideImages and are served from /api/img/:id, the same way
+ * generated slide images are, so a unit image costs the page a cacheable
+ * request rather than base64 inside a JSON payload.
+ */
+export const unitImages = appSchema.table(
+  "unitImages",
+  {
+    id: serial("id").primaryKey(),
+    unitId: fk("unitId").notNull(),
+    /** row in slideImages holding the bytes */
+    imageId: fk("imageId").notNull(),
+    caption: varchar("caption", { length: 300 }),
+    /** shared sequence with lessons.orderIndex within the unit */
+    orderIndex: integer("orderIndex").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("unitImages_unit_idx").on(t.unitId, t.orderIndex)],
+);
+
 export const slideTools = appSchema.table(
   "slideTools",
   {
@@ -415,4 +444,5 @@ export type Payment = typeof payments.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
 export type Favorite = typeof favorites.$inferSelect;
 export type SlideImage = typeof slideImages.$inferSelect;
+export type UnitImage = typeof unitImages.$inferSelect;
 export type SlideTemplate = typeof slideTemplates.$inferSelect;

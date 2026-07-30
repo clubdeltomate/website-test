@@ -17,9 +17,11 @@ export type AiProvider = "openai" | "anthropic" | "gemini" | "elevenlabs";
  * or platform key row, so they are deliberately NOT part of the `provider` DB
  * enum — adding them there would need a migration for no gain. Unsplash is a
  * stock-photo search rather than a generator: it is the last resort that keeps
- * a deck illustrated when every real generator is down.
+ * a deck illustrated when every real generator is down. "mock" only ever
+ * appears with SKETCHLEARN_ALLOW_MOCK_AI=1 — a placeholder drawn locally so
+ * the paid image path can be exercised without a provider account.
  */
-export type ImageProvider = AiProvider | "leonardo" | "unsplash";
+export type ImageProvider = AiProvider | "leonardo" | "unsplash" | "mock";
 export type AiCapability = "text" | "image" | "tts";
 
 export const LEVELS: Level[] = ["A0", "A1", "A2", "B1", "B2", "C1", "C2"];
@@ -490,11 +492,25 @@ export interface SlidePlanInfo {
   components: string[];
 }
 
+/**
+ * A picture placed in a unit's list, between or around its lessons. Shares one
+ * ordering with the lessons so the author can move either kind up and down.
+ */
+export interface UnitImage {
+  id: number;
+  /** served from /api/img/:id — never inline base64 */
+  url: string;
+  caption: string | null;
+  orderIndex: number;
+}
+
 export interface RepoUnit {
   id: number;
   title: string;
   orderIndex: number;
   lessons: RepoLesson[];
+  /** pictures in this unit, interleaved with the lessons by orderIndex */
+  images: UnitImage[];
 }
 
 export interface RepoDetail extends RepoSummary {

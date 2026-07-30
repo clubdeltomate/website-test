@@ -1327,7 +1327,16 @@ export async function generateImageDetailed(opts: {
   style?: string;
 }): Promise<{ url: string; provider: ImageProvider } | null> {
   const candidates = await resolveKeyCandidates(opts.userId, "image").catch(() => [] as ResolvedKey[]);
-  if (candidates.length === 0) return null;
+  if (candidates.length === 0) {
+    // Offline demo mode — the same opt-in that serves mock decks. With no real
+    // image key configured, draw a labelled placeholder locally so the paid
+    // image path (charge, storage, display) can be exercised end-to-end.
+    // Credited as "mock" so it can never pass for a real provider's work.
+    if (process.env.SKETCHLEARN_ALLOW_MOCK_AI === "1") {
+      return { url: mockImageDataUri(opts.prompt), provider: "mock" };
+    }
+    return null;
+  }
   const directive = opts.style ? IMAGE_STYLE_DIRECTIVES[opts.style] : undefined;
   const prompt = directive ? `${opts.prompt}\n\nStyle: ${directive}.` : opts.prompt;
   for (const key of candidates) {
@@ -1355,6 +1364,20 @@ export async function generateImageDetailed(opts: {
   }
   console.warn(`[ai/image] all ${candidates.length} image candidate(s) failed`);
   return null;
+}
+
+/** A hand-labelled placeholder for SKETCHLEARN_ALLOW_MOCK_AI — sketch-styled
+ *  so it doesn't look broken, and stamped MOCK so it can't pass for real. */
+function mockImageDataUri(prompt: string): string {
+  const label = prompt.slice(0, 60).replace(/[<>&"]/g, " ");
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400">` +
+    `<rect width="640" height="400" fill="#faf6ee"/>` +
+    `<rect x="14" y="14" width="612" height="372" fill="none" stroke="#2b2b2b" stroke-width="3" stroke-dasharray="14 7" rx="18"/>` +
+    `<text x="320" y="180" font-family="sans-serif" font-size="26" font-weight="bold" fill="#2b2b2b" text-anchor="middle">MOCK IMAGE</text>` +
+    `<text x="320" y="222" font-family="sans-serif" font-size="16" fill="#6b6b6b" text-anchor="middle">${label}</text>` +
+    `</svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
 }
 
 /** Convenience wrapper for callers that only need the picture itself. */

@@ -8,6 +8,7 @@ import { reposRouter } from "./routers/repos.js";
 import { slideToolsRouter } from "./routers/slideTools.js";
 import { runsRouter } from "./routers/runs.js";
 import { lessonsRouter, unitsRouter } from "./routers/lessons.js";
+import { unitImagesRouter } from "./routers/unitImages.js";
 import { keysRouter } from "./routers/keys.js";
 import { tokensRouter } from "./routers/tokens.js";
 import { paymentsRouter } from "./routers/payments.js";
@@ -60,6 +61,7 @@ export const appRouter = createRouter({
   runs: runsRouter,
   units: unitsRouter,
   lessons: lessonsRouter,
+  unitImages: unitImagesRouter,
   keys: keysRouter,
   tokens: tokensRouter,
   payments: paymentsRouter,
