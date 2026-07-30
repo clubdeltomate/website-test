@@ -15,7 +15,12 @@ const toneSchema = z.string().refine((t) => (TONES as string[]).includes(t), "un
 
 export async function toSummary(tool: SlideTool, userId: number | undefined): Promise<SlideToolSummary> {
   const db = getDb();
-  const toolRuns = await db.select({ id: runs.id }).from(runs).where(eq(runs.slideToolId, tool.id));
+  // Excluding answer keys: a key is written by the owner to show the answers,
+  // not played by anyone, so counting it as a play overstates the tool's use.
+  const toolRuns = await db
+    .select({ id: runs.id })
+    .from(runs)
+    .where(and(eq(runs.slideToolId, tool.id), eq(runs.isAnswerKey, false)));
   let favorite = false;
   if (userId) {
     const fav = await db.query.favorites.findFirst({

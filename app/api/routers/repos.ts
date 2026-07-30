@@ -249,6 +249,8 @@ export async function repoSummaries(repoRows: Repo[], userId: number | undefined
       lessonCount += ls.length;
       unitLessonIds.push(ls.map((l) => l.id));
     }
+    // Answer keys are excluded from every play count: nobody played them, and
+    // counting the teacher's key as a play overstates how used a repo is.
     const repoRuns = await db
       .select({
         id: runs.id,
@@ -258,7 +260,7 @@ export async function repoSummaries(repoRows: Repo[], userId: number | undefined
         scoreTotal: runs.scoreTotal,
       })
       .from(runs)
-      .where(eq(runs.repoId, repo.id));
+      .where(and(eq(runs.repoId, repo.id), eq(runs.isAnswerKey, false)));
     // Viewer's own completed lessons — never another user's activity
     const passedLessonIds = new Set<number>();
     if (userId) {
@@ -368,7 +370,12 @@ export const reposRouter = createRouter({
         .from(units)
         .where(eq(units.repoId, repo.id))
         .orderBy(units.orderIndex);
-      const repoRuns = await db.select().from(runs).where(eq(runs.repoId, repo.id));
+      // Answer keys carry no userId and are filtered out anyway, but excluding
+      // them in the query keeps the per-lesson play count honest too.
+      const repoRuns = await db
+        .select()
+        .from(runs)
+        .where(and(eq(runs.repoId, repo.id), eq(runs.isAnswerKey, false)));
       // Progress fields are computed ONLY from the viewer's own runs so one
       // user's activity never shows on another user's page (guests: none).
       const viewerRuns: RunLite[] = ctx.user

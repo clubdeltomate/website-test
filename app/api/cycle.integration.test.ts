@@ -20,10 +20,10 @@
  *   8. Draining a moderator's credits demotes them back to a user.
  */
 import { describe, it, expect, beforeAll } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { appRouter } from "./router.js";
 import { getDb } from "./queries/connection.js";
-import { customizations, repos as reposTable, users, slideTools, type User } from "@db/schema";
+import { customizations, repos as reposTable, runs, users, slideTools, type User } from "@db/schema";
 import { autoTicketPrice, estimateCost, ticketPrice, TICKET_MAX_SLIDES } from "./cost.js";
 import { getSettings } from "./settings.js";
 import { consumeOne, countAvailable, countSpendable } from "./tickets.js";
@@ -622,6 +622,59 @@ describe.runIf(HAS_DB)("full coins ↔ tickets cycle", () => {
     expect(lesson.myAttempts).toBeGreaterThanOrEqual(1);
     expect(lesson.myBestElapsedSec).toBe(42);
     expect(lesson.myBestLevel).toBe("B1");
+  });
+
+  it("9f) an answer key fills in every correct answer and anyone may read it", async () => {
+    const db = getDb();
+    const repoSlug = (globalThis as Record<string, unknown>).__repoSlug as string;
+    const lessonSeq = (globalThis as Record<string, unknown>).__lessonSeq as number;
+
+    // The student's own progress before any of this, so the key can be shown
+    // not to disturb it (they have a real play here from the previous step).
+    const statusBefore = (await call(student).repos.getBySlug({ slug: repoSlug }))!.units
+      .flatMap((u) => u.lessons)
+      .find((l) => l.globalSeq === lessonSeq)!;
+
+    // Nothing published yet.
+    expect(await call().runs.answerKeyFor({ repoSlug, lessonSeq })).toBeNull();
+    // Only the owner may publish one.
+    await expect(
+      call(student).runs.createAnswerKey({ repoSlug, lessonSeq }),
+    ).rejects.toThrow(/owner/i);
+
+    const key = await call(moderator).runs.createAnswerKey({ repoSlug, lessonSeq });
+    expect(key.runId).toBeGreaterThan(0);
+
+    const found = await call().runs.answerKeyFor({ repoSlug, lessonSeq });
+    expect(found!.runId).toBe(key.runId);
+
+    // Every recorded answer is the correct one — that is the entire point, so a
+    // student reads the answers instead of guessing them.
+    const replay = await call(student).runs.replay({ runId: key.runId });
+    const asked = replay.answers.filter((a) => a.correctOption !== null);
+    expect(asked.length).toBe(key.answered);
+    for (const a of asked) {
+      expect(a.chosenOption).toBe(a.correctOption);
+      expect(a.correct).toBe(true);
+    }
+    // Readable by a signed-out visitor too: it holds no one's own work.
+    await expect(call().runs.replay({ runId: key.runId })).resolves.toBeTruthy();
+
+    // It is nobody's play, so it moves no one's progress and no play count.
+    const detail = await call(student).repos.getBySlug({ slug: repoSlug });
+    const lesson = detail!.units.flatMap((u) => u.lessons).find((l) => l.globalSeq === lessonSeq)!;
+    expect(lesson.myStatus).toBe(statusBefore.myStatus);
+    expect(lesson.myAttempts).toBe(statusBefore.myAttempts);
+    expect(lesson.runCount).toBe(statusBefore.runCount);
+
+    // Republishing replaces rather than stacks.
+    const again = await call(moderator).runs.createAnswerKey({ repoSlug, lessonSeq });
+    expect(again.runId).not.toBe(key.runId);
+    const keys = await db
+      .select({ id: runs.id })
+      .from(runs)
+      .where(and(eq(runs.lessonId, lesson.id), eq(runs.isAnswerKey, true)));
+    expect(keys).toHaveLength(1);
   });
 
   it("10) draining a moderator's credits demotes them to a user", async () => {

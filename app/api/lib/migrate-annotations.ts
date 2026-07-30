@@ -25,6 +25,10 @@ export async function ensureRunAnnotationsColumn(): Promise<void> {
     await client.query(
       `ALTER TABLE sketchlearn.runs ADD COLUMN IF NOT EXISTS "annotationsJson" json`,
     );
+    // Marks the teacher's answer-key run — see the column comment in the schema.
+    await client.query(
+      `ALTER TABLE sketchlearn.runs ADD COLUMN IF NOT EXISTS "isAnswerKey" boolean NOT NULL DEFAULT false`,
+    );
   } finally {
     await client.end();
   }
