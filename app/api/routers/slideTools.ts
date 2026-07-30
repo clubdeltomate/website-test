@@ -17,6 +17,30 @@ const toneSchema = z.string().refine((t) => (TONES as string[]).includes(t), "un
 
 export async function toSummary(tool: SlideTool, userId: number | undefined): Promise<SlideToolSummary> {
   const db = getDb();
+  // A mirrored repo preset's plays don't reference the mirror at all: the
+  // lesson is played through the repo, and its runs (and answer key) carry
+  // the LESSON id. Resolve that lesson first so the card's play count and
+  // Best run eye read the real history instead of an eternal zero.
+  let mirroredLessonId: number | null = null;
+  if (tool.repoSlug && tool.repoLessonSeq != null) {
+    try {
+      const repo = await db.query.repos.findFirst({ where: eq(repos.slug, tool.repoSlug) });
+      if (repo) {
+        const repoUnits = await db.select().from(units).where(eq(units.repoId, repo.id));
+        for (const u of repoUnits) {
+          const lesson = await db.query.lessons.findFirst({
+            where: and(eq(lessons.unitId, u.id), eq(lessons.globalSeq, tool.repoLessonSeq)),
+          });
+          if (lesson) {
+            mirroredLessonId = lesson.id;
+            break;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[slideTools] mirror lookup unavailable:", err instanceof Error ? err.message : err);
+    }
+  }
   // Play counts exclude answer keys (a key is written, not played), but the
   // card's "Best run" eye counts them: a key IS a viewable perfect run, and
   // it stands in until a real play beats it — a played run always outranks
@@ -39,7 +63,7 @@ export async function toSummary(tool: SlideTool, userId: number | undefined): Pr
         isAnswerKey: runs.isAnswerKey,
       })
       .from(runs)
-      .where(eq(runs.slideToolId, tool.id));
+      .where(mirroredLessonId != null ? eq(runs.lessonId, mirroredLessonId) : eq(runs.slideToolId, tool.id));
   } catch (err) {
     console.warn("[slideTools] run count unavailable:", err instanceof Error ? err.message : err);
   }

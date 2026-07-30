@@ -903,8 +903,12 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                           </>
                         )}
                         {/* hand this presentation to another user's shelf —
-                            a privilege of admins and VERIFIED moderators */}
-                        {!isDraft && !isGuest && (role === 'admin' || (role === 'moderator' && !!user?.verified)) && (
+                            admins anywhere, verified moderators on their OWN
+                            work only */}
+                        {!isDraft &&
+                          !isGuest &&
+                          (role === 'admin' ||
+                            (role === 'moderator' && !!user?.verified && tool.ownerName === user.name)) && (
                           <button
                             type="button"
                             onClick={() => setAssignFor(tool)}

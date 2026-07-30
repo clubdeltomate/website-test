@@ -78,10 +78,11 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
   const [authWallOpen, setAuthWallOpen] = useState(false);
   /** The repo whose Assign popup is open (hand it to another user's shelf). */
   const [assignFor, setAssignFor] = useState<RepoSummary | null>(null);
-  // Assigning is a privilege of admins and VERIFIED moderators — ownership
-  // alone doesn't grant it, and an unverified moderator waits for the check.
-  const canAssign =
-    !isGuest && (role === 'admin' || (role === 'moderator' && !!user?.verified));
+  // Assigning: admins anywhere, verified moderators on their OWN repos only.
+  const canAssignRepo = (repo: RepoSummary) =>
+    !isGuest &&
+    (role === 'admin' ||
+      (role === 'moderator' && !!user?.verified && repo.ownerName === user.name));
 
   const list = trpc.repos.list.useQuery(
     {
@@ -518,7 +519,7 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
                     onToggleFavorite={onToggleFavorite}
                     canDelete={canDeleteRepo(repo)}
                     onDelete={onDeleteRepo}
-                    onAssign={canAssign ? setAssignFor : undefined}
+                    onAssign={canAssignRepo(repo) ? setAssignFor : undefined}
                   />
                 ))}
               </motion.div>

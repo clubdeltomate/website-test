@@ -503,6 +503,10 @@ export const runsRouter = createRouter({
       const privileged =
         isPublishedKey ||
         onPublicTool ||
+        // A run played on a PUBLIC repo's lesson is browsable the same way —
+        // its tool may since have been deleted, but the repo it belongs to is
+        // still the thing being shared.
+        repoIsPublic ||
         (!!ctx.user &&
           (r.userId === ctx.user.id ||
             repoOwnerId === ctx.user.id ||

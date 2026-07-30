@@ -17,13 +17,17 @@ const targetSchema = z.object({
  * the assignee's own shelf, tagged "assigned". A pointer, not a copy — the
  * owner keeps the only editable original, the assignee gets it in reach.
  *
- * Who may hand things over: admins, and VERIFIED moderators. Verification is
- * the credential here — an unverified moderator (or a plain user, who can't
- * be verified at all) can't push work onto someone else's shelf, even their
- * own work.
+ * Who may hand things over: admins anywhere, and VERIFIED moderators on
+ * their OWN items only. Verification is the credential and ownership is the
+ * scope — a verified moderator still can't push someone else's work onto a
+ * shelf, and an unverified one (or a plain user) can't assign at all.
  */
-function canAssign(user: { role: string; verified: boolean }): boolean {
-  return user.role === "admin" || (user.role === "moderator" && user.verified);
+function canAssign(
+  user: { id: number; role: string; verified: boolean },
+  ownerId: number | null,
+): boolean {
+  if (user.role === "admin") return true;
+  return user.role === "moderator" && user.verified && ownerId === user.id;
 }
 
 export const assignmentsRouter = createRouter({
@@ -36,7 +40,7 @@ export const assignmentsRouter = createRouter({
           ? await db.query.slideTools.findFirst({ where: eq(slideTools.slug, input.slug) })
           : await db.query.repos.findFirst({ where: eq(repos.slug, input.slug) });
       if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Item not found" });
-      if (!canAssign(ctx.user)) {
+      if (!canAssign(ctx.user, target.ownerId ?? null)) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Assigning is for admins and verified moderators",
@@ -77,7 +81,7 @@ export const assignmentsRouter = createRouter({
           ? await db.query.slideTools.findFirst({ where: eq(slideTools.slug, input.slug) })
           : await db.query.repos.findFirst({ where: eq(repos.slug, input.slug) });
       if (!target) return [];
-      if (!canAssign(ctx.user)) return [];
+      if (!canAssign(ctx.user, target.ownerId ?? null)) return [];
       const rows = await db
         .select({ userId: assignments.userId })
         .from(assignments)
