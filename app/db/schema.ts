@@ -185,6 +185,14 @@ export const runs = appSchema.table(
     // freehand annotations the player left on the slides (DeckAnnotations)
     annotationsJson: json("annotationsJson"),
     flagged: boolean("flagged").notNull().default(false),
+    /**
+     * A model run built from the lesson's preset with every question answered
+     * correctly — the teacher's answer key. Not a play by a person: nobody sat
+     * through it, so it is excluded from the viewer's own progress and is
+     * readable by anyone who can see the lesson, which is the point (a student
+     * with no credits opens it to check their answers).
+     */
+    isAnswerKey: boolean("isAnswerKey").notNull().default(false),
     completedAt: timestamp("completedAt").defaultNow().notNull(),
   },
   (t) => [

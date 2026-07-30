@@ -258,6 +258,156 @@ export const runsRouter = createRouter({
     }),
 
   /**
+   * Build (or rebuild) the lesson's ANSWER KEY: a model run over the saved
+   * preset with every question answered correctly.
+   *
+   * Setting a lesson leaves the owner with no way to show the answers short of
+   * sitting through the deck and answering everything themselves, once per
+   * lesson. This does that pass for them — no AI, no credits, nothing generated;
+   * it reads the correct answer already stored on each slide and writes it down
+   * as if it had been played.
+   *
+   * The run is flagged isAnswerKey, which keeps it out of the owner's own
+   * progress and opens it to anyone who can see the lesson. That is the point:
+   * a student with no credits can read the answers without playing.
+   */
+  createAnswerKey: authedProcedure
+    .input(z.object({ repoSlug: z.string(), lessonSeq: z.number().int() }))
+    .mutation(async ({ ctx, input }): Promise<{ runId: number; answered: number }> => {
+      const db = getDb();
+      const repo = await db.query.repos.findFirst({ where: eq(repos.slug, input.repoSlug) });
+      if (!repo) throw new TRPCError({ code: "NOT_FOUND", message: "Repository not found" });
+      if (repo.ownerId !== ctx.user.id && ctx.user.role !== "admin") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only the repo's owner can publish an answer key",
+        });
+      }
+      const repoUnits = await db.select().from(units).where(eq(units.repoId, repo.id));
+      let lesson: typeof lessons.$inferSelect | undefined;
+      for (const u of repoUnits) {
+        lesson = await db.query.lessons.findFirst({
+          where: and(eq(lessons.unitId, u.id), eq(lessons.globalSeq, input.lessonSeq)),
+        });
+        if (lesson) break;
+      }
+      if (!lesson) throw new TRPCError({ code: "NOT_FOUND", message: "Item not found" });
+      const deck = lesson.presetDeckJson as SlideDeck | null;
+      if (!deck) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Set the presentation first — there is nothing to answer yet",
+        });
+      }
+      const { slug: toolSlug } = await resolveStudyTool(repo, ctx.user.id);
+      const tool = await db.query.slideTools.findFirst({ where: eq(slideTools.slug, toolSlug) });
+      if (!tool) throw new TRPCError({ code: "NOT_FOUND", message: "Slide tool not found" });
+
+      // The correct answer is already on the slide, whatever kind of question it
+      // is: an option index for the multiple choices, a written answer otherwise.
+      const perSlide = deck.slides.map((slide) => {
+        const prose = slide.components.find((c) => c.type === "prose");
+        const summary =
+          prose && prose.type === "prose"
+            ? (prose.paragraphs[0] ?? slide.title).slice(0, 220)
+            : slide.title;
+        const correctOption = slide.quiz
+          ? (slide.quiz.options && typeof slide.quiz.correctIndex === "number"
+              ? slide.quiz.options[slide.quiz.correctIndex]
+              : undefined) ?? slide.quiz.answer ?? null
+          : null;
+        return {
+          title: slide.title,
+          summary,
+          visuals: slide.components.map((c) => c.type).filter((t) => t !== "prose" && t !== "stickynote"),
+          question: slide.quiz?.question ?? null,
+          chosenOption: correctOption,
+          // null on a slide with no question, so it is not counted as scored.
+          correct: slide.quiz ? true : null,
+        };
+      });
+      const answered = perSlide.filter((p) => p.correct !== null).length;
+
+      const seed = {
+        repoSlug: repo.slug,
+        repoRef: repo.ref,
+        unitTitle: repoUnits.find((u) => u.id === lesson!.unitId)?.title ?? "",
+        lessonTitle: lesson.title,
+        lessonIndex: lesson.orderIndex,
+        lessonCount: 0,
+        lessonSeq: lesson.globalSeq,
+        lessonSeqTotal: 0,
+      };
+      const snapshot = (await externalizeDeckImages(deck, ctx.user.id)).deck;
+
+      return db.transaction(async (tx) => {
+        // One key per lesson: rebuilding replaces the old one rather than
+        // stacking keys that disagree after the preset is regenerated.
+        const previous = await tx
+          .select({ id: runs.id })
+          .from(runs)
+          .where(and(eq(runs.lessonId, lesson!.id), eq(runs.isAnswerKey, true)));
+        for (const p of previous) {
+          await tx.delete(lessonLogs).where(eq(lessonLogs.runId, p.id));
+          await tx.delete(runs).where(eq(runs.id, p.id));
+        }
+        const [{ id }] = await tx
+          .insert(runs)
+          .values({
+            slideToolId: tool.id,
+            repoId: repo.id,
+            lessonId: lesson!.id,
+            // No userId: nobody played it, so it belongs to no one's progress.
+            userId: null,
+            playerName: "Answer key",
+            seedJson: seed,
+            level: deck.level,
+            imageStyle: deck.imageStyle,
+            slideCount: deck.slides.length,
+            scoreCorrect: answered,
+            scoreTotal: answered,
+            elapsedSec: 0,
+            deckJson: snapshot,
+            isAnswerKey: true,
+          })
+          .returning({ id: runs.id });
+        await tx.insert(lessonLogs).values({
+          repoId: repo.id,
+          lessonId: lesson!.id,
+          runId: id,
+          userId: null,
+          level: deck.level,
+          scoreCorrect: answered,
+          scoreTotal: answered,
+          elapsedSec: 0,
+          perSlideJson: perSlide,
+        });
+        return { runId: id, answered };
+      });
+    }),
+
+  /** The lesson's answer-key run, if the owner has published one. */
+  answerKeyFor: publicQuery
+    .input(z.object({ repoSlug: z.string(), lessonSeq: z.number().int() }))
+    .query(async ({ input }): Promise<{ runId: number; scoreTotal: number } | null> => {
+      const db = getDb();
+      const repo = await db.query.repos.findFirst({ where: eq(repos.slug, input.repoSlug) });
+      if (!repo) return null;
+      const repoUnits = await db.select().from(units).where(eq(units.repoId, repo.id));
+      for (const u of repoUnits) {
+        const lesson = await db.query.lessons.findFirst({
+          where: and(eq(lessons.unitId, u.id), eq(lessons.globalSeq, input.lessonSeq)),
+        });
+        if (!lesson) continue;
+        const key = await db.query.runs.findFirst({
+          where: and(eq(runs.lessonId, lesson.id), eq(runs.isAnswerKey, true)),
+        });
+        return key ? { runId: key.id, scoreTotal: key.scoreTotal } : null;
+      }
+      return null;
+    }),
+
+  /**
    * Full run detail for the Runs-page drawer: the run row plus a clean
    * per-slide recap. Slide titles/components come from the stored deck
    * snapshot (deckJson); recorded answers come from the lessonLogs row
@@ -309,16 +459,24 @@ export const runsRouter = createRouter({
 
       // access control: own run, or repo owner, or moderator/admin
       let repoOwnerId: number | null = null;
+      let repoIsPublic = false;
       if (r.repoId) {
         const repo = await db.query.repos.findFirst({ where: eq(repos.id, r.repoId) });
         repoOwnerId = repo?.ownerId ?? null;
+        repoIsPublic = repo?.isPublic ?? false;
       }
+      // An answer key is published on purpose: it holds the correct answers and
+      // nobody's own work, so anyone who can open the lesson can read it. That
+      // is the whole reason it exists — a student with no credits checking their
+      // answers without playing.
+      const isPublishedKey = r.isAnswerKey && (repoIsPublic || repoOwnerId === ctx.user?.id);
       const privileged =
-        !!ctx.user &&
-        (r.userId === ctx.user.id ||
-          repoOwnerId === ctx.user.id ||
-          ctx.user.role === "moderator" ||
-          ctx.user.role === "admin");
+        isPublishedKey ||
+        (!!ctx.user &&
+          (r.userId === ctx.user.id ||
+            repoOwnerId === ctx.user.id ||
+            ctx.user.role === "moderator" ||
+            ctx.user.role === "admin"));
       if (!privileged) {
         throw new TRPCError({
           code: "FORBIDDEN",

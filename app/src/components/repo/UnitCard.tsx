@@ -8,6 +8,7 @@ import {
   Clock,
   Eye,
   Hourglass,
+  KeyRound,
   Pencil,
   PencilRuler,
   Plus,
@@ -484,6 +485,28 @@ function LessonCard({
   // author wanders off to another page and comes back.
   const lessonGen = useLessonGeneration();
   const generating = lessonGen.isRunning(seed.repoSlug, seed.lessonSeq);
+
+  /**
+   * The lesson's answer key: a model run over the preset with every question
+   * answered correctly. The owner publishes it once; anyone who can see the
+   * lesson can then read it, which is what lets a student with no credits check
+   * their answers without playing.
+   */
+  const answerKey = trpc.runs.answerKeyFor.useQuery(
+    { repoSlug: seed.repoSlug, lessonSeq: seed.lessonSeq },
+    { enabled: purpose === 'education' && lesson.hasPreset },
+  );
+  const publishKey = trpc.runs.createAnswerKey.useMutation({
+    onSuccess: (r) => {
+      toast.success(
+        r.answered > 0
+          ? `Answer key published — ${r.answered} question${r.answered === 1 ? '' : 's'} filled in ✓`
+          : 'Answer key published — this deck has no questions',
+      );
+      void utils.runs.answerKeyFor.invalidate({ repoSlug: seed.repoSlug, lessonSeq: seed.lessonSeq });
+    },
+    onError: (e) => toast.error(e.message),
+  });
   // Progress chips reflect ONLY the signed-in viewer's own runs
   const completed = lesson.myStatus === 'completed';
   const tryAgain = lesson.myStatus === 'try-again';
@@ -595,6 +618,56 @@ function LessonCard({
       {label}
     </SketchButton>
   );
+
+  /**
+   * Answer-key controls. Everyone who can see a published key gets a link to
+   * read it; the owner also gets the button that publishes or refreshes it.
+   * Only for education decks — a menu or a walkthrough has nothing to answer.
+   */
+  const answerKeyMeta = () => {
+    if (purpose !== 'education' || !lesson.hasPreset) return null;
+    const key = answerKey.data;
+    return (
+      <span className="flex items-center gap-1">
+        {key && (
+          <Link
+            to={`/runs/${key.runId}/replay`}
+            className={cfgChip}
+            title="Read the correct answers — no credits, nothing generated"
+          >
+            <KeyRound className="h-3 w-3" strokeWidth={2} /> Answers
+            {key.scoreTotal > 0 && (
+              <span className="rounded-full bg-green-soft px-1 text-[0.5rem] font-bold text-green">
+                {key.scoreTotal}
+              </span>
+            )}
+          </Link>
+        )}
+        {isOwner && (
+          <button
+            type="button"
+            onClick={() =>
+              publishKey.mutate({ repoSlug: seed.repoSlug, lessonSeq: seed.lessonSeq })
+            }
+            disabled={publishKey.isPending}
+            className={cfgChipDashed}
+            title={
+              key
+                ? 'Rebuild the answer key from the current presentation'
+                : 'Fill in every correct answer once, so students can check their work without playing'
+            }
+          >
+            {publishKey.isPending ? (
+              <PencilSpinner />
+            ) : (
+              <KeyRound className="h-3 w-3" strokeWidth={2} />
+            )}
+            {key ? 'Refresh key' : 'Answer key'}
+          </button>
+        )}
+      </span>
+    );
+  };
 
   /** The right button for this item, given purpose / ownership / preset. */
   const renderAction = () => {
@@ -809,6 +882,9 @@ function LessonCard({
         )}
         {/* configure your own playable slide (education), next to the stickers */}
         {configureMeta()}
+        {/* Answer key — sits with the stickers because it reads like one: a
+            state of the lesson, not another thing to generate. */}
+        {answerKeyMeta()}
         {/* best-run meta: the HIGHEST score's level + time, how many times the
             viewer has played it, and a link to replay that best run's
             answers (only once the viewer has played it) */}
