@@ -240,13 +240,21 @@ export const slideToolsRouter = createRouter({
       if (input.onlyIfMissing && tool.bannerImageId != null) {
         return { url: `${IMAGE_URL_PREFIX}${tool.bannerImageId}`, cost: 0 };
       }
-      // The scene is fixed by the card's CATEGORY (course → the aquarium,
-      // restaurant → food, …), not by the tool's own content — computed
+      // Publicity for THIS tool's content, staged in its category's setting
+      // (course → campus, restaurant → kitchen and tables, …). Computed
       // fresh every time so a style change reaches old cards through their
       // Refresh button instead of being frozen into a stored prompt.
       const scene =
         TOOL_BANNER_SCENES[(tool.template ?? "course") as string] ?? TOOL_BANNER_SCENES.course;
-      const subject = `A photographic header strip showing ${scene}.`;
+      const deckForSubject = tool.deckJson != null ? (tool.deckJson as SlideDeck) : null;
+      const slideTitles =
+        deckForSubject && Array.isArray(deckForSubject.slides)
+          ? deckForSubject.slides.slice(0, 6).map((s) => s.title).join("; ")
+          : "";
+      const subject =
+        `An advertising banner promoting "${tool.name}" — ${(tool.topic || tool.description).slice(0, 160)}.` +
+        (slideTitles ? ` It covers: ${slideTitles}.` : "") +
+        ` Set the scene in ${scene}.`;
       const { imageId, cost } = await makeCardBanner(ctx.user, subject, TOOL_BANNER_DIRECTIVE);
       await db
         .update(slideTools)

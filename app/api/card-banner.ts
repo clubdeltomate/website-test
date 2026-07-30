@@ -47,35 +47,39 @@ export const LEVEL_BANNER_STAGES: Record<string, string> = {
 };
 
 export const TOOL_BANNER_DIRECTIVE =
-  `${STRIP_SHAPE} Style, strictly: a HYPER-REALISTIC photograph — as real as it gets. ` +
-  "Natural light, true-to-life color, sharp professional-photography detail, shallow depth " +
-  "of field where it helps. NOT an illustration, NOT watercolor, NOT cartoon, NOT digital " +
-  "art, NOT a painting of any kind. No text, no watermarks.";
+  `${STRIP_SHAPE} Style, strictly: professional ADVERTISING photography — the polished ` +
+  "marketing campaign a company would run to promote this exact material. The audience is " +
+  "ADULTS — mostly young adults — never children: no childish decoration, no kids. Show a " +
+  "diverse, multiracial mix of people. CRITICAL framing: every face and head fully inside " +
+  "the vertical middle band of the strip, never cropped by the edges. Hyper-realistic " +
+  "photographic quality — NOT an illustration, NOT watercolor, NOT cartoon, NOT digital " +
+  "art. No text, no logos, no watermarks.";
 
 /**
- * What each slide-tool banner photographs, by card category. The scene is
- * fixed per category — a course banner is always the aquarium, a restaurant
- * banner always food — so the card kinds read consistently across the shelf.
+ * The SETTING each category's publicity is shot in — the subject matter still
+ * comes from the tool's own content, but a course always advertises from a
+ * campus, a restaurant from its kitchen and tables, and so on, so the card
+ * kinds read consistently across the shelf.
  */
 export const TOOL_BANNER_SCENES: Record<string, string> = {
   course:
-    "an aquarium filled with deep blue ocean water: schools of fish swimming past, now and " +
-    "then one big fish gliding through, coral, bubbles and soft light rays from above",
+    "a university campus: adult students on lawns and in bright lecture halls, study groups, " +
+    "the energy of a good school's prospectus",
   restaurant:
-    "beautiful real food: freshly plated dishes, vivid ingredients, a little steam rising, " +
-    "restaurant-kitchen energy",
+    "a real restaurant: chefs at the pass, beautifully set tables, plated dishes, warm " +
+    "dining-room light",
   service:
-    "real tradespeople at work — a plumber under a sink, a roofer on shingles, a mower on a " +
-    "lawn, a mechanic over an engine — honest tools and working hands",
+    "professionals at work — a plumber under a sink, a mechanic over an engine, a roofer, a " +
+    "landscaper — honest tools and skilled hands",
   shop:
-    "people out shopping: storefronts, shopping bags in hand, hands browsing shelves and " +
-    "market stalls",
+    "commerce in motion: storefronts and shopping bags, online carts and parcels, warehouse " +
+    "shelves being picked",
   walkthrough:
-    "a bright modern office: people at desks and whiteboards walking a team through screens " +
-    "and slides, explainer-video energy",
+    "a bright modern office: a presenter walking a team through screens and whiteboards, " +
+    "explainer-video energy",
   news:
-    "the news in motion: a broadcast desk, printing presses, fresh newspapers, glowing " +
-    "headline tickers",
+    "a news reporting studio: anchors at the broadcast desk, cameras, control-room monitors, " +
+    "the newsroom at deadline",
 };
 
 /**
