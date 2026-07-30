@@ -46,6 +46,51 @@ async function toRow(db: ReturnType<typeof getDb>, u: typeof users.$inferSelect)
   };
 }
 
+/**
+ * The portrait catalogue. Left to its own devices the generator answers
+ * "a friendly animal" with a fox every single time, so every account ended up
+ * wearing the same face. Each portrait instead names ONE animal and ONE
+ * staging, chosen by a variant number that only ever goes up: animals cycle
+ * first, and once they run out the pose changes and the animals come round
+ * again — 14 × 6 = 84 distinct portraits before anything repeats.
+ */
+const AVATAR_ANIMALS = [
+  "a wise owl",
+  "a red fox",
+  "an elephant",
+  "a chimpanzee",
+  "a tabby cat",
+  "a golden retriever dog",
+  "a rabbit",
+  "a brown bear",
+  "a raccoon",
+  "a deer",
+  "a tiger",
+  "a koala",
+  "a penguin",
+  "a hedgehog",
+];
+
+const AVATAR_POSES = [
+  "a close head-and-shoulders portrait facing the viewer, warm and welcoming",
+  "a three-quarter view from the chest up, glancing back over one shoulder",
+  "a wider portrait from the waist up, arms folded, confident and relaxed",
+  "a close portrait tilted slightly, chin resting on one hand, thoughtful",
+  "a head-and-shoulders portrait in near-profile looking off to the side, calm",
+  "a wider seated portrait leaning forward mid-conversation, animated",
+];
+
+const AVATAR_VARIANTS = AVATAR_ANIMALS.length * AVATAR_POSES.length;
+
+/** Turn a variant number into its animal + pose pair. */
+function avatarVariantOf(n: number): { animal: string; pose: string } {
+  const i = ((n % AVATAR_VARIANTS) + AVATAR_VARIANTS) % AVATAR_VARIANTS;
+  return {
+    animal: AVATAR_ANIMALS[i % AVATAR_ANIMALS.length],
+    pose: AVATAR_POSES[Math.floor(i / AVATAR_ANIMALS.length) % AVATAR_POSES.length],
+  };
+}
+
 export const usersRouter = createRouter({
   /**
    * Public user directory — anyone (including guests) can browse EVERY user,
@@ -355,6 +400,8 @@ export const usersRouter = createRouter({
     )
     .mutation(async ({ ctx, input }): Promise<{ url: string; cost: number }> => {
       const db = getDb();
+      /** Set only on the generate path — an upload has no variant. */
+      let variant: number | null = null;
       let mime: string;
       let data: string;
       let cost = 0;
@@ -401,17 +448,27 @@ export const usersRouter = createRouter({
           ...owned.map((r) => r.title),
           ...tools.map((t) => t.topic || t.name),
         ].filter(Boolean);
+        // One past the highest variant anyone has ever drawn, so this portrait
+        // differs from every existing one — and from this account's own last
+        // press, since the ceiling moved when it was drawn.
+        const [{ top }] = await db
+          .select({ top: sql<number | null>`max(${users.avatarVariant})` })
+          .from(users);
+        variant = (top ?? -1) + 1;
+        const { animal, pose } = avatarVariantOf(variant);
         const subject =
           themes.length > 0
             ? `A portrait of the teacher behind these creations: ${themes.slice(0, 6).join("; ")}. ` +
               "Decorate the portrait with small motifs from those subjects."
             : "A portrait of a brand-new member holding a blank notebook and a freshly sharpened pencil, ready to make their first lesson.";
         const directive =
-          "Square avatar portrait for a learning app. The character MUST be a friendly ANIMAL " +
-          "— an owl, fox, elephant, chimp, cat, whatever fits the subject best — NEVER a human. " +
-          "Head and shoulders, facing forward, centered, with clear margin all around so it " +
-          "crops cleanly into a circle. Warm hand-illustrated style (soft watercolor or colored " +
-          "sketch), pretty and characterful. No text.";
+          `Square avatar portrait for a learning app. The character MUST be ${animal} — an ` +
+          "anthropomorphic animal character, NEVER a human, and never any other species than " +
+          `the one named. Staging: ${pose}. Centre the character with clear margin all around ` +
+          "so it crops cleanly into a circle, and keep the whole head inside the frame. Warm " +
+          "hand-illustrated style (soft watercolor or coloured sketch), pretty and " +
+          "characterful. Give this one its own clothing, colours and background props — it " +
+          "must not look like a repeat of any other portrait. No text.";
         const url = await generateImage({ userId: ctx.user.id, prompt: `${subject}\n\n${directive}` });
         if (!url) {
           throw new TRPCError({
@@ -435,7 +492,10 @@ export const usersRouter = createRouter({
         .insert(slideImages)
         .values({ ownerId: ctx.user.id, mime, data })
         .returning({ id: slideImages.id });
-      await db.update(users).set({ avatarImageId: img.id }).where(eq(users.id, ctx.user.id));
+      await db
+        .update(users)
+        .set({ avatarImageId: img.id, ...(variant != null ? { avatarVariant: variant } : {}) })
+        .where(eq(users.id, ctx.user.id));
       return { url: `${IMAGE_URL_PREFIX}${img.id}`, cost };
     }),
 

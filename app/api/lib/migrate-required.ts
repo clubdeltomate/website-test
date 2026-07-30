@@ -94,6 +94,10 @@ export async function ensureRequiredSchema(): Promise<void> {
     await client.query(
       `ALTER TABLE sketchlearn.users ADD COLUMN IF NOT EXISTS "avatarImageId" integer`,
     );
+    // Which AI-portrait variant an account drew, so the next one differs.
+    await client.query(
+      `ALTER TABLE sketchlearn.users ADD COLUMN IF NOT EXISTS "avatarVariant" integer`,
+    );
     // A repo lesson's preset mirrored onto the Slides page; list queries
     // select both columns.
     await client.query(
