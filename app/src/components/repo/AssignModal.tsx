@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Search, UserPlus, X } from 'lucide-react';
+import { Check, Search, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { trpc } from '@/providers/trpc';
 import { SketchModal } from '@/components/admin/overlays';
@@ -33,6 +33,8 @@ export default function AssignModal({
   // assign a second time.
   const holders = trpc.assignments.listFor.useQuery({ targetType, slug }, { enabled: open });
   const held = new Set(holders.data ?? []);
+  // The popup stays open on success: the row's button flips to Assigned in
+  // place, and pressing it again is how an assignment is cancelled.
   const assign = trpc.assignments.assign.useMutation({
     onSuccess: (r, vars) => {
       const who = directory.data?.find((u) => u.id === vars.userId)?.name ?? 'them';
@@ -42,7 +44,6 @@ export default function AssignModal({
           : `Assigned ✓ — it now shows on ${who}'s shelf`,
       );
       void utils.assignments.listFor.invalidate({ targetType, slug });
-      onClose();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -84,30 +85,25 @@ export default function AssignModal({
                 {u.role}
               </Chip>
             </span>
+            {/* One toggle: Assign puts it on their shelf and the button flips
+                to Assigned; press Assigned and the assignment is cancelled. */}
             {held.has(u.id) ? (
-              <span className="flex items-center gap-1">
-                <span
-                  title="Already on their shelf — an item can only be assigned to someone once"
-                  className="micro flex items-center gap-1 rounded-wobble-sm border-2 border-green bg-green-soft px-2 py-1 text-[0.6rem] font-bold text-green"
-                >
-                  <Check className="h-3.5 w-3.5" strokeWidth={2.5} /> Assigned
-                </span>
-                <button
-                  type="button"
-                  onClick={() => unassign.mutate({ targetType, slug, userId: u.id })}
-                  disabled={unassign.isPending}
-                  aria-label={`Remove from ${u.name}'s shelf`}
-                  title="Take it back off their shelf"
-                  className="rounded-wobble-sm p-1 text-ink-faint transition-colors hover:bg-red-soft hover:text-red"
-                >
-                  <X className="h-3.5 w-3.5" strokeWidth={2.5} />
-                </button>
-              </span>
+              <button
+                type="button"
+                onClick={() => unassign.mutate({ targetType, slug, userId: u.id })}
+                disabled={unassign.isPending && unassign.variables?.userId === u.id}
+                aria-pressed="true"
+                title={`On ${u.name}'s shelf — press again to unassign`}
+                className="flex items-center gap-1.5 rounded-wobble-sm border-2 border-green bg-green-soft px-3 py-1.5 font-heading text-sm font-bold text-green shadow-offset transition-colors hover:border-red hover:bg-red-soft hover:text-red disabled:cursor-wait"
+              >
+                <Check className="h-3.5 w-3.5" strokeWidth={2.5} /> Assigned
+              </button>
             ) : (
               <SketchButton
                 variant="secondary"
                 size="sm"
                 loading={assign.isPending && assign.variables?.userId === u.id}
+                title="Put it on their shelf"
                 onClick={() => assign.mutate({ targetType, slug, userId: u.id })}
               >
                 <UserPlus className="h-3.5 w-3.5" strokeWidth={2} /> Assign
