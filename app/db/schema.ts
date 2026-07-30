@@ -87,6 +87,10 @@ export const repos = appSchema.table(
     // Precursor to a future hand-fill editor; today everything is "ai".
     source: varchar("source", { length: 16 }).notNull().default("ai"),
     isPublic: boolean("isPublic").notNull().default(true),
+    // The card's thin AI banner strip: bytes live in slideImages, the prompt
+    // is kept so Refresh can reseed a new image from the same description.
+    bannerImageId: integer("bannerImageId"),
+    bannerPrompt: text("bannerPrompt"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -179,10 +183,34 @@ export const slideTools = appSchema.table(
     source: varchar("source", { length: 16 }).notNull().default("ai"),
     deckJson: json("deckJson"),
     isPublic: boolean("isPublic").notNull().default(true),
+    // The card's thin AI banner strip: bytes live in slideImages, the prompt
+    // is kept so Refresh can reseed a new image from the same description.
+    bannerImageId: integer("bannerImageId"),
+    bannerPrompt: text("bannerPrompt"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [index("slideTools_owner_idx").on(t.ownerId)],
+);
+
+/**
+ * A slide tool or repo handed to a specific user by a moderator/owner: the
+ * item shows up on the assignee's own shelf wearing an "assigned" tag. It is
+ * a pointer, not a copy — the owner keeps the only editable original.
+ */
+export const assignments = appSchema.table(
+  "assignments",
+  {
+    id: serial("id").primaryKey(),
+    targetType: varchar("targetType", { length: 20 }).notNull(), // "slideTool" | "repo"
+    targetSlug: varchar("targetSlug", { length: 191 }).notNull(),
+    /** who receives it (it appears on their shelf) */
+    userId: fk("userId").notNull(),
+    /** who handed it over */
+    assignedBy: fk("assignedBy").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("assignments_user_idx").on(t.userId, t.targetType)],
 );
 
 export const slideTemplates = appSchema.table(

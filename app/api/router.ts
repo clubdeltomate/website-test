@@ -9,6 +9,7 @@ import { slideToolsRouter } from "./routers/slideTools.js";
 import { runsRouter } from "./routers/runs.js";
 import { lessonsRouter, unitsRouter } from "./routers/lessons.js";
 import { unitImagesRouter } from "./routers/unitImages.js";
+import { assignmentsRouter } from "./routers/assignments.js";
 import { keysRouter } from "./routers/keys.js";
 import { tokensRouter } from "./routers/tokens.js";
 import { paymentsRouter } from "./routers/payments.js";
@@ -62,6 +63,7 @@ export const appRouter = createRouter({
   units: unitsRouter,
   lessons: lessonsRouter,
   unitImages: unitImagesRouter,
+  assignments: assignmentsRouter,
   keys: keysRouter,
   tokens: tokensRouter,
   payments: paymentsRouter,
