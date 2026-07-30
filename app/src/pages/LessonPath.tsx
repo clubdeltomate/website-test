@@ -258,8 +258,8 @@ export default function LessonPath() {
           // ride along under the same switch.
           if (unitBanners) {
             makeBanners.mutate({ repoSlug: res.repoSlug });
-            repoBanner.mutate({ slug: res.repoSlug });
-            toolBanner.mutate({ slug: res.toolSlug });
+            repoBanner.mutate({ slug: res.repoSlug, onlyIfMissing: true });
+            toolBanner.mutate({ slug: res.toolSlug, onlyIfMissing: true });
           }
           navigate(`/repos/${res.repoSlug}`);
         },

@@ -311,7 +311,7 @@ export default function CreateToolModal({
   });
   const create = trpc.slideTools.create.useMutation({
     onSuccess: async ({ slug }) => {
-      toolBanner.mutate({ slug });
+      toolBanner.mutate({ slug, onlyIfMissing: true });
       await utils.slideTools.list.invalidate();
       runOn(slug);
     },
@@ -371,6 +371,15 @@ export default function CreateToolModal({
             ? 'Your version is ready — press "Play yours" ✓'
             : 'Presentation set — the lesson can be played now ✓',
         );
+        // A set presentation also lives as a card on the Slides page — draw
+        // its banner right away so it never sits there bare. Quiet on
+        // failure: the card keeps its Draw button as the fallback.
+        if (intent !== 'configure') {
+          void client.slideTools.generateBanner
+            .mutate({ slug: `preset-${lesson.repoSlug}-l${lesson.lessonSeq}`, onlyIfMissing: true })
+            .then(() => utils.slideTools.list.invalidate())
+            .catch(() => undefined);
+        }
       } catch (err) {
         toast.error(readableGenError(err), { duration: 9000 });
       } finally {

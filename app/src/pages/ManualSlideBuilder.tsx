@@ -32,9 +32,16 @@ export default function ManualSlideBuilder() {
     }
   }, [editing, deckQ.data, deck]);
 
+  // The new card's banner draws itself in the background — quiet on failure,
+  // the card keeps its Draw button as the fallback.
+  const autoBanner = trpc.slideTools.generateBanner.useMutation({
+    onSuccess: () => void utils.slideTools.list.invalidate(),
+    onError: () => undefined,
+  });
   const create = trpc.slideTools.createManual.useMutation({
-    onSuccess: () => {
+    onSuccess: (r) => {
       toast.success('Presentation published ✓');
+      autoBanner.mutate({ slug: r.slug, onlyIfMissing: true });
       void utils.slideTools.list.invalidate();
       navigate('/slides');
     },
