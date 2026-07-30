@@ -15,6 +15,7 @@ function toSessionUser(u: User): SessionUser {
     name: u.name,
     role: u.role,
     verified: u.verified,
+    avatarUrl: u.avatarImageId != null ? `/api/img/${u.avatarImageId}` : null,
     tokenBalance: u.tokenBalance,
     ticketBalance: u.ticketBalance,
     createdAt: u.createdAt,

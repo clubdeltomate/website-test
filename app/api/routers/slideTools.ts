@@ -91,10 +91,12 @@ export async function toSummary(tool: SlideTool, userId: number | undefined): Pr
   }
   let ownerName: string | null = null;
   let ownerVerified = false;
+  let ownerAvatarUrl: string | null = null;
   if (tool.ownerId) {
     const owner = await db.query.users.findFirst({ where: eq(users.id, tool.ownerId) });
     ownerName = owner?.name ?? null;
     ownerVerified = owner?.verified ?? false;
+    ownerAvatarUrl = owner?.avatarImageId != null ? `${IMAGE_URL_PREFIX}${owner.avatarImageId}` : null;
   }
   return {
     slug: tool.slug,
@@ -116,6 +118,7 @@ export async function toSummary(tool: SlideTool, userId: number | undefined): Pr
     ownerId: tool.ownerId ?? null,
     ownerName,
     ownerVerified,
+    ownerAvatarUrl,
     createdAt: tool.createdAt,
     // A saved deck answers directly; without one, an education tool is quiz
     // material by nature — its generations carry questions.

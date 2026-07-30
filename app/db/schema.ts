@@ -44,6 +44,9 @@ export const users = appSchema.table(
     // Admin-granted check mark, shown beside the name on the profile and on
     // everything the user publishes. Vouches for the person, not a role.
     verified: boolean("verified").notNull().default(false),
+    // Profile picture: bytes in slideImages, served from /api/img/:id.
+    // Null falls back to the initial-letter circle everywhere.
+    avatarImageId: integer("avatarImageId"),
     // Moderators hold a pool of un-gifted customization "tickets" bought from
     // the admin (paid for in credits). They gift them to users, one ticket =
     // one paid customization on one of the moderator's repos.

@@ -371,6 +371,8 @@ export interface SessionUser {
   /** Admin-granted check mark; moderators/admins only, cleared on demotion.
       Gates assigning — only admins and verified moderators may assign. */
   verified: boolean;
+  /** Profile picture URL (/api/img/:id), or null → initial-letter circle. */
+  avatarUrl: string | null;
   tokenBalance: number;
   /** moderator's pool of un-gifted customization tickets */
   ticketBalance: number;
@@ -409,6 +411,8 @@ export interface DirectoryUser {
   role: Role;
   /** Admin-granted check mark shown beside the name everywhere it appears. */
   verified: boolean;
+  /** Profile picture URL, or null → initial-letter circle. */
+  avatarUrl: string | null;
   repoCount: number;
   /** distinct categories of the public repos they own (for topic filtering) */
   templates: RepoTemplate[];
@@ -428,6 +432,8 @@ export interface UserProfile {
   role: Role;
   /** Admin-granted check mark shown beside the name everywhere it appears. */
   verified: boolean;
+  /** Profile picture URL, or null → initial-letter circle. */
+  avatarUrl: string | null;
   createdAt: Date;
   whatsapp: string | null;
   socials: string[];
@@ -466,6 +472,8 @@ export interface RepoSummary {
   ownerName: string | null;
   /** The owner's admin-granted check mark, drawn beside their name on cards. */
   ownerVerified: boolean;
+  /** The owner's profile picture, drawn in the card's leading circle. */
+  ownerAvatarUrl: string | null;
   /** The card's thin AI banner strip, or null when none was drawn yet. */
   bannerUrl: string | null;
   /** True when this item sits on the viewer's shelf because a moderator
@@ -576,6 +584,8 @@ export interface SlideToolSummary {
   ownerName: string | null;
   /** The owner's admin-granted check mark, drawn beside their name on cards. */
   ownerVerified: boolean;
+  /** The owner's profile picture, drawn in the card's leading circle. */
+  ownerAvatarUrl: string | null;
   createdAt: Date;
   /** True when this is quiz material — a saved deck with questions, or an
       education tool that will generate them. Quiz cards offer Customize +

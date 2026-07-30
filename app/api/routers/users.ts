@@ -14,6 +14,7 @@ import {
   payments,
   repos,
   runs,
+  slideImages,
   slideTools,
   ticketRequests,
   tickets,
@@ -21,6 +22,9 @@ import {
   units,
   users,
 } from "../../db/schema.js";
+import { generateImage } from "../ai/provider.js";
+import { getSettings } from "../settings.js";
+import { IMAGE_URL_PREFIX } from "../deck-images.js";
 import { applyTokenDelta } from "../tokens.js";
 import { hashPassword } from "../auth-utils.js";
 import { favoriteSlugs, repoSummaries } from "./repos.js";
@@ -75,6 +79,7 @@ export const usersRouter = createRouter({
           name: u.name,
           role: u.role,
           verified: u.verified,
+          avatarUrl: u.avatarImageId != null ? `${IMAGE_URL_PREFIX}${u.avatarImageId}` : null,
           repoCount: counts.get(u.id) ?? 0,
           templates: [...(cats.get(u.id) ?? [])] as RepoTemplate[],
           following: favs.has(String(u.id)),
@@ -112,6 +117,7 @@ export const usersRouter = createRouter({
         name: user.name,
         role: user.role,
         verified: user.verified,
+        avatarUrl: user.avatarImageId != null ? `${IMAGE_URL_PREFIX}${user.avatarImageId}` : null,
         createdAt: user.createdAt,
         whatsapp: user.whatsapp ?? null,
         socials: Array.isArray(user.socials) ? (user.socials as string[]) : [],
@@ -320,6 +326,117 @@ export const usersRouter = createRouter({
         .set({ role: input.role, ...(input.role === "user" ? { verified: false } : {}) })
         .where(eq(users.id, input.userId));
       return { ok: true as const };
+    }),
+
+  /**
+   * Set the profile picture: upload a file for free, or have the AI paint
+   * one for coins. The AI portrait is always an ANIMAL character — never a
+   * human — themed on what this user has actually published; an account
+   * with nothing published gets a fresh-notebook, ready-to-start portrait.
+   * Charged only after the picture exists, like every image here.
+   */
+  /** What the AI portrait will cost — quoted in the confirmation popup. */
+  avatarQuote: authedProcedure.query(async (): Promise<{ cost: number }> => {
+    const { prices } = await getSettings();
+    return { cost: Math.max(1, Math.ceil(prices.perImageSlide)) };
+  }),
+
+  setAvatar: authedProcedure
+    .input(
+      z.union([
+        z.object({
+          source: z.literal("upload"),
+          mime: z.string().max(100),
+          /** base64 WITHOUT the data: prefix */
+          data: z.string().min(1),
+        }),
+        z.object({ source: z.literal("generate") }),
+      ]),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ url: string; cost: number }> => {
+      const db = getDb();
+      let mime: string;
+      let data: string;
+      let cost = 0;
+
+      if (input.source === "upload") {
+        const allowed = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+        if (!allowed.includes(input.mime)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `That file type isn't accepted — use ${allowed.map((m) => m.replace("image/", "")).join(", ")}`,
+          });
+        }
+        const bytes = Math.floor((input.data.length * 3) / 4);
+        if (bytes > 4 * 1024 * 1024) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `That image is ${(bytes / 1e6).toFixed(1)} MB — the limit is 4 MB`,
+          });
+        }
+        mime = input.mime;
+        data = input.data;
+      } else {
+        const { prices } = await getSettings();
+        cost = Math.max(1, Math.ceil(prices.perImageSlide));
+        if (ctx.user.tokenBalance < cost) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `INSUFFICIENT_TOKENS: an AI portrait costs ${cost} 🪙, you have ${ctx.user.tokenBalance} 🪙`,
+          });
+        }
+        // Theme the portrait on what they've published — titles and topics
+        // of their repos and slide tools, a few of each.
+        const owned = await db
+          .select({ title: repos.title })
+          .from(repos)
+          .where(eq(repos.ownerId, ctx.user.id))
+          .limit(4);
+        const tools = await db
+          .select({ name: slideTools.name, topic: slideTools.topic })
+          .from(slideTools)
+          .where(eq(slideTools.ownerId, ctx.user.id))
+          .limit(4);
+        const themes = [
+          ...owned.map((r) => r.title),
+          ...tools.map((t) => t.topic || t.name),
+        ].filter(Boolean);
+        const subject =
+          themes.length > 0
+            ? `A portrait of the teacher behind these creations: ${themes.slice(0, 6).join("; ")}. ` +
+              "Decorate the portrait with small motifs from those subjects."
+            : "A portrait of a brand-new member holding a blank notebook and a freshly sharpened pencil, ready to make their first lesson.";
+        const directive =
+          "Square avatar portrait for a learning app. The character MUST be a friendly ANIMAL " +
+          "— an owl, fox, elephant, chimp, cat, whatever fits the subject best — NEVER a human. " +
+          "Head and shoulders, facing forward, centered, with clear margin all around so it " +
+          "crops cleanly into a circle. Warm hand-illustrated style (soft watercolor or colored " +
+          "sketch), pretty and characterful. No text.";
+        const url = await generateImage({ userId: ctx.user.id, prompt: `${subject}\n\n${directive}` });
+        if (!url) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "AI_UNAVAILABLE: no image generator answered — nothing was charged",
+          });
+        }
+        const m = /^data:([^;,]+);base64,(.+)$/s.exec(url);
+        if (!m) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "The generator returned an image in a form we can't store",
+          });
+        }
+        await applyTokenDelta(ctx.user.id, -cost, "AI profile portrait");
+        mime = m[1];
+        data = m[2];
+      }
+
+      const [img] = await db
+        .insert(slideImages)
+        .values({ ownerId: ctx.user.id, mime, data })
+        .returning({ id: slideImages.id });
+      await db.update(users).set({ avatarImageId: img.id }).where(eq(users.id, ctx.user.id));
+      return { url: `${IMAGE_URL_PREFIX}${img.id}`, cost };
     }),
 
   /**

@@ -182,8 +182,12 @@ export default function Users() {
                 )}
               </button>
               <Link to={`/users/${u.id}`} className="flex items-center gap-3 no-underline">
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-ink bg-blue-soft font-display text-2xl text-ink shadow-offset">
-                  {u.name.charAt(0).toUpperCase()}
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-ink bg-blue-soft font-display text-2xl text-ink shadow-offset">
+                  {u.avatarUrl ? (
+                    <img src={u.avatarUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    u.name.charAt(0).toUpperCase()
+                  )}
                 </span>
                 <span className="min-w-0">
                   <span className="flex items-center gap-1 truncate font-heading text-lg font-bold text-ink">

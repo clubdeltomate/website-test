@@ -150,9 +150,15 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
             <button
               onClick={() => setAvatarOpen((o) => !o)}
               aria-label="Account"
-              className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-ink bg-purple-soft font-display text-xl text-ink shadow-offset transition-transform hover:-translate-y-0.5"
+              className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-ink bg-purple-soft font-display text-xl text-ink shadow-offset transition-transform hover:-translate-y-0.5"
             >
-              {user ? user.name.charAt(0).toUpperCase() : '?'}
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
+              ) : user ? (
+                user.name.charAt(0).toUpperCase()
+              ) : (
+                '?'
+              )}
             </button>
             <AnimatePresence>
               {avatarOpen && (

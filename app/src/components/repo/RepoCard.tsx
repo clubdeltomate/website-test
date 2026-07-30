@@ -63,7 +63,12 @@ function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete, onA
             name leads the card, same as on slide tool cards */}
         <div className="flex items-start justify-between">
           <span className="flex min-w-0 items-center gap-2">
-            <OwnerAvatar ownerId={repo.ownerId} ownerName={repo.ownerName} template={repo.template} />
+            <OwnerAvatar
+              ownerId={repo.ownerId}
+              ownerName={repo.ownerName}
+              avatarUrl={repo.ownerAvatarUrl}
+              template={repo.template}
+            />
             {repo.ownerName && (
               <span className="micro flex min-w-0 items-center gap-1 truncate text-ink-faint">
                 by {repo.ownerName}
