@@ -5,7 +5,9 @@ import { createRouter, publicQuery } from "../middleware.js";
 import { authedProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
 import { favoriteSlugs } from "./repos.js";
-import { externalizeDeckImages } from "../deck-images.js";
+import { externalizeDeckImages, IMAGE_URL_PREFIX } from "../deck-images.js";
+import { makeCardBanner } from "../card-banner.js";
+import { assignedSlugs } from "./assignments.js";
 import { favorites, runs, slideTools, users, type SlideTool, type User } from "../../db/schema.js";
 import { imageStyleSchema, levelSchema, slugify, templateSchema } from "../ai/prompts.js";
 import { AI_CHECKED_KINDS, TONES, repoPurpose } from "../../contracts/types.js";
@@ -123,6 +125,10 @@ export async function toSummary(tool: SlideTool, userId: number | undefined): Pr
         : repoPurpose((tool.template ?? "course") as RepoTemplate) === "education",
     bestRunId: bestPlayed?.id ?? keyRun?.id ?? null,
     aiCheckCount,
+    bannerUrl: tool.bannerImageId != null ? `${IMAGE_URL_PREFIX}${tool.bannerImageId}` : null,
+    // Whether THIS viewer holds an assignment is a shelf question, answered
+    // where the shelf is assembled (list) — a lone summary defaults to no.
+    assigned: false,
   };
 }
 
@@ -170,7 +176,21 @@ export const slideToolsRouter = createRouter({
         .where(conds.length ? and(...conds) : undefined)
         .orderBy(desc(slideTools.createdAt))
         .limit(input?.limit ?? 50);
-      const summaries = await Promise.all(rows.map((t) => toSummary(t, ctx.user?.id)));
+      // The personal shelf also carries what a moderator handed this user:
+      // assigned tools appear beside their own, tagged so the card says why.
+      const assignedSet = new Set<string>();
+      if (input?.mine && ctx.user) {
+        for (const slug of await assignedSlugs(ctx.user.id, "slideTool")) {
+          assignedSet.add(slug);
+          if (!rows.some((r) => r.slug === slug)) {
+            const extra = await db.query.slideTools.findFirst({ where: eq(slideTools.slug, slug) });
+            if (extra) rows.push(extra);
+          }
+        }
+      }
+      const summaries = await Promise.all(
+        rows.map(async (t) => ({ ...(await toSummary(t, ctx.user?.id)), assigned: assignedSet.has(t.slug) })),
+      );
       // Drafts (no deck generated, never played) are private to their owner:
       // everyone else browsing the gallery only sees finished, playable tools.
       // Admins keep full visibility for moderation.
@@ -180,6 +200,39 @@ export const slideToolsRouter = createRouter({
         return !!ctx.user && (rows[i].ownerId === ctx.user.id || ctx.user.role === "admin");
       });
       return visible.sort((a, b) => Number(b.favorite) - Number(a.favorite));
+    }),
+
+  /**
+   * Draw (or redraw) the card's banner strip. The prompt is built from the
+   * tool's own content the first time and stored; Refresh reuses it, so a new
+   * image is reseeded from the same description rather than a new guess.
+   */
+  generateBanner: authedProcedure
+    .input(z.object({ slug: z.string().min(1) }))
+    .mutation(async ({ ctx, input }): Promise<{ url: string; cost: number }> => {
+      const db = getDb();
+      const tool = await db.query.slideTools.findFirst({ where: eq(slideTools.slug, input.slug) });
+      if (!tool) throw new TRPCError({ code: "NOT_FOUND", message: "Slide tool not found" });
+      if (!canEdit(tool, ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only the tool's owner can draw its banner" });
+      }
+      let subject = tool.bannerPrompt;
+      if (!subject) {
+        const deck = tool.deckJson != null ? (tool.deckJson as SlideDeck) : null;
+        const slideTitles =
+          deck && Array.isArray(deck.slides)
+            ? deck.slides.slice(0, 6).map((s) => s.title).join("; ")
+            : "";
+        subject =
+          `A header banner for a lesson presentation called "${tool.name}" about ${tool.topic || tool.description}.` +
+          (slideTitles ? ` It covers: ${slideTitles}.` : "");
+      }
+      const { imageId, cost } = await makeCardBanner(ctx.user, subject);
+      await db
+        .update(slideTools)
+        .set({ bannerImageId: imageId, bannerPrompt: subject })
+        .where(eq(slideTools.id, tool.id));
+      return { url: `${IMAGE_URL_PREFIX}${imageId}`, cost };
     }),
 
   getBySlug: publicQuery

@@ -166,6 +166,14 @@ export default function LessonPath() {
   // Fired AFTER creation rather than inside it: the notebook opens right away
   // and the banners land one by one, instead of the whole creation waiting on
   // however many images the repo has units.
+  const repoBanner = trpc.repos.generateBanner.useMutation({
+    onSuccess: (_r, vars) => void utils.repos.getBySlug.invalidate({ slug: vars.slug }),
+    onError: () => undefined, // card banner is decoration; the unit-banner toast already reports AI trouble
+  });
+  const toolBanner = trpc.slideTools.generateBanner.useMutation({
+    onSuccess: () => void utils.slideTools.list.invalidate(),
+    onError: () => undefined,
+  });
   const makeBanners = trpc.unitImages.generateBanners.useMutation({
     onSuccess: (r, vars) => {
       if (r.made > 0) {
@@ -246,8 +254,13 @@ export default function LessonPath() {
           void utils.auth.me.invalidate();
           void utils.repos.list.invalidate();
           // Illustrate the fresh units in the background — the page is already
-          // usable while the banners draw.
-          if (unitBanners) makeBanners.mutate({ repoSlug: res.repoSlug });
+          // usable while the banners draw. The card banners (repo + tool)
+          // ride along under the same switch.
+          if (unitBanners) {
+            makeBanners.mutate({ repoSlug: res.repoSlug });
+            repoBanner.mutate({ slug: res.repoSlug });
+            toolBanner.mutate({ slug: res.toolSlug });
+          }
           navigate(`/repos/${res.repoSlug}`);
         },
         onError: (err) => {

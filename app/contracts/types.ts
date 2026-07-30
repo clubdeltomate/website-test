@@ -463,6 +463,11 @@ export interface RepoSummary {
   ownerName: string | null;
   /** The owner's admin-granted check mark, drawn beside their name on cards. */
   ownerVerified: boolean;
+  /** The card's thin AI banner strip, or null when none was drawn yet. */
+  bannerUrl: string | null;
+  /** True when this item sits on the viewer's shelf because a moderator
+      assigned it to them — the card wears an "assigned" tag. */
+  assigned: boolean;
   createdAt: Date;
 }
 
@@ -582,6 +587,11 @@ export interface SlideToolSummary {
       are checked locally. Drives the card's Free/paid sticker and the
       cost-confirmation dialog before playing. */
   aiCheckCount: number;
+  /** The card's thin AI banner strip, or null when none was drawn yet. */
+  bannerUrl: string | null;
+  /** True when this item sits on the viewer's shelf because a moderator
+      assigned it to them — the card wears an "assigned" tag. */
+  assigned: boolean;
 }
 
 /* ---------------- Runs & lesson logs -------------------------------- */

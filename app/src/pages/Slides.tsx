@@ -18,6 +18,7 @@ import {
   PencilRuler,
   Route,
   UserCheck,
+  UserRoundPlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { trpc } from '@/providers/trpc';
@@ -33,7 +34,8 @@ import AuthWall from '@/components/AuthWall';
 import { Toaster } from '@/components/ui/sonner';
 import CreateToolModal from '@/components/slides/CreateToolModal';
 import { SketchModal } from '@/components/admin/overlays';
-import { SourceBadge, TemplateIcon, TEMPLATE_CIRCLE_BG, TEMPLATE_META, VerifiedBadge } from '@/components/repo/shared';
+import { CardBanner, SourceBadge, TemplateIcon, TEMPLATE_CIRCLE_BG, TEMPLATE_META, VerifiedBadge } from '@/components/repo/shared';
+import AssignModal from '@/components/repo/AssignModal';
 
 type SortKey = 'recent' | 'name' | 'plays';
 type ViewMode = 'cards' | 'table';
@@ -113,6 +115,16 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
    * always a free read.
    */
   const [costGate, setCostGate] = useState<SlideToolSummary | null>(null);
+  /** The tool whose Assign popup is open (hand it to another user's shelf). */
+  const [assignFor, setAssignFor] = useState<SlideToolSummary | null>(null);
+  const toolBanner = trpc.slideTools.generateBanner.useMutation({
+    onSuccess: (r) => {
+      toast.success(`Banner drawn — ${r.cost} 🪙`);
+      void utils.slideTools.list.invalidate();
+      void utils.auth.me.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
   const openPlay = (tool: SlideToolSummary) => {
     if (!tool.hasDeck && tool.runCount === 0) {
       navigate(`/slides/${tool.slug}`); // a draft has nothing to play yet
@@ -224,9 +236,29 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
       header: 'Name',
       sortValue: (t) => t.name.toLowerCase(),
       render: (t) => (
-        <span className="flex flex-col">
-          <span className="font-heading font-semibold text-ink">{t.name}</span>
-          <span className="font-mono text-xs text-ink-faint">{t.slug}</span>
+        <span className="flex items-center gap-2.5">
+          {/* the card banner, shrunk to a table thumbnail */}
+          {t.bannerUrl ? (
+            <img
+              src={t.bannerUrl}
+              alt=""
+              loading="lazy"
+              className="h-8 w-20 shrink-0 rounded-wobble-sm border-2 border-ink object-cover object-center"
+            />
+          ) : (
+            <span className="h-8 w-20 shrink-0 rounded-wobble-sm border-2 border-dashed border-pencil" />
+          )}
+          <span className="flex min-w-0 flex-col">
+            <span className="flex items-center gap-1.5 font-heading font-semibold text-ink">
+              {t.name}
+              {t.assigned && (
+                <Chip kind="neutral" className="border-blue bg-blue-soft text-[0.55rem]" title="A moderator put this on your shelf">
+                  assigned
+                </Chip>
+              )}
+            </span>
+            <span className="font-mono text-xs text-ink-faint">{t.slug}</span>
+          </span>
         </span>
       ),
     },
@@ -663,6 +695,14 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                         </span>
                       </div>
 
+                      {/* thin AI banner strip between the owner row and the title */}
+                      <CardBanner
+                        url={tool.bannerUrl}
+                        canEdit={canDeleteTool(tool)}
+                        busy={toolBanner.isPending && toolBanner.variables?.slug === tool.slug}
+                        onDraw={() => toolBanner.mutate({ slug: tool.slug })}
+                      />
+
                       <div>
                         <h3 className="line-clamp-2 font-heading text-lg font-semibold leading-snug text-ink">
                           {tool.name}
@@ -677,6 +717,15 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Chip kind={tool.defaultLevel}>{tool.defaultLevel}</Chip>
                         <SourceBadge source={tool.source} compact />
+                        {tool.assigned && (
+                          <Chip
+                            kind="neutral"
+                            className="border-blue bg-blue-soft"
+                            title="A moderator put this on your shelf"
+                          >
+                            assigned
+                          </Chip>
+                        )}
                         {!isDraft &&
                           (tool.aiCheckCount > 0 ? (
                             <span
@@ -821,6 +870,18 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                             </Link>
                           </>
                         )}
+                        {/* hand this presentation to another user's shelf */}
+                        {!isDraft && !isGuest && (role === 'admin' || role === 'moderator' || canDeleteTool(tool)) && (
+                          <button
+                            type="button"
+                            onClick={() => setAssignFor(tool)}
+                            aria-label="Assign to a user"
+                            title="Assign — put this presentation on another user's shelf"
+                            className="ml-auto rounded-wobble-sm border-2 border-dashed border-pencil p-1.5 text-ink-faint transition-colors hover:border-ink hover:text-ink"
+                          >
+                            <UserRoundPlus className="h-4 w-4" strokeWidth={2} />
+                          </button>
+                        )}
                       </div>
                     </SketchCard>
                   </motion.div>
@@ -937,6 +998,15 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
           </div>
         )}
       </SketchModal>
+      {assignFor && (
+        <AssignModal
+          open
+          onClose={() => setAssignFor(null)}
+          targetType="slideTool"
+          slug={assignFor.slug}
+          title={assignFor.name}
+        />
+      )}
       <CreateToolModal open={createOpen} onClose={() => setCreateOpen(false)} />
       <AuthWall
         open={authOpen}

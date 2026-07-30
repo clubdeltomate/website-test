@@ -77,6 +77,33 @@ export async function ensureRequiredSchema(): Promise<void> {
     await client.query(
       `ALTER TABLE sketchlearn.users ADD COLUMN IF NOT EXISTS "verified" boolean NOT NULL DEFAULT false`,
     );
+    // Card banner strips; list queries select both columns on both tables.
+    await client.query(
+      `ALTER TABLE sketchlearn.repos ADD COLUMN IF NOT EXISTS "bannerImageId" integer`,
+    );
+    await client.query(
+      `ALTER TABLE sketchlearn.repos ADD COLUMN IF NOT EXISTS "bannerPrompt" text`,
+    );
+    await client.query(
+      `ALTER TABLE sketchlearn."slideTools" ADD COLUMN IF NOT EXISTS "bannerImageId" integer`,
+    );
+    await client.query(
+      `ALTER TABLE sketchlearn."slideTools" ADD COLUMN IF NOT EXISTS "bannerPrompt" text`,
+    );
+    // Items handed to a user by a moderator; shelf queries read it.
+    await client.query(
+      `CREATE TABLE IF NOT EXISTS sketchlearn.assignments (
+         id serial PRIMARY KEY,
+         "targetType" varchar(20) NOT NULL,
+         "targetSlug" varchar(191) NOT NULL,
+         "userId" integer NOT NULL,
+         "assignedBy" integer NOT NULL,
+         "createdAt" timestamp NOT NULL DEFAULT now()
+       )`,
+    );
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS "assignments_user_idx" ON sketchlearn.assignments ("userId", "targetType")`,
+    );
   } finally {
     await client.end();
   }

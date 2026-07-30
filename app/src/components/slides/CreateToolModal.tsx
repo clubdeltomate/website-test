@@ -303,8 +303,15 @@ export default function CreateToolModal({
     navigate(`${base}${base.includes('?') ? '&' : '?'}${params}`);
   };
 
+  // The card's banner strip, drawn in the background right after creation —
+  // a miss is fine (the card offers a Draw button), so failures stay quiet.
+  const toolBanner = trpc.slideTools.generateBanner.useMutation({
+    onSuccess: () => void utils.slideTools.list.invalidate(),
+    onError: () => undefined,
+  });
   const create = trpc.slideTools.create.useMutation({
     onSuccess: async ({ slug }) => {
+      toolBanner.mutate({ slug });
       await utils.slideTools.list.invalidate();
       runOn(slug);
     },

@@ -11,7 +11,9 @@ import {
   Sparkles,
   Hand,
   BadgeCheck,
+  RefreshCw,
 } from 'lucide-react';
+import { PencilSpinner } from '@/components/sketch/SketchButton';
 import { Toaster } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { ContentSource, LessonSeed, RepoTemplate } from '@contracts/types';
@@ -134,6 +136,77 @@ export function TemplateIcon({
 }) {
   const Icon = TEMPLATE_META[template]?.icon ?? BookOpen;
   return <Icon className={cn('h-[18px] w-[18px]', className)} strokeWidth={2} />;
+}
+
+/**
+ * The thin AI banner strip on a card, sitting between the owner row and the
+ * title — toolbar-button thick, full card width, cropped to the middle band
+ * (the generator is told this shape, so it composes for it). The owner gets
+ * a Draw button when none exists yet and a Refresh over the image to reseed
+ * a new one from the same stored prompt. One component for slide-tool cards
+ * and repo cards, so the strip reads identically on both.
+ */
+export function CardBanner({
+  url,
+  canEdit,
+  busy,
+  onDraw,
+  className,
+}: {
+  url: string | null;
+  canEdit: boolean;
+  busy: boolean;
+  onDraw: () => void;
+  className?: string;
+}) {
+  if (!url && !canEdit) return null;
+  if (!url) {
+    return (
+      <button
+        type="button"
+        disabled={busy}
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          onDraw();
+        }}
+        title="Have the AI draw a banner strip from this item's own content (costs credits)"
+        className={cn(
+          'micro flex h-11 w-full items-center justify-center gap-1.5 rounded-wobble-sm border-2 border-dashed border-pencil text-[0.6rem] font-bold text-ink-faint transition-colors hover:border-ink hover:text-ink disabled:cursor-wait',
+          className,
+        )}
+      >
+        {busy ? <PencilSpinner /> : <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />}
+        {busy ? 'Drawing…' : 'Draw banner'}
+      </button>
+    );
+  }
+  return (
+    <div className={cn('relative', className)}>
+      <img
+        src={url}
+        alt=""
+        loading="lazy"
+        className="h-11 w-full rounded-wobble-sm border-2 border-ink object-cover object-center"
+      />
+      {canEdit && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onDraw();
+          }}
+          aria-label="Redraw banner"
+          title="Draw a fresh banner from the same prompt (costs credits)"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-wobble-sm border-2 border-transparent bg-paper-3/85 p-1 text-ink-soft transition-colors hover:border-dashed hover:border-ink hover:text-ink disabled:cursor-wait"
+        >
+          {busy ? <PencilSpinner /> : <RefreshCw className="h-3.5 w-3.5" strokeWidth={2} />}
+        </button>
+      )}
+    </div>
+  );
 }
 
 /**

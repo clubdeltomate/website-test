@@ -1,12 +1,13 @@
 import { memo } from 'react';
 import { Link } from 'react-router';
 import { motion } from 'framer-motion';
-import { ChevronRight, Star, Trash2 } from 'lucide-react';
+import { ChevronRight, Star, Trash2, UserRoundPlus } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import Chip from '@/components/sketch/Chip';
 import { trpc } from '@/providers/trpc';
 import type { RepoSummary } from '@contracts/types';
-import { ProgressStrip, SourceBadge, TemplateIcon, TEMPLATE_CIRCLE_BG, VerifiedBadge, relTime } from './shared';
+import { CardBanner, ProgressStrip, SourceBadge, TemplateIcon, TEMPLATE_CIRCLE_BG, VerifiedBadge, relTime } from './shared';
 
 export interface RepoCardProps {
   repo: RepoSummary;
@@ -15,6 +16,8 @@ export interface RepoCardProps {
   /** admin or the repo's owner — shows a trash icon to delete from the gallery */
   canDelete?: boolean;
   onDelete?: (repo: RepoSummary) => void;
+  /** owner/moderator/admin — shows the Assign button that opens the popup */
+  onAssign?: (repo: RepoSummary) => void;
 }
 
 /**
@@ -22,10 +25,18 @@ export interface RepoCardProps {
  * doodle in a yellow-soft circle, repo-ref chip, favorite doodle-star, progress
  * strip. Hover lifts the card and prefetches the detail payload.
  */
-function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete }: RepoCardProps) {
+function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete, onAssign }: RepoCardProps) {
   const utils = trpc.useUtils();
   // progress strip shows the viewer's OWN completed UNITS, not global runs
   const played = Math.min(repo.myCompletedUnits, repo.unitCount);
+  const banner = trpc.repos.generateBanner.useMutation({
+    onSuccess: (r) => {
+      toast.success(`Banner drawn — ${r.cost} 🪙`);
+      void utils.repos.list.invalidate();
+      void utils.auth.me.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   return (
     <motion.div
@@ -96,6 +107,15 @@ function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete }: R
           </span>
         </div>
 
+        {/* thin AI banner strip between the top row and the title */}
+        <CardBanner
+          url={repo.bannerUrl}
+          canEdit={!!canDelete}
+          busy={banner.isPending}
+          onDraw={() => banner.mutate({ slug: repo.slug })}
+          className="mt-3"
+        />
+
         {/* title + slug */}
         <h3 className="mt-3 line-clamp-2 font-heading text-lg font-semibold leading-snug text-ink">
           {repo.title}
@@ -109,6 +129,26 @@ function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete }: R
             {repo.template}
           </Chip>
           <SourceBadge source={repo.source} />
+          {repo.assigned && (
+            <Chip kind="neutral" className="border-blue bg-blue-soft" title="A moderator put this on your shelf">
+              assigned
+            </Chip>
+          )}
+          {onAssign && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onAssign(repo);
+              }}
+              aria-label="Assign to a user"
+              title="Assign — put this notebook on another user's shelf"
+              className="ml-auto rounded-wobble-sm border-2 border-dashed border-pencil p-1 text-ink-faint transition-colors hover:border-ink hover:text-ink"
+            >
+              <UserRoundPlus className="h-3.5 w-3.5" strokeWidth={2} />
+            </button>
+          )}
         </div>
 
         {/* meta row */}

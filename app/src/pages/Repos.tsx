@@ -25,6 +25,7 @@ import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 import type { RepoSummary, RepoTemplate } from '@contracts/types';
 import RepoCard from '@/components/repo/RepoCard';
+import AssignModal from '@/components/repo/AssignModal';
 import {
   ProgressStrip,
   SketchToaster,
@@ -75,6 +76,10 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
   const [view, setView] = useState<'cards' | 'table'>('cards');
   const [page, setPage] = useState(1);
   const [authWallOpen, setAuthWallOpen] = useState(false);
+  /** The repo whose Assign popup is open (hand it to another user's shelf). */
+  const [assignFor, setAssignFor] = useState<RepoSummary | null>(null);
+  const canAssignRepo = (repo: RepoSummary) =>
+    !isGuest && (role === 'admin' || role === 'moderator' || (!!user && repo.ownerName === user.name));
 
   const list = trpc.repos.list.useQuery(
     {
@@ -178,7 +183,21 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
           <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-ink bg-yellow-soft text-ink">
             <TemplateIcon template={row.template} className="h-3.5 w-3.5" />
           </span>
+          {/* the card banner, shrunk to a table thumbnail */}
+          {row.bannerUrl && (
+            <img
+              src={row.bannerUrl}
+              alt=""
+              loading="lazy"
+              className="h-8 w-20 shrink-0 rounded-wobble-sm border-2 border-ink object-cover object-center"
+            />
+          )}
           <span className="font-heading font-semibold text-ink">{row.title}</span>
+          {row.assigned && (
+            <Chip kind="neutral" className="border-blue bg-blue-soft text-[0.55rem]" title="A moderator put this on your shelf">
+              assigned
+            </Chip>
+          )}
           {row.source === 'ai' && (
             <span
               title="Generated with AI"
@@ -257,6 +276,15 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
         onClose={() => setAuthWallOpen(false)}
         message="Sign in to create repositories and pin favorites to your shelf."
       />
+      {assignFor && (
+        <AssignModal
+          open
+          onClose={() => setAssignFor(null)}
+          targetType="repo"
+          slug={assignFor.slug}
+          title={assignFor.title}
+        />
+      )}
 
       {/* guest banner */}
       {isGuest && (
@@ -488,6 +516,7 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
                     onToggleFavorite={onToggleFavorite}
                     canDelete={canDeleteRepo(repo)}
                     onDelete={onDeleteRepo}
+                    onAssign={canAssignRepo(repo) ? setAssignFor : undefined}
                   />
                 ))}
               </motion.div>

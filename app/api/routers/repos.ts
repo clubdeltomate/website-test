@@ -18,6 +18,8 @@ import {
   type User,
 } from "../../db/schema.js";
 import { repoRef, slugify, templateSchema } from "../ai/prompts.js";
+import { makeCardBanner } from "../card-banner.js";
+import { assignedSlugs } from "./assignments.js";
 import { externalizeDeckImages, IMAGE_URL_PREFIX } from "../deck-images.js";
 import { generateImage } from "../ai/provider.js";
 import { courseMemory } from "../memory.js";
@@ -358,6 +360,10 @@ export async function repoSummaries(repoRows: Repo[], userId: number | undefined
       ownerId: repo.ownerId ?? null,
       ownerName,
       ownerVerified,
+      bannerUrl: repo.bannerImageId != null ? `${IMAGE_URL_PREFIX}${repo.bannerImageId}` : null,
+      // Whether THIS viewer holds an assignment is a shelf question, answered
+      // where the shelf is assembled (list) — a lone summary defaults to no.
+      assigned: false,
       createdAt: repo.createdAt,
     });
   }
@@ -413,9 +419,59 @@ export const reposRouter = createRouter({
         .where(conds.length ? and(...conds) : undefined)
         .orderBy(desc(repos.createdAt))
         .limit(input?.limit ?? 50);
-      const summaries = await repoSummaries(rows, ctx.user?.id);
+      // The personal shelf also carries what a moderator handed this user:
+      // assigned repos appear beside their own, tagged so the card says why.
+      const assignedSet = new Set<string>();
+      if (input?.mine && ctx.user) {
+        for (const slug of await assignedSlugs(ctx.user.id, "repo")) {
+          assignedSet.add(slug);
+          if (!rows.some((r) => r.slug === slug)) {
+            const extra = await db.query.repos.findFirst({ where: eq(repos.slug, slug) });
+            if (extra) rows.push(extra);
+          }
+        }
+      }
+      const summaries = (await repoSummaries(rows, ctx.user?.id)).map((s) => ({
+        ...s,
+        assigned: assignedSet.has(s.slug),
+      }));
       // favorites first for signed-in users
       return summaries.sort((a, b) => Number(b.favorite) - Number(a.favorite));
+    }),
+
+  /**
+   * Draw (or redraw) the repo card's banner strip. Same contract as the
+   * slide-tool banner: first draw builds the prompt from the repo's own
+   * content and stores it, Refresh reseeds from that stored prompt.
+   */
+  generateBanner: authedProcedure
+    .input(z.object({ slug: z.string().min(1) }))
+    .mutation(async ({ ctx, input }): Promise<{ url: string; cost: number }> => {
+      const db = getDb();
+      const repo = await db.query.repos.findFirst({ where: eq(repos.slug, input.slug) });
+      if (!repo) throw new TRPCError({ code: "NOT_FOUND", message: "Repository not found" });
+      if (!canEdit(repo, ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only the repo's owner can draw its banner" });
+      }
+      let subject = repo.bannerPrompt;
+      if (!subject) {
+        const repoUnits = await db
+          .select({ title: units.title })
+          .from(units)
+          .where(eq(units.repoId, repo.id))
+          .orderBy(asc(units.orderIndex));
+        subject =
+          `A header banner for a course notebook called "${repo.title}" — ${repo.description.slice(0, 200)}.` +
+          (repoUnits.length > 0
+            ? ` Its units: ${repoUnits.slice(0, 6).map((u) => u.title).join("; ")}.`
+            : "");
+      }
+      const { imageId, cost } = await makeCardBanner(ctx.user, subject);
+      await db
+        .update(repos)
+        .set({ bannerImageId: imageId, bannerPrompt: subject })
+        .where(eq(repos.id, repo.id));
+      return { url: `${IMAGE_URL_PREFIX}${imageId}`, cost };
     }),
 
   getBySlug: publicQuery
