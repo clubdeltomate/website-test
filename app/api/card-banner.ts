@@ -20,16 +20,31 @@ const STRIP_SHAPE =
 
 /**
  * Two looks, deliberately different so the two kinds of cards read apart at
- * a glance: a REPO is a notebook, so its banner is pencil on notebook paper;
- * a SLIDE TOOL is a finished presentation, so its banner is a little
- * watercolor painting.
+ * a glance: a REPO banner is university-catalog photography whose scene
+ * deepens with the course's level; a SLIDE TOOL banner is a hyper-real
+ * photograph of its category's fixed scene.
  */
 export const REPO_BANNER_DIRECTIVE =
-  `${STRIP_SHAPE} Style, strictly: a student's hand-drawn sketch on a blank sheet of white ` +
-  "notebook paper. Loose pencil-and-ink doodles of things from the subject, with a few short " +
-  "handwritten words or labels from the lesson scattered between them, like margin notes. " +
-  "Sketch lines and paper texture only — NOT a photograph, NOT digital flat design, NOT " +
-  "glossy illustration. No faces, no full figures.";
+  `${STRIP_SHAPE} Style, strictly: the photography of a university course catalog — real ` +
+  "people genuinely engaged with the subject, warm natural light, sharp professional " +
+  "campus-prospectus quality. A realistic photograph — NOT an illustration, NOT a sketch, " +
+  "NOT digital art. No text, no watermarks.";
+
+/**
+ * How deep the repo banner's scene goes, by the course's level. A0 shows
+ * beginners taking their first steps; each step up shows the subject worked
+ * further out in the field, until C2 is fully professional — the same way a
+ * restaurant course's meal grows from a small order to a laden table.
+ */
+export const LEVEL_BANNER_STAGES: Record<string, string> = {
+  A0: "absolute beginners at their very first lesson — a welcoming classroom, first steps, everything still new",
+  A1: "beginners finding their feet — simple guided practice in the classroom, small early wins",
+  A2: "early learners trying the subject out in simple real-life situations for the first time",
+  B1: "confident students taking the subject into the world — everyday real settings, growing independence",
+  B2: "immersed students handling rich, substantial material — fuller, busier, more generous scenes",
+  C1: "advanced students working shoulder to shoulder with professionals — depth, detail, specialist settings",
+  C2: "the field practiced at full professional mastery — expert hands, serious settings, the complete picture",
+};
 
 export const TOOL_BANNER_DIRECTIVE =
   `${STRIP_SHAPE} Style, strictly: a HYPER-REALISTIC photograph — as real as it gets. ` +

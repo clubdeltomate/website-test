@@ -18,7 +18,7 @@ import {
   type User,
 } from "../../db/schema.js";
 import { repoRef, slugify, templateSchema } from "../ai/prompts.js";
-import { makeCardBanner, REPO_BANNER_DIRECTIVE } from "../card-banner.js";
+import { LEVEL_BANNER_STAGES, makeCardBanner, REPO_BANNER_DIRECTIVE } from "../card-banner.js";
 import { assignedSlugs } from "./assignments.js";
 import { externalizeDeckImages, IMAGE_URL_PREFIX } from "../deck-images.js";
 import { generateImage } from "../ai/provider.js";
@@ -456,19 +456,30 @@ export const reposRouter = createRouter({
       if (!canEdit(repo, ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only the repo's owner can draw its banner" });
       }
-      let subject = repo.bannerPrompt;
-      if (!subject) {
-        const repoUnits = await db
-          .select({ title: units.title })
-          .from(units)
-          .where(eq(units.repoId, repo.id))
-          .orderBy(asc(units.orderIndex));
-        subject =
-          `A header banner for a course notebook called "${repo.title}" — ${repo.description.slice(0, 200)}.` +
-          (repoUnits.length > 0
-            ? ` Its units: ${repoUnits.slice(0, 6).map((u) => u.title).join("; ")}.`
-            : "");
+      // Computed fresh every generation (not read back from the stored
+      // prompt) so a style change reaches old cards through Refresh. The
+      // scene's DEPTH follows the course's level: beginners in a classroom
+      // at A0, the field practiced professionally by C2.
+      let level = "A1";
+      if (repo.studyToolSlug) {
+        const tool = await db.query.slideTools.findFirst({
+          where: eq(slideTools.slug, repo.studyToolSlug),
+        });
+        level = tool?.defaultLevel ?? "A1";
       }
+      const stage = LEVEL_BANNER_STAGES[level] ?? LEVEL_BANNER_STAGES.A1;
+      const repoUnits = await db
+        .select({ title: units.title })
+        .from(units)
+        .where(eq(units.repoId, repo.id))
+        .orderBy(asc(units.orderIndex));
+      const subject =
+        `University catalog photography for a ${level}-level course "${repo.title}" — ` +
+        `${repo.description.slice(0, 160)}.` +
+        (repoUnits.length > 0
+          ? ` It covers: ${repoUnits.slice(0, 5).map((u) => u.title).join("; ")}.`
+          : "") +
+        ` Show ${stage}.`;
       const { imageId, cost } = await makeCardBanner(ctx.user, subject, REPO_BANNER_DIRECTIVE);
       await db
         .update(repos)
