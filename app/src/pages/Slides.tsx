@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 import { trpc } from '@/providers/trpc';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
-import type { RepoTemplate, SlideToolSummary } from '@contracts/types';
+import { TEXT_GRADE_COST, type RepoTemplate, type SlideToolSummary } from '@contracts/types';
 import SketchButton from '@/components/sketch/SketchButton';
 import Chip from '@/components/sketch/Chip';
 import SketchCard from '@/components/sketch/SketchCard';
@@ -32,6 +32,7 @@ import EmptyState from '@/components/sketch/EmptyState';
 import AuthWall from '@/components/AuthWall';
 import { Toaster } from '@/components/ui/sonner';
 import CreateToolModal from '@/components/slides/CreateToolModal';
+import { SketchModal } from '@/components/admin/overlays';
 import { SourceBadge, TemplateIcon, TEMPLATE_CIRCLE_BG, TEMPLATE_META, VerifiedBadge } from '@/components/repo/shared';
 
 type SortKey = 'recent' | 'name' | 'plays';
@@ -104,6 +105,22 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
   const [page, setPage] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  /**
+   * The tool waiting behind the cost dialog. Playing a deck whose typed
+   * answers are AI-checked spends coins, so pressing Play (or the card)
+   * asks first, quoting the real number. Free decks — multiple-choice,
+   * fill-blank, no quiz — skip straight to the player, and Best run is
+   * always a free read.
+   */
+  const [costGate, setCostGate] = useState<SlideToolSummary | null>(null);
+  const openPlay = (tool: SlideToolSummary) => {
+    if (!tool.hasDeck && tool.runCount === 0) {
+      navigate(`/slides/${tool.slug}`); // a draft has nothing to play yet
+      return;
+    }
+    if (tool.aiCheckCount > 0) setCostGate(tool);
+    else navigate(`/slides/show/${tool.slug}`);
+  };
   const [menuFor, setMenuFor] = useState<string | null>(null);
 
   const toolsQuery = trpc.slideTools.list.useQuery(
@@ -590,9 +607,7 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                         isDraft && 'border-dashed !border-green',
                       )}
                       onMouseEnter={() => prefetch(tool.slug)}
-                      onClick={() =>
-                        navigate(tool.hasDeck ? `/slides/show/${tool.slug}` : `/slides/${tool.slug}`)
-                      }
+                      onClick={() => openPlay(tool)}
                     >
                       <div className="flex items-start justify-between">
                         <span className="flex min-w-0 items-center gap-2">
@@ -655,12 +670,29 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                         <p className="font-mono text-xs text-ink-faint">{tool.slug}</p>
                       </div>
 
-                      {/* Just the level and an authorship logo — the image
-                          style and the Direct/repo-ref stickers said more
-                          about the card than anyone needed to read. */}
+                      {/* Just the level, an authorship logo, and whether
+                          playing costs anything — the image style and the
+                          Direct/repo-ref stickers said more about the card
+                          than anyone needed to read. */}
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Chip kind={tool.defaultLevel}>{tool.defaultLevel}</Chip>
                         <SourceBadge source={tool.source} compact />
+                        {!isDraft &&
+                          (tool.aiCheckCount > 0 ? (
+                            <span
+                              title={`${tool.aiCheckCount} typed answer${tool.aiCheckCount === 1 ? ' is' : 's are'} checked by AI at ${TEXT_GRADE_COST} 🪙 each — about ${tool.aiCheckCount * TEXT_GRADE_COST} 🪙 for a clean run. Multiple-choice checks are free.`}
+                              className="inline-flex items-center gap-1 rounded-wobble-sm border-2 border-orange bg-yellow-soft px-1.5 py-0.5 font-heading text-[0.6rem] font-bold text-ink"
+                            >
+                              🪙 ~{tool.aiCheckCount * TEXT_GRADE_COST}
+                            </span>
+                          ) : (
+                            <span
+                              title="Every question here is checked on your device — playing costs nothing"
+                              className="inline-flex items-center gap-1 rounded-wobble-sm border-2 border-green bg-green-soft px-1.5 py-0.5 font-heading text-[0.6rem] font-bold text-green"
+                            >
+                              Free
+                            </span>
+                          ))}
                       </div>
 
                       <p className="micro text-ink-faint">
@@ -694,17 +726,20 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                           // — free, nothing regenerated, never the settings
                           // page. Best run browses what was answered.
                           <>
-                            <Link to={`/slides/show/${tool.slug}`}>
-                              <SketchButton
-                                variant="accent"
-                                size="sm"
-                                className="w-40 justify-center"
-                                title="Play this presentation again — free, nothing regenerated"
-                              >
-                                <Play className="h-3.5 w-3.5" strokeWidth={2.5} />
-                                Play
-                              </SketchButton>
-                            </Link>
+                            <SketchButton
+                              variant="accent"
+                              size="sm"
+                              className="w-40 justify-center"
+                              title={
+                                tool.aiCheckCount > 0
+                                  ? `Play — typed answers are AI-checked (~${tool.aiCheckCount * TEXT_GRADE_COST} 🪙), you'll be asked first`
+                                  : 'Play this presentation — free, nothing regenerated'
+                              }
+                              onClick={() => openPlay(tool)}
+                            >
+                              <Play className="h-3.5 w-3.5" strokeWidth={2.5} />
+                              Play
+                            </SketchButton>
                             {tool.bestRunId != null ? (
                               <Link to={`/runs/${tool.bestRunId}/replay`}>
                                 <SketchButton
@@ -757,17 +792,16 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                           </>
                         ) : (
                           <>
-                            <Link to={`/slides/show/${tool.slug}`}>
-                              <SketchButton
-                                variant="accent"
-                                size="sm"
-                                className="w-40 justify-center"
-                                title="Play the latest generation of this presentation — free"
-                              >
-                                <Play className="h-3.5 w-3.5" strokeWidth={2.5} />
-                                Play
-                              </SketchButton>
-                            </Link>
+                            <SketchButton
+                              variant="accent"
+                              size="sm"
+                              className="w-40 justify-center"
+                              title="Play the latest generation of this presentation — free"
+                              onClick={() => openPlay(tool)}
+                            >
+                              <Play className="h-3.5 w-3.5" strokeWidth={2.5} />
+                              Play
+                            </SketchButton>
                             <Link to={`/slides/${tool.slug}`}>
                               <SketchButton variant="ghost" size="sm">
                                 Open
@@ -847,6 +881,50 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
         </p>
       )}
 
+      {/* Cost gate — playing an AI-checked deck spends coins, so ask first.
+          Best run stays the free way to read the material. */}
+      <SketchModal
+        open={costGate != null}
+        onClose={() => setCostGate(null)}
+        title="This lesson checks answers with AI"
+        maxWidth="max-w-[480px]"
+      >
+        {costGate && (
+          <div className="space-y-4">
+            <p className="text-sm text-ink-soft">
+              <strong className="text-ink">{costGate.name}</strong> has{' '}
+              {costGate.aiCheckCount} typed question{costGate.aiCheckCount === 1 ? '' : 's'} graded
+              by AI at {TEXT_GRADE_COST} 🪙 per check — about{' '}
+              <strong className="text-ink">{costGate.aiCheckCount * TEXT_GRADE_COST} 🪙</strong> for
+              a clean run (extra tries cost too). Multiple-choice questions are checked on your
+              device and stay free. Without enough coins a simpler checker grades your typed
+              answers instead.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <SketchButton
+                variant="accent"
+                onClick={() => {
+                  const slug = costGate.slug;
+                  setCostGate(null);
+                  navigate(`/slides/show/${slug}`);
+                }}
+              >
+                <Play className="h-4 w-4" strokeWidth={2.5} /> Play anyway
+              </SketchButton>
+              {costGate.bestRunId != null && (
+                <Link to={`/runs/${costGate.bestRunId}/replay`} onClick={() => setCostGate(null)}>
+                  <SketchButton variant="secondary">
+                    <Eye className="h-4 w-4" strokeWidth={2} /> Read the best run — free
+                  </SketchButton>
+                </Link>
+              )}
+              <SketchButton variant="ghost" onClick={() => setCostGate(null)}>
+                Cancel
+              </SketchButton>
+            </div>
+          </div>
+        )}
+      </SketchModal>
       <CreateToolModal open={createOpen} onClose={() => setCreateOpen(false)} />
       <AuthWall
         open={authOpen}

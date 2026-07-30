@@ -45,6 +45,7 @@ import { typedOverlapCorrect } from "../../contracts/grade.js";
 import {
   LEVELS,
   MAX_DECK_SLIDES,
+  TEXT_GRADE_COST,
   repoPurpose,
   templateFilterPurpose,
   TICKET_DECK_LIMITS,
@@ -1290,8 +1291,13 @@ RULES:
 
   /**
    * Grade a typed free-text answer against the question's reference answer.
-   * Uses the AI when a text key is configured; otherwise falls back to a
-   * lenient token-overlap check so typed questions still work keyless.
+   *
+   * The AI check costs TEXT_GRADE_COST 🪙 and only runs for a signed-in
+   * player who can afford it — charged per check, only after the AI actually
+   * delivered a verdict. Everyone else (guests, empty balances, AI outage)
+   * gets the lenient token-overlap check for free, so a typed question never
+   * strands a student mid-lesson; multiple-choice and fill-blank never come
+   * here at all and stay free.
    */
   gradeTyped: publicQuery
     .input(
@@ -1304,8 +1310,10 @@ RULES:
     .mutation(async ({ ctx, input }): Promise<{ correct: boolean; feedback: string }> => {
       const student = input.answer.trim();
       if (!student) return { correct: false, feedback: "No answer was entered." };
+      const aiAllowed = !!ctx.user && ctx.user.tokenBalance >= TEXT_GRADE_COST;
 
       try {
+        if (!aiAllowed) throw new Error("skip AI: guest or empty balance — overlap check instead");
         const result = await completeText({
           userId: ctx.user?.id,
           messages: [
@@ -1327,6 +1335,13 @@ RULES:
             feedback?: string;
           };
           if (typeof parsed.correct === "boolean") {
+            // Charged here, after the verdict exists — a failed AI call costs
+            // nothing and falls through to the free overlap check below.
+            await applyTokenDelta(
+              ctx.user!.id,
+              -TEXT_GRADE_COST,
+              `answer check: ${input.question.slice(0, 55)}`,
+            );
             return {
               correct: parsed.correct,
               feedback:

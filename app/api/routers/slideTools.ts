@@ -8,7 +8,7 @@ import { favoriteSlugs } from "./repos.js";
 import { externalizeDeckImages } from "../deck-images.js";
 import { favorites, runs, slideTools, users, type SlideTool, type User } from "../../db/schema.js";
 import { imageStyleSchema, levelSchema, slugify, templateSchema } from "../ai/prompts.js";
-import { TONES, repoPurpose } from "../../contracts/types.js";
+import { AI_CHECKED_KINDS, TONES, repoPurpose } from "../../contracts/types.js";
 import type { RepoTemplate, SlideDeck, SlideToolSummary, Tone } from "../../contracts/types.js";
 
 const toneSchema = z.string().refine((t) => (TONES as string[]).includes(t), "unknown tone");
@@ -51,6 +51,31 @@ export async function toSummary(tool: SlideTool, userId: number | undefined): Pr
   }, null);
   const keyRun = allRuns.find((r) => r.isAnswerKey) ?? null;
   const deck = tool.deckJson != null ? (tool.deckJson as SlideDeck) : null;
+
+  // Count the AI-checked questions in whatever Play would actually open: the
+  // saved deck, or the latest generation's snapshot. This is the number the
+  // card's Free/paid sticker and the pre-play cost dialog quote — 0 for a
+  // multiple-choice-only deck, which is checked locally and plays free.
+  let deckForCost = deck;
+  if (deckForCost == null) {
+    try {
+      const [latest] = await db
+        .select({ deckJson: runs.deckJson })
+        .from(runs)
+        .where(and(eq(runs.slideToolId, tool.id), isNotNull(runs.deckJson)))
+        .orderBy(desc(runs.completedAt))
+        .limit(1);
+      deckForCost = (latest?.deckJson as SlideDeck | undefined) ?? null;
+    } catch (err) {
+      console.warn("[slideTools] cost lookup unavailable:", err instanceof Error ? err.message : err);
+    }
+  }
+  const aiCheckCount =
+    deckForCost != null && Array.isArray(deckForCost.slides)
+      ? deckForCost.slides.filter(
+          (s) => s.quiz && (AI_CHECKED_KINDS as readonly string[]).includes(s.quiz.kind ?? "mcq"),
+        ).length
+      : 0;
   let favorite = false;
   if (userId) {
     const fav = await db.query.favorites.findFirst({
@@ -97,6 +122,7 @@ export async function toSummary(tool: SlideTool, userId: number | undefined): Pr
         ? deck.slides.some((s) => s.quiz != null)
         : repoPurpose((tool.template ?? "course") as RepoTemplate) === "education",
     bestRunId: bestPlayed?.id ?? keyRun?.id ?? null,
+    aiCheckCount,
   };
 }
 
