@@ -1,4 +1,4 @@
-import { ChartColumnBig, FolderKanban, Gauge, Landmark } from 'lucide-react';
+import { ChartColumnBig, FolderKanban, Gauge, Landmark, Megaphone } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import Chip from '@/components/sketch/Chip';
 import AdminGate from '@/components/admin/AdminGate';
@@ -42,6 +42,14 @@ function HomeBody() {
       tone: 'green',
       title: 'Finance',
       blurb: 'Model costs, coin prices, receipts & API spend',
+      adminOnly: true,
+    },
+    {
+      to: '/admin/projects/marketing',
+      icon: Megaphone,
+      tone: 'purple',
+      title: 'Marketing',
+      blurb: 'Compose 9:16 posts with a caption band you can colour',
       adminOnly: true,
     },
   ];

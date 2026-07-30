@@ -10,6 +10,7 @@ import { runsRouter } from "./routers/runs.js";
 import { lessonsRouter, unitsRouter } from "./routers/lessons.js";
 import { unitImagesRouter } from "./routers/unitImages.js";
 import { assignmentsRouter } from "./routers/assignments.js";
+import { marketingRouter } from "./routers/marketing.js";
 import { keysRouter } from "./routers/keys.js";
 import { tokensRouter } from "./routers/tokens.js";
 import { paymentsRouter } from "./routers/payments.js";
@@ -64,6 +65,7 @@ export const appRouter = createRouter({
   lessons: lessonsRouter,
   unitImages: unitImagesRouter,
   assignments: assignmentsRouter,
+  marketing: marketingRouter,
   keys: keysRouter,
   tokens: tokensRouter,
   payments: paymentsRouter,
