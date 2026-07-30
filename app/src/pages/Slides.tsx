@@ -646,6 +646,7 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                           <OwnerAvatar
                             ownerId={tool.ownerId}
                             ownerName={tool.ownerName}
+                            avatarUrl={tool.ownerAvatarUrl}
                             template={tool.template}
                           />
                           {isDraft && (

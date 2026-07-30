@@ -338,10 +338,12 @@ export async function repoSummaries(repoRows: Repo[], userId: number | undefined
     ).length;
     let ownerName: string | null = null;
     let ownerVerified = false;
+    let ownerAvatarUrl: string | null = null;
     if (repo.ownerId) {
       const owner = await db.query.users.findFirst({ where: eq(users.id, repo.ownerId) });
       ownerName = owner?.name ?? null;
       ownerVerified = owner?.verified ?? false;
+      ownerAvatarUrl = owner?.avatarImageId != null ? `${IMAGE_URL_PREFIX}${owner.avatarImageId}` : null;
     }
     out.push({
       slug: repo.slug,
@@ -360,6 +362,7 @@ export async function repoSummaries(repoRows: Repo[], userId: number | undefined
       ownerId: repo.ownerId ?? null,
       ownerName,
       ownerVerified,
+      ownerAvatarUrl,
       bannerUrl: repo.bannerImageId != null ? `${IMAGE_URL_PREFIX}${repo.bannerImageId}` : null,
       // Whether THIS viewer holds an assignment is a shelf question, answered
       // where the shelf is assembled (list) — a lone summary defaults to no.

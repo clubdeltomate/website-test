@@ -90,6 +90,10 @@ export async function ensureRequiredSchema(): Promise<void> {
     await client.query(
       `ALTER TABLE sketchlearn."slideTools" ADD COLUMN IF NOT EXISTS "bannerPrompt" text`,
     );
+    // Profile picture; every users query selects the column.
+    await client.query(
+      `ALTER TABLE sketchlearn.users ADD COLUMN IF NOT EXISTS "avatarImageId" integer`,
+    );
     // Items handed to a user by a moderator; shelf queries read it.
     await client.query(
       `CREATE TABLE IF NOT EXISTS sketchlearn.assignments (

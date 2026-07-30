@@ -148,11 +148,14 @@ export function TemplateIcon({
 export function OwnerAvatar({
   ownerId,
   ownerName,
+  avatarUrl,
   template,
   className,
 }: {
   ownerId: number | null;
   ownerName: string | null;
+  /** profile picture; falls back to the initial letter when null */
+  avatarUrl?: string | null;
   template: RepoTemplate;
   className?: string;
 }) {
@@ -181,9 +184,16 @@ export function OwnerAvatar({
       }}
       title={`Open ${ownerName}'s profile`}
       aria-label={`Open ${ownerName}'s profile`}
-      className={cn(circle, 'cursor-pointer font-display text-xl font-bold transition-transform hover:scale-110')}
+      className={cn(
+        circle,
+        'cursor-pointer overflow-hidden font-display text-xl font-bold transition-transform hover:scale-110',
+      )}
     >
-      {ownerName.charAt(0).toUpperCase()}
+      {avatarUrl ? (
+        <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+      ) : (
+        ownerName.charAt(0).toUpperCase()
+      )}
     </button>
   );
 }

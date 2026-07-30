@@ -185,8 +185,12 @@ export default function UserProfile() {
 
       {/* header */}
       <section className="flex flex-wrap items-start gap-4 rounded-wobble-2 border-2 border-ink bg-paper-3 p-5 shadow-offset">
-        <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-2 border-ink bg-blue-soft font-display text-4xl text-ink shadow-offset">
-          {p.name.charAt(0).toUpperCase()}
+        <span className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-ink bg-blue-soft font-display text-4xl text-ink shadow-offset">
+          {p.avatarUrl ? (
+            <img src={p.avatarUrl} alt={`${p.name}'s profile picture`} className="h-full w-full object-cover" />
+          ) : (
+            p.name.charAt(0).toUpperCase()
+          )}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">

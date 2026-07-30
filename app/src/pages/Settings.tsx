@@ -23,6 +23,7 @@ import SketchButton from '@/components/sketch/SketchButton';
 import SketchCard from '@/components/sketch/SketchCard';
 import SketchTable from '@/components/sketch/SketchTable';
 import Chip from '@/components/sketch/Chip';
+import { SketchModal } from '@/components/admin/overlays';
 import StickyNote from '@/components/sketch/StickyNote';
 import WashiTape from '@/components/sketch/WashiTape';
 import TokenMeter from '@/components/sketch/TokenMeter';
@@ -91,6 +92,36 @@ function ProfileTab() {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  /** The AI-portrait cost confirmation — generation only starts from here. */
+  const [portraitAsk, setPortraitAsk] = useState(false);
+
+  const utils = trpc.useUtils();
+  const setAvatar = trpc.users.setAvatar.useMutation({
+    onSuccess: (r) => {
+      toast.success(r.cost > 0 ? `Portrait painted — ${r.cost} 🪙` : 'Profile picture updated ✓');
+      setPortraitAsk(false);
+      void utils.auth.me.invalidate();
+    },
+    onError: (e) => {
+      setPortraitAsk(false);
+      toast.error(errMsg(e));
+    },
+  });
+  const onPickAvatar = (file: File | undefined) => {
+    if (!file) return;
+    const fr = new FileReader();
+    fr.onerror = () => toast.error("That file couldn't be read");
+    fr.onload = () => {
+      const out = String(fr.result);
+      const comma = out.indexOf(',');
+      setAvatar.mutate({
+        source: 'upload',
+        mime: file.type || 'image/png',
+        data: comma >= 0 ? out.slice(comma + 1) : out,
+      });
+    };
+    fr.readAsDataURL(file);
+  };
 
   const update = trpc.auth.updateProfile.useMutation({
     onSuccess: () => {
@@ -163,9 +194,38 @@ function ProfileTab() {
       <SketchCard className="relative">
         <WashiTape rotate={-3} />
         <div className="flex flex-wrap items-center gap-5">
-          <span className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-ink bg-purple-soft font-display text-4xl text-ink shadow-offset">
-            {user.name.charAt(0).toUpperCase()}
-          </span>
+          <div className="flex flex-col items-center gap-2">
+            <span className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-ink bg-purple-soft font-display text-4xl text-ink shadow-offset">
+              {user.avatarUrl ? (
+                <img src={user.avatarUrl} alt="Your profile picture" className="h-full w-full object-cover" />
+              ) : (
+                user.name.charAt(0).toUpperCase()
+              )}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <label
+                title="Upload your own picture — free"
+                className="micro cursor-pointer rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft transition-colors hover:border-ink hover:text-ink"
+              >
+                Upload
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="hidden"
+                  onChange={(e) => onPickAvatar(e.target.files?.[0])}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => setPortraitAsk(true)}
+                disabled={setAvatar.isPending}
+                title="Have the AI paint you an animal portrait themed on what you've published (costs credits — you'll be asked first)"
+                className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft transition-colors hover:border-ink hover:text-ink disabled:cursor-wait"
+              >
+                {setAvatar.isPending ? 'Working…' : '✨ AI portrait'}
+              </button>
+            </div>
+          </div>
           <div className="min-w-0">
             <p className="flex flex-wrap items-center gap-2 font-heading text-xl font-semibold text-ink">
               {user.name}
@@ -298,7 +358,54 @@ function ProfileTab() {
           </AnimatePresence>
         </div>
       </SketchCard>
+
+      {/* AI portrait cost gate — nothing generates until this is accepted */}
+      <SketchModal
+        open={portraitAsk}
+        onClose={() => setPortraitAsk(false)}
+        title="Paint your portrait with AI?"
+        maxWidth="max-w-[440px]"
+      >
+        <PortraitConfirm
+          pending={setAvatar.isPending}
+          onConfirm={() => setAvatar.mutate({ source: 'generate' })}
+          onCancel={() => setPortraitAsk(false)}
+        />
+      </SketchModal>
     </motion.div>
+  );
+}
+
+/** Body of the portrait cost gate: quotes the real price before any coins move. */
+function PortraitConfirm({
+  pending,
+  onConfirm,
+  onCancel,
+}: {
+  pending: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const quote = trpc.users.avatarQuote.useQuery();
+  const cost = quote.data?.cost;
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-ink-soft">
+        The AI paints you an <strong className="text-ink">animal character</strong> — never a
+        human — themed on what you've published here. Nothing published yet? You'll get a
+        fresh-notebook portrait instead. This costs{' '}
+        <strong className="text-ink">{cost != null ? `${cost} 🪙` : '…'}</strong>, charged only
+        if the picture actually arrives.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <SketchButton variant="accent" loading={pending} disabled={cost == null} onClick={onConfirm}>
+          Paint it — {cost != null ? `${cost} 🪙` : '…'}
+        </SketchButton>
+        <SketchButton variant="ghost" onClick={onCancel}>
+          Cancel
+        </SketchButton>
+      </div>
+    </div>
   );
 }
 
