@@ -9,6 +9,8 @@ import {
   Play,
   Plus,
   Presentation,
+  Eye,
+  Wand2,
   Sparkles,
   MoreHorizontal,
   Trash2,
@@ -651,26 +653,12 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                         <p className="font-mono text-xs text-ink-faint">{tool.slug}</p>
                       </div>
 
+                      {/* Just the level and an authorship logo — the image
+                          style and the Direct/repo-ref stickers said more
+                          about the card than anyone needed to read. */}
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Chip kind={tool.defaultLevel}>{tool.defaultLevel}</Chip>
-                        <Chip kind="neutral" className="gap-1.5">
-                          {tool.defaultImageStyle !== 'none' && (
-                            <img
-                              src={`/style-${tool.defaultImageStyle}.svg`}
-                              alt=""
-                              className="h-4 w-6 rounded-sm border border-ink object-cover"
-                            />
-                          )}
-                          {tool.defaultImageStyle}
-                        </Chip>
-                        {repo ? (
-                          <Chip kind="repo-ref">#{repo.ref}</Chip>
-                        ) : (
-                          <Chip kind="neutral" className="border-dashed">
-                            Direct
-                          </Chip>
-                        )}
-                        <SourceBadge source={tool.source} />
+                        <SourceBadge source={tool.source} compact />
                       </div>
 
                       <p className="micro text-ink-faint">
@@ -683,7 +671,66 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                         className="mt-auto flex items-center gap-2 border-t-2 border-dashed border-pencil pt-3"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {tool.hasDeck ? (
+                        {!tool.hasDeck && tool.runCount === 0 ? (
+                          // Configured but never generated — a green call-to-action.
+                          <>
+                            <Link to={`/slides/${tool.slug}`} className="no-underline">
+                              <span className="flex w-40 items-center justify-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-green px-3 py-1.5 text-sm font-bold text-paper-3 shadow-offset transition-colors hover:bg-[#3f8850]">
+                                <Sparkles className="h-3.5 w-3.5" strokeWidth={2.5} />
+                                Generate
+                              </span>
+                            </Link>
+                            <Link to={`/slides/${tool.slug}`}>
+                              <SketchButton variant="ghost" size="sm">
+                                Open
+                              </SketchButton>
+                            </Link>
+                          </>
+                        ) : tool.hasQuiz ? (
+                          // Quiz material: regenerate it your way, or browse
+                          // what has already been answered — the best run costs
+                          // nothing to read, which is the whole point.
+                          <>
+                            <Link to={`/slides/${tool.slug}`}>
+                              <SketchButton variant="accent" size="sm" className="w-40 justify-center">
+                                <Wand2 className="h-3.5 w-3.5" strokeWidth={2.5} />
+                                Customize
+                              </SketchButton>
+                            </Link>
+                            {tool.bestRunId != null ? (
+                              <Link to={`/runs/${tool.bestRunId}/replay`}>
+                                <SketchButton
+                                  variant="ghost"
+                                  size="sm"
+                                  title="Scroll the best run — every slide with its answers, no credits"
+                                >
+                                  <Eye className="h-3.5 w-3.5" strokeWidth={2} />
+                                  Best run
+                                </SketchButton>
+                              </Link>
+                            ) : (
+                              <SketchButton
+                                variant="ghost"
+                                size="sm"
+                                disabled
+                                title="Play it once — or write the answer key — and the best run opens here"
+                              >
+                                <Eye className="h-3.5 w-3.5" strokeWidth={2} />
+                                Best run
+                              </SketchButton>
+                            )}
+                            {tool.hasDeck && canDeleteTool(tool) && (
+                              <Link to={`/slides/build/${tool.slug}`}>
+                                <SketchButton variant="ghost" size="sm">
+                                  <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                                  Edit
+                                </SketchButton>
+                              </Link>
+                            )}
+                          </>
+                        ) : tool.hasDeck ? (
+                          // No questions — nothing to answer, so watching the
+                          // saved deck is free for everyone.
                           <>
                             <Link to={`/slides/show/${tool.slug}`}>
                               <SketchButton variant="accent" size="sm" className="w-40 justify-center">
@@ -699,21 +746,6 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                                 </SketchButton>
                               </Link>
                             )}
-                          </>
-                        ) : tool.runCount === 0 ? (
-                          // Configured but never generated — a green call-to-action.
-                          <>
-                            <Link to={`/slides/${tool.slug}`} className="no-underline">
-                              <span className="flex w-40 items-center justify-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-green px-3 py-1.5 text-sm font-bold text-paper-3 shadow-offset transition-colors hover:bg-[#3f8850]">
-                                <Sparkles className="h-3.5 w-3.5" strokeWidth={2.5} />
-                                Generate
-                              </span>
-                            </Link>
-                            <Link to={`/slides/${tool.slug}`}>
-                              <SketchButton variant="ghost" size="sm">
-                                Open
-                              </SketchButton>
-                            </Link>
                           </>
                         ) : (
                           <>

@@ -115,6 +115,10 @@ export const lessons = appSchema.table(
     // without regenerating (used by commercial menu/service/shop items).
     presetDeckJson: json("presetDeckJson"),
     presetAt: timestamp("presetAt"),
+    // How many times an answer key has been written for this lesson. The key
+    // run itself is replaced on each rebuild, so the row keeps the count — it
+    // feeds the "played n×" chip when the completed state comes from a key.
+    answerKeyGenerations: integer("answerKeyGenerations").notNull().default(0),
   },
   (t) => [index("lessons_unit_idx").on(t.unitId)],
 );

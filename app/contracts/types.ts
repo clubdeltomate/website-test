@@ -481,6 +481,10 @@ export interface RepoLesson {
   myLastLevel: Level | null;
   myLastElapsedSec: number;
   myStatus: "unplayed" | "try-again" | "completed";
+  /** True when the completed state above comes from the published answer key
+      rather than a run the viewer played — a perfect run standing in until
+      the viewer earns one of their own. */
+  fromAnswerKey: boolean;
 }
 
 /** Per-slide layout info surfaced in the player (admin diagnostics): which
@@ -546,6 +550,14 @@ export interface SlideToolSummary {
   ownerId: number | null;
   ownerName: string | null;
   createdAt: Date;
+  /** True when this is quiz material — a saved deck with questions, or an
+      education tool that will generate them. Quiz cards offer Customize +
+      Best run instead of a plain Play. */
+  hasQuiz: boolean;
+  /** The run shown behind the card's "Best run" eye: the highest-scoring
+      played run, or the answer key when nobody has played yet. null until
+      either exists — the eye stays disabled. */
+  bestRunId: number | null;
 }
 
 /* ---------------- Runs & lesson logs -------------------------------- */

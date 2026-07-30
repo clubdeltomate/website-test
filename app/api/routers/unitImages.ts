@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import { createRouter } from "../middleware.js";
 import { authedProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
@@ -13,6 +13,21 @@ import { IMAGE_URL_PREFIX } from "../deck-images.js";
 /** Largest upload accepted, measured on the decoded bytes. */
 const MAX_UPLOAD_BYTES = 6 * 1024 * 1024;
 const ALLOWED_MIME = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"];
+
+/**
+ * Where a unit image actually ends up: a strip as wide as a lesson card and
+ * half as tall — roughly 6:1, cropped vertically to fit. Every AI generation
+ * for a unit goes through this directive, because a generator that doesn't
+ * know the shape puts a portrait in a letterbox: heads cut off, the subject
+ * out of frame. Told the truth about the strip, it can compose FOR it.
+ */
+const UNIT_BANNER_DIRECTIVE =
+  "This image is a decorative unit banner displayed as an ultra-wide horizontal strip, " +
+  "about 6:1 (very short for its width) — it will be cropped top and bottom to fit. " +
+  "Compose for that shape: small related objects, symbols or short words floating in an " +
+  "even, repeating arrangement across a pretty, softly colored background. Keep everything " +
+  "meaningful in the vertical middle band; nothing important near the top or bottom edges. " +
+  "No faces, no full human figures, no single large centered subject — they would be cut off.";
 
 async function unitContext(unitId: number): Promise<{ repo: Repo; unitId: number }> {
   const db = getDb();
@@ -122,7 +137,7 @@ export const unitImagesRouter = createRouter({
         }
         const url = await generateImage({
           userId: ctx.user.id,
-          prompt: input.prompt,
+          prompt: `${input.prompt}\n\n${UNIT_BANNER_DIRECTIVE}`,
           style: input.style,
         });
         if (!url) {
@@ -153,6 +168,169 @@ export const unitImagesRouter = createRouter({
         })
         .returning({ id: unitImages.id });
       return { id: row.id, url: `${IMAGE_URL_PREFIX}${imageId}`, cost };
+    }),
+
+  /**
+   * One AI banner for every unit in the repo that doesn't have an image yet —
+   * the follow-up fired right after AI repo creation, and safe to run again
+   * later (already-illustrated units are skipped). Each banner leads its unit:
+   * everything already in the unit moves down one place.
+   *
+   * Generated in parallel so the wall-clock cost is one image, not one per
+   * unit; each success is charged individually, so a provider failing on unit
+   * 3 still leaves units 1 and 2 made, charged, and in place.
+   */
+  generateBanners: authedProcedure
+    .input(z.object({ repoSlug: z.string() }))
+    .mutation(async ({ ctx, input }): Promise<{ made: number; failed: number; cost: number }> => {
+      const db = getDb();
+      const repo = await db.query.repos.findFirst({ where: eq(repos.slug, input.repoSlug) });
+      if (!repo) throw new TRPCError({ code: "NOT_FOUND", message: "Repository not found" });
+      assertCanEdit(repo, ctx.user);
+      const repoUnits = await db
+        .select()
+        .from(units)
+        .where(eq(units.repoId, repo.id))
+        .orderBy(asc(units.orderIndex));
+      if (repoUnits.length === 0) return { made: 0, failed: 0, cost: 0 };
+      const illustrated = new Set(
+        (
+          await db
+            .select({ unitId: unitImages.unitId })
+            .from(unitImages)
+            .where(inArray(unitImages.unitId, repoUnits.map((u) => u.id)))
+        ).map((r) => r.unitId),
+      );
+      const bare = repoUnits.filter((u) => !illustrated.has(u.id));
+      if (bare.length === 0) return { made: 0, failed: 0, cost: 0 };
+
+      const { prices } = await getSettings();
+      const per = Math.max(1, Math.ceil(prices.perImageSlide));
+      if (ctx.user.tokenBalance < per * bare.length) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `INSUFFICIENT_TOKENS: ${bare.length} banner${bare.length === 1 ? "" : "s"} cost ${per * bare.length} 🪙, you have ${ctx.user.tokenBalance} 🪙`,
+        });
+      }
+
+      const results = await Promise.all(
+        bare.map(async (u) => {
+          const ls = await db
+            .select({ title: lessons.title })
+            .from(lessons)
+            .where(eq(lessons.unitId, u.id))
+            .orderBy(asc(lessons.orderIndex));
+          const subject =
+            `A decorative banner for a study unit called "${u.title}" from "${repo.title}". ` +
+            (ls.length > 0
+              ? `The unit covers: ${ls.slice(0, 6).map((l) => l.title).join("; ")}.`
+              : "");
+          const url = await generateImage({
+            userId: ctx.user.id,
+            prompt: `${subject}\n\n${UNIT_BANNER_DIRECTIVE}`,
+          }).catch(() => null);
+          if (!url) return false;
+          const m = /^data:([^;,]+);base64,(.+)$/s.exec(url);
+          if (!m) return false;
+          await applyTokenDelta(ctx.user.id, -per, `unit banner: ${u.title.slice(0, 60)}`);
+          const imageId = await storeBytes(m[1], m[2], ctx.user.id);
+          await db.transaction(async (tx) => {
+            await tx
+              .update(lessons)
+              .set({ orderIndex: sql`${lessons.orderIndex} + 1` })
+              .where(eq(lessons.unitId, u.id));
+            await tx
+              .update(unitImages)
+              .set({ orderIndex: sql`${unitImages.orderIndex} + 1` })
+              .where(eq(unitImages.unitId, u.id));
+            await tx.insert(unitImages).values({ unitId: u.id, imageId, caption: null, orderIndex: 0 });
+          });
+          return true;
+        }),
+      );
+      const made = results.filter(Boolean).length;
+      return { made, failed: bare.length - made, cost: made * per };
+    }),
+
+  /**
+   * Swap the picture behind an existing placement — upload a different file,
+   * or have the AI redraw it. Position and caption stay put; only the image
+   * changes. Regeneration is charged like any generation, and only after the
+   * new picture exists.
+   */
+  replace: authedProcedure
+    .input(
+      z.union([
+        z.object({
+          imageId: z.number().int(),
+          source: z.literal("upload"),
+          mime: z.string().max(100),
+          /** base64 WITHOUT the data: prefix */
+          data: z.string().min(1),
+        }),
+        z.object({
+          imageId: z.number().int(),
+          source: z.literal("generate"),
+          prompt: z.string().min(3).max(1000),
+        }),
+      ]),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ url: string; cost: number }> => {
+      const db = getDb();
+      const row = await db.query.unitImages.findFirst({ where: eq(unitImages.id, input.imageId) });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Image not found" });
+      const { repo } = await unitContext(row.unitId);
+      assertCanEdit(repo, ctx.user);
+
+      let newImageId: number;
+      let cost = 0;
+      if (input.source === "upload") {
+        if (!ALLOWED_MIME.includes(input.mime)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `That file type isn't accepted — use ${ALLOWED_MIME.map((m) => m.replace("image/", "")).join(", ")}`,
+          });
+        }
+        const bytes = Math.floor((input.data.length * 3) / 4);
+        if (bytes > MAX_UPLOAD_BYTES) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `That image is ${(bytes / 1e6).toFixed(1)} MB — the limit is ${MAX_UPLOAD_BYTES / 1e6} MB`,
+          });
+        }
+        newImageId = await storeBytes(input.mime, input.data, ctx.user.id);
+      } else {
+        const { prices } = await getSettings();
+        cost = Math.max(1, Math.ceil(prices.perImageSlide));
+        if (ctx.user.tokenBalance < cost) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `INSUFFICIENT_TOKENS: an image costs ${cost} 🪙, you have ${ctx.user.tokenBalance} 🪙`,
+          });
+        }
+        const url = await generateImage({
+          userId: ctx.user.id,
+          prompt: `${input.prompt}\n\n${UNIT_BANNER_DIRECTIVE}`,
+        });
+        if (!url) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "AI_UNAVAILABLE: no image generator answered — nothing was charged",
+          });
+        }
+        const m = /^data:([^;,]+);base64,(.+)$/s.exec(url);
+        if (!m) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "The generator returned an image in a form we can't store",
+          });
+        }
+        await applyTokenDelta(ctx.user.id, -cost, `unit image redraw: ${input.prompt.slice(0, 55)}`);
+        newImageId = await storeBytes(m[1], m[2], ctx.user.id);
+      }
+      // Old bytes stay in slideImages — same reasoning as remove.
+      await db.update(unitImages).set({ imageId: newImageId }).where(eq(unitImages.id, input.imageId));
+      return { url: `${IMAGE_URL_PREFIX}${newImageId}`, cost };
     }),
 
   remove: authedProcedure

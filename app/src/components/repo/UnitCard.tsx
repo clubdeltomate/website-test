@@ -455,6 +455,7 @@ export default function UnitCard({
                       image={item.image}
                       canEdit={canEdit}
                       onRemove={() => removeImage.mutate({ imageId: item.id })}
+                      onChanged={refresh}
                     />
                   ) : (
                   <>
@@ -672,36 +673,125 @@ export default function UnitCard({
  * places it in that list and expects it to occupy a slot there, not float at a
  * different size.
  */
+/**
+ * A unit image, drawn as a banner: full card width, half a lesson card tall.
+ * The picture is cropped to the strip (object-cover, centered) — the AI
+ * prompt promises exactly this shape, so what it composes is what shows.
+ * Editing offers replacing the picture in place: upload a different file, or
+ * redraw it from a fresh prompt, without losing position or caption.
+ */
 function UnitImageCard({
   image,
   canEdit,
   onRemove,
+  onChanged,
 }: {
   image: UnitImage;
   canEdit: boolean;
   onRemove: () => void;
+  onChanged: () => void;
 }) {
+  const [redrawing, setRedrawing] = useState(false);
+  const [redrawPrompt, setRedrawPrompt] = useState('');
+  const utils = trpc.useUtils();
+  const replace = trpc.unitImages.replace.useMutation({
+    onSuccess: (r) => {
+      toast.success(r.cost > 0 ? `Redrawn — ${r.cost} 🪙` : 'Image replaced');
+      setRedrawing(false);
+      setRedrawPrompt('');
+      onChanged();
+      if (r.cost > 0) void utils.auth.me.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const onPickReplacement = (file: File | undefined) => {
+    if (!file) return;
+    const fr = new FileReader();
+    fr.onerror = () => toast.error("That file couldn't be read");
+    fr.onload = () => {
+      const out = String(fr.result);
+      const comma = out.indexOf(',');
+      replace.mutate({
+        imageId: image.id,
+        source: 'upload',
+        mime: file.type || 'image/png',
+        data: comma >= 0 ? out.slice(comma + 1) : out,
+      });
+    };
+    fr.readAsDataURL(file);
+  };
   return (
-    <figure className="relative rounded-wobble-sm border-2 border-dotted border-pencil bg-paper-3 p-4 shadow-offset">
+    <figure className="relative rounded-wobble-sm border-2 border-dotted border-pencil bg-paper-3 p-2 shadow-offset">
       {canEdit && (
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label="Remove image"
-          title="Remove image"
-          className="absolute right-3 top-3 z-10 rounded-wobble-sm border-2 border-transparent bg-paper-3/80 p-1 text-ink-faint transition-colors hover:border-dashed hover:border-red hover:text-red"
-        >
-          <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
-        </button>
+        <span className="absolute right-3 top-3 z-10 flex items-center gap-1">
+          <label
+            aria-label="Upload a replacement"
+            title="Upload a different picture in this spot"
+            className="cursor-pointer rounded-wobble-sm border-2 border-transparent bg-paper-3/80 p-1 text-ink-faint transition-colors hover:border-dashed hover:border-ink hover:text-ink"
+          >
+            <Upload className="h-3.5 w-3.5" strokeWidth={2} />
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+              className="hidden"
+              onChange={(e) => onPickReplacement(e.target.files?.[0])}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => setRedrawing((v) => !v)}
+            aria-label="Regenerate image"
+            title="Have the AI redraw this picture differently (costs credits)"
+            className="rounded-wobble-sm border-2 border-transparent bg-paper-3/80 p-1 text-ink-faint transition-colors hover:border-dashed hover:border-ink hover:text-ink"
+          >
+            {replace.isPending && !redrawing ? (
+              <PencilSpinner />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label="Remove image"
+            title="Remove image"
+            className="rounded-wobble-sm border-2 border-transparent bg-paper-3/80 p-1 text-ink-faint transition-colors hover:border-dashed hover:border-red hover:text-red"
+          >
+            <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+          </button>
+        </span>
       )}
+      {/* half a lesson card tall — a strip, not a poster */}
       <img
         src={image.url}
         alt={image.caption ?? ''}
         loading="lazy"
-        className="max-h-[420px] w-full rounded-wobble-sm border-2 border-ink object-contain"
+        className="h-16 w-full rounded-wobble-sm border-2 border-ink object-cover object-center sm:h-20"
       />
       {image.caption && (
-        <figcaption className="mt-2 text-sm text-ink-soft">{image.caption}</figcaption>
+        <figcaption className="mt-1.5 text-sm text-ink-soft">{image.caption}</figcaption>
+      )}
+      {redrawing && canEdit && (
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            value={redrawPrompt}
+            onChange={(e) => setRedrawPrompt(e.target.value)}
+            placeholder="How should it look instead?"
+            aria-label="Redraw prompt"
+            className="w-full rounded-wobble-sm border-2 border-ink bg-paper px-2.5 py-1.5 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
+          />
+          <SketchButton
+            variant="accent"
+            size="sm"
+            loading={replace.isPending}
+            disabled={redrawPrompt.trim().length < 3}
+            onClick={() =>
+              replace.mutate({ imageId: image.id, source: 'generate', prompt: redrawPrompt.trim() })
+            }
+          >
+            Redraw
+          </SketchButton>
+        </div>
       )}
     </figure>
   );
@@ -775,10 +865,12 @@ function LessonCard({
     onSuccess: (r) => {
       toast.success(
         r.answered > 0
-          ? `Answer key published — ${r.answered} question${r.answered === 1 ? '' : 's'} filled in ✓`
-          : 'Answer key published — this deck has no questions',
+          ? `Answer key written — a perfect ${r.answered}/${r.answered} run, read it under Best run ✓`
+          : 'Answer key written — this deck has no questions',
       );
       void utils.runs.answerKeyFor.invalidate({ repoSlug: seed.repoSlug, lessonSeq: seed.lessonSeq });
+      // The row's completed · score · time · counter chips all read getBySlug.
+      void utils.repos.getBySlug.invalidate({ slug: seed.repoSlug });
     },
     onError: (e) => toast.error(e.message),
   });
@@ -895,52 +987,32 @@ function LessonCard({
   );
 
   /**
-   * Answer-key controls. Everyone who can see a published key gets a link to
-   * read it; the owner also gets the button that publishes or refreshes it.
-   * Only for education decks — a menu or a walkthrough has nothing to answer.
+   * The answer-key button: just a key in a dashed outline, owner-only. Pressing
+   * it writes a perfect run — the row then shows completed · full score · 4:42
+   * with the key reachable through the Best run eye, so there is no separate
+   * "Answers" chip. Once a fresh key exists the button disappears; it only
+   * comes back when the presentation is edited or regenerated, because then a
+   * new key is worth writing (and it adds one to the counter).
    */
   const answerKeyMeta = () => {
-    if (purpose !== 'education' || !lesson.hasPreset) return null;
+    if (purpose !== 'education' || !lesson.hasPreset || !isOwner) return null;
     const key = answerKey.data;
+    if (key && !key.stale) return null; // a fresh key already stands as the best run
     return (
-      <span className="flex items-center gap-1">
-        {key && (
-          <Link
-            to={`/runs/${key.runId}/replay`}
-            className={cfgChip}
-            title="Read the correct answers — no credits, nothing generated"
-          >
-            <KeyRound className="h-3 w-3" strokeWidth={2} /> Answers
-            {key.scoreTotal > 0 && (
-              <span className="rounded-full bg-green-soft px-1 text-[0.5rem] font-bold text-green">
-                {key.scoreTotal}
-              </span>
-            )}
-          </Link>
-        )}
-        {isOwner && (
-          <button
-            type="button"
-            onClick={() =>
-              publishKey.mutate({ repoSlug: seed.repoSlug, lessonSeq: seed.lessonSeq })
-            }
-            disabled={publishKey.isPending}
-            className={cfgChipDashed}
-            title={
-              key
-                ? 'Rebuild the answer key from the current presentation'
-                : 'Fill in every correct answer once, so students can check their work without playing'
-            }
-          >
-            {publishKey.isPending ? (
-              <PencilSpinner />
-            ) : (
-              <KeyRound className="h-3 w-3" strokeWidth={2} />
-            )}
-            {key ? 'Refresh key' : 'Answer key'}
-          </button>
-        )}
-      </span>
+      <button
+        type="button"
+        onClick={() => publishKey.mutate({ repoSlug: seed.repoSlug, lessonSeq: seed.lessonSeq })}
+        disabled={publishKey.isPending}
+        aria-label="Answer key"
+        className={cfgChipDashed}
+        title={
+          key
+            ? 'The presentation changed — write a fresh answer key (a new perfect run)'
+            : 'Write the answer key: a perfect run students can read without credits'
+        }
+      >
+        {publishKey.isPending ? <PencilSpinner /> : <KeyRound className="h-3 w-3" strokeWidth={2} />}
+      </button>
     );
   };
 
@@ -1194,7 +1266,11 @@ function LessonCard({
             {lesson.myBestRunId != null && (
               <Link
                 to={`/runs/${lesson.myBestRunId}/replay`}
-                title="Open your highest-scoring run — its slides and the answers you gave"
+                title={
+                  lesson.fromAnswerKey
+                    ? 'Scroll the perfect run — every correct answer, no credits needed'
+                    : 'Open your highest-scoring run — its slides and the answers you gave'
+                }
                 className="micro flex items-center gap-1 rounded-wobble-sm border border-ink bg-paper-2 px-1.5 py-0.5 text-[0.58rem] font-semibold text-ink no-underline transition-colors hover:bg-blue-soft"
               >
                 <Eye className="h-3 w-3" />

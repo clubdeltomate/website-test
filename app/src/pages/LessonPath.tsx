@@ -91,6 +91,8 @@ export default function LessonPath() {
   // syllabus, notes). Text files → text; images are read out server-side.
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [webSearch, setWebSearch] = useState(false);
+  // AI banner per unit, drawn right after the notebook is created (default on).
+  const [unitBanners, setUnitBanners] = useState(true);
   const [authWallOpen, setAuthWallOpen] = useState(false);
   const [theaterStep, setTheaterStep] = useState<number | null>(null);
 
@@ -161,6 +163,20 @@ export default function LessonPath() {
   }, [theaterStep]);
 
   const generate = trpc.generate.lessonPath.useMutation();
+  // Fired AFTER creation rather than inside it: the notebook opens right away
+  // and the banners land one by one, instead of the whole creation waiting on
+  // however many images the repo has units.
+  const makeBanners = trpc.unitImages.generateBanners.useMutation({
+    onSuccess: (r, vars) => {
+      if (r.made > 0) {
+        toast.success(`${r.made} unit banner${r.made === 1 ? '' : 's'} drawn — ${r.cost} 🪙`);
+        void utils.repos.getBySlug.invalidate({ slug: vars.repoSlug });
+        void utils.auth.me.invalidate();
+      }
+      if (r.failed > 0) toast.warning(`${r.failed} banner${r.failed === 1 ? '' : 's'} couldn't be drawn — you weren't charged for them`);
+    },
+    onError: (e) => toast.warning(`Unit banners skipped: ${e.message}`),
+  });
 
   const referenceFromAttachments = () => {
     const text = attachments
@@ -229,6 +245,9 @@ export default function LessonPath() {
           }
           void utils.auth.me.invalidate();
           void utils.repos.list.invalidate();
+          // Illustrate the fresh units in the background — the page is already
+          // usable while the banners draw.
+          if (unitBanners) makeBanners.mutate({ repoSlug: res.repoSlug });
           navigate(`/repos/${res.repoSlug}`);
         },
         onError: (err) => {
@@ -543,6 +562,29 @@ export default function LessonPath() {
                     />
                   </span>
                   <Globe className="h-4 w-4" strokeWidth={2} /> Search the web for current info
+                </button>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={unitBanners}
+                  onClick={() => setUnitBanners((v) => !v)}
+                  title="Draw one AI banner per unit right after creation, so each unit is identifiable at a glance (charged per image). You can replace or redraw any of them later."
+                  className="mt-2 flex items-center gap-2 rounded-wobble-sm border-2 border-dashed border-pencil px-2.5 py-1.5 text-sm font-bold text-ink"
+                >
+                  <span
+                    className={cn(
+                      'relative h-5 w-9 rounded-full border-2 border-ink transition-colors',
+                      unitBanners ? 'bg-blue-soft' : 'bg-paper-2',
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 border-ink bg-paper-3 transition-all',
+                        unitBanners ? 'left-[18px]' : 'left-0.5',
+                      )}
+                    />
+                  </span>
+                  <ImageIcon className="h-4 w-4" strokeWidth={2} /> Draw a banner image for each unit
                 </button>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <label className="flex cursor-pointer items-center gap-1.5 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-3 px-3 py-2 text-sm font-bold text-ink-soft transition-colors hover:border-ink hover:text-ink">
