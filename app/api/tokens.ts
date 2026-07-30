@@ -42,7 +42,10 @@ export async function applyTokenDelta(
     const role = promote ? ("moderator" as const) : demote ? ("user" as const) : null;
     await tx
       .update(users)
-      .set({ tokenBalance: next, ...(role ? { role } : {}) })
+      // Verification rides on the moderator role: losing the role (here,
+      // by running out of credits) resets the check mark too. A plain user
+      // can never be verified, so demotion always clears it.
+      .set({ tokenBalance: next, ...(role ? { role } : {}), ...(demote ? { verified: false } : {}) })
       .where(eq(users.id, userId));
     await tx
       .insert(tokenLedger)

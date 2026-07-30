@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import Chip from '@/components/sketch/Chip';
 import { trpc } from '@/providers/trpc';
 import type { RepoSummary } from '@contracts/types';
-import { CardBanner, ProgressStrip, SourceBadge, TemplateIcon, TEMPLATE_CIRCLE_BG, VerifiedBadge, relTime } from './shared';
+import { CardBanner, OwnerAvatar, ProgressStrip, SourceBadge, VerifiedBadge, relTime } from './shared';
 
 export interface RepoCardProps {
   repo: RepoSummary;
@@ -63,14 +63,7 @@ function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete, onA
             name leads the card, same as on slide tool cards */}
         <div className="flex items-start justify-between">
           <span className="flex min-w-0 items-center gap-2">
-            <span
-              className={cn(
-                'flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-ink text-ink',
-                TEMPLATE_CIRCLE_BG[repo.template] ?? 'bg-yellow-soft',
-              )}
-            >
-              <TemplateIcon template={repo.template} className="h-5 w-5" />
-            </span>
+            <OwnerAvatar ownerId={repo.ownerId} ownerName={repo.ownerName} template={repo.template} />
             {repo.ownerName && (
               <span className="micro flex min-w-0 items-center gap-1 truncate text-ink-faint">
                 by {repo.ownerName}

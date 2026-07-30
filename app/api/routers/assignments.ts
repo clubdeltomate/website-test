@@ -17,9 +17,15 @@ const targetSchema = z.object({
  * the assignee's own shelf, tagged "assigned". A pointer, not a copy — the
  * owner keeps the only editable original, the assignee gets it in reach.
  *
- * Who may hand things over: the item's owner, or a moderator/admin. A plain
- * user can't push their work onto someone else's shelf.
+ * Who may hand things over: admins, and VERIFIED moderators. Verification is
+ * the credential here — an unverified moderator (or a plain user, who can't
+ * be verified at all) can't push work onto someone else's shelf, even their
+ * own work.
  */
+function canAssign(user: { role: string; verified: boolean }): boolean {
+  return user.role === "admin" || (user.role === "moderator" && user.verified);
+}
+
 export const assignmentsRouter = createRouter({
   assign: authedProcedure
     .input(targetSchema)
@@ -30,10 +36,11 @@ export const assignmentsRouter = createRouter({
           ? await db.query.slideTools.findFirst({ where: eq(slideTools.slug, input.slug) })
           : await db.query.repos.findFirst({ where: eq(repos.slug, input.slug) });
       if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Item not found" });
-      const isOwner = target.ownerId === ctx.user.id;
-      const isStaff = ctx.user.role === "moderator" || ctx.user.role === "admin";
-      if (!isOwner && !isStaff) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Only the owner or a moderator can assign this" });
+      if (!canAssign(ctx.user)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Assigning is for admins and verified moderators",
+        });
       }
       const assignee = await db.query.users.findFirst({ where: eq(users.id, input.userId) });
       if (!assignee) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
@@ -70,9 +77,7 @@ export const assignmentsRouter = createRouter({
           ? await db.query.slideTools.findFirst({ where: eq(slideTools.slug, input.slug) })
           : await db.query.repos.findFirst({ where: eq(repos.slug, input.slug) });
       if (!target) return [];
-      const isOwner = target.ownerId === ctx.user.id;
-      const isStaff = ctx.user.role === "moderator" || ctx.user.role === "admin";
-      if (!isOwner && !isStaff) return [];
+      if (!canAssign(ctx.user)) return [];
       const rows = await db
         .select({ userId: assignments.userId })
         .from(assignments)

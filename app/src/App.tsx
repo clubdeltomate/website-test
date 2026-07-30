@@ -38,8 +38,8 @@ export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        {/* Repos is the default home; the Coach chat lives at /chat */}
-        <Route path="/" element={<Slides />} />
+        {/* The notebook shelf is the front door; slides are one step in. */}
+        <Route path="/" element={<Repos />} />
         <Route path="/chat" element={<Home />} />
         <Route path="/lesson-path" element={<LessonPath />} />
         <Route path="/repos" element={<Repos />} />

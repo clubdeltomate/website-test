@@ -313,7 +313,12 @@ export const usersRouter = createRouter({
       const db = getDb();
       const user = await db.query.users.findFirst({ where: eq(users.id, input.userId) });
       if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
-      await db.update(users).set({ role: input.role }).where(eq(users.id, input.userId));
+      // Verification belongs to moderators and admins only, so demoting to
+      // plain user takes the check mark with it.
+      await db
+        .update(users)
+        .set({ role: input.role, ...(input.role === "user" ? { verified: false } : {}) })
+        .where(eq(users.id, input.userId));
       return { ok: true as const };
     }),
 
@@ -328,6 +333,15 @@ export const usersRouter = createRouter({
       const db = getDb();
       const user = await db.query.users.findFirst({ where: eq(users.id, input.userId) });
       if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      // Only moderators and admins can hold the check mark — a plain user
+      // has no role to vouch for, and losing moderator (demotion, or the
+      // balance hitting zero) clears it automatically.
+      if (input.verified && user.role === "user") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only moderators and admins can be verified — credit their account first",
+        });
+      }
       await db.update(users).set({ verified: input.verified }).where(eq(users.id, input.userId));
       return { ok: true as const };
     }),

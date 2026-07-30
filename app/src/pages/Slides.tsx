@@ -34,7 +34,7 @@ import AuthWall from '@/components/AuthWall';
 import { Toaster } from '@/components/ui/sonner';
 import CreateToolModal from '@/components/slides/CreateToolModal';
 import { SketchModal } from '@/components/admin/overlays';
-import { CardBanner, SourceBadge, TemplateIcon, TEMPLATE_CIRCLE_BG, TEMPLATE_META, VerifiedBadge } from '@/components/repo/shared';
+import { CardBanner, OwnerAvatar, SourceBadge, TemplateIcon, TEMPLATE_META, VerifiedBadge } from '@/components/repo/shared';
 import AssignModal from '@/components/repo/AssignModal';
 
 type SortKey = 'recent' | 'name' | 'plays';
@@ -643,15 +643,11 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                     >
                       <div className="flex items-start justify-between">
                         <span className="flex min-w-0 items-center gap-2">
-                          <span
-                            className={cn(
-                              'flex h-11 w-11 items-center justify-center rounded-full border-2 border-ink text-ink',
-                              TEMPLATE_CIRCLE_BG[tool.template] ?? 'bg-blue-soft',
-                            )}
-                            title={tool.template}
-                          >
-                            <TemplateIcon template={tool.template} className="h-5 w-5" />
-                          </span>
+                          <OwnerAvatar
+                            ownerId={tool.ownerId}
+                            ownerName={tool.ownerName}
+                            template={tool.template}
+                          />
                           {isDraft && (
                             <span
                               title="Only you (and admins) can see this draft"
@@ -885,8 +881,9 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                             </Link>
                           </>
                         )}
-                        {/* hand this presentation to another user's shelf */}
-                        {!isDraft && !isGuest && (role === 'admin' || role === 'moderator' || canDeleteTool(tool)) && (
+                        {/* hand this presentation to another user's shelf —
+                            a privilege of admins and VERIFIED moderators */}
+                        {!isDraft && !isGuest && (role === 'admin' || (role === 'moderator' && !!user?.verified)) && (
                           <button
                             type="button"
                             onClick={() => setAssignFor(tool)}
