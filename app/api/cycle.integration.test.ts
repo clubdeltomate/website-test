@@ -20,7 +20,7 @@
  *   8. Draining a moderator's credits demotes them back to a user.
  */
 import { describe, it, expect, beforeAll } from "vitest";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { appRouter } from "./router.js";
 import { getDb } from "./queries/connection.js";
 import { customizations, repos as reposTable, runs, users, slideTools, type User } from "@db/schema";
@@ -675,6 +675,29 @@ describe.runIf(HAS_DB)("full coins ↔ tickets cycle", () => {
       .from(runs)
       .where(and(eq(runs.lessonId, lesson.id), eq(runs.isAnswerKey, true)));
     expect(keys).toHaveLength(1);
+  });
+
+  it("9g) the repo shelf still loads when the database is behind on a column", async () => {
+    const db = getDb();
+    // Exactly the outage this guards: a deploy shipped a query filtering on
+    // runs.isAnswerKey before the column existed, so listing repos failed and
+    // the shelf said "Couldn't load repositories" — over a play count.
+    await db.execute(sql`ALTER TABLE sketchlearn.runs DROP COLUMN IF EXISTS "isAnswerKey"`);
+    try {
+      const list = await call(moderator).repos.list({ mine: true });
+      expect(Array.isArray(list)).toBe(true);
+      expect(list.length).toBeGreaterThan(0);
+      // The statistic degrades; the notebooks do not disappear.
+      expect(list[0].runCount).toBe(0);
+
+      const repoSlug = (globalThis as Record<string, unknown>).__repoSlug as string;
+      const detail = await call(moderator).repos.getBySlug({ slug: repoSlug });
+      expect(detail!.units.length).toBeGreaterThan(0);
+    } finally {
+      await db.execute(
+        sql`ALTER TABLE sketchlearn.runs ADD COLUMN IF NOT EXISTS "isAnswerKey" boolean NOT NULL DEFAULT false`,
+      );
+    }
   });
 
   it("10) draining a moderator's credits demotes them to a user", async () => {

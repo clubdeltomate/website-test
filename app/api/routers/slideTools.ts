@@ -17,10 +17,16 @@ export async function toSummary(tool: SlideTool, userId: number | undefined): Pr
   const db = getDb();
   // Excluding answer keys: a key is written by the owner to show the answers,
   // not played by anyone, so counting it as a play overstates the tool's use.
-  const toolRuns = await db
-    .select({ id: runs.id })
-    .from(runs)
-    .where(and(eq(runs.slideToolId, tool.id), eq(runs.isAnswerKey, false)));
+  // Guarded — a play count must never be the reason a card fails to render.
+  let toolRuns: { id: number }[] = [];
+  try {
+    toolRuns = await db
+      .select({ id: runs.id })
+      .from(runs)
+      .where(and(eq(runs.slideToolId, tool.id), eq(runs.isAnswerKey, false)));
+  } catch (err) {
+    console.warn("[slideTools] run count unavailable:", err instanceof Error ? err.message : err);
+  }
   let favorite = false;
   if (userId) {
     const fav = await db.query.favorites.findFirst({
