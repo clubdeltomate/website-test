@@ -6,6 +6,7 @@ import {
   Eraser,
   Image as ImageIcon,
   Layers,
+  Palette,
   Plus,
   Sparkles,
   Trash2,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { inkFor, tintsFrom, wordsOf } from '@/lib/caption-words';
 import { trpc } from '@/providers/trpc';
 import AdminGate from '@/components/admin/AdminGate';
 import SketchToaster from '@/components/admin/SketchToaster';
@@ -43,15 +45,28 @@ const OUT_W = 1080;
  *  export resolve to the same glyphs — a webfont would drift between them. */
 const FONT = "'Arial Black', 'Arial Bold', 'Helvetica Neue', Arial, sans-serif";
 
-/** Band styles — "different types of banners" without a colour picker each. */
-const BANDS = [
-  { id: 'dark' as const, label: 'Dark', fill: '#0B0B0B', ink: '#FFFFFF' },
-  { id: 'light' as const, label: 'Light', fill: '#FFFDF6', ink: '#14110D' },
-  { id: 'glass' as const, label: 'Glass', fill: 'rgba(11,11,11,0.62)', ink: '#FFFFFF' },
+/** Ready-made band colours. Glass is the one translucent fill — the rest are
+ *  solid, and any colour outside this row can be mixed with the picker beside
+ *  it, so the palette is a shortcut rather than the whole choice. */
+const BAND_PRESETS = [
+  { label: 'Ink', fill: '#0B0B0B' },
+  { label: 'Glass', fill: 'rgba(11,11,11,0.62)' },
+  { label: 'Paper', fill: '#FFFDF6' },
+  { label: 'Navy', fill: '#12294B' },
+  { label: 'Ocean', fill: '#0F6F86' },
+  { label: 'Forest', fill: '#1E4A32' },
+  { label: 'Olive', fill: '#5A6231' },
+  { label: 'Wine', fill: '#6B1D2B' },
+  { label: 'Rust', fill: '#B4471F' },
+  { label: 'Plum', fill: '#43214F' },
+  { label: 'Sun', fill: '#FFC53D' },
+  { label: 'Blush', fill: '#F7D7D2' },
+  { label: 'Sky', fill: '#CFE8F7' },
+  { label: 'Sand', fill: '#E8D7AE' },
 ];
-type BandId = (typeof BANDS)[number]['id'];
 
-/** Palette a word can be painted with. */
+/** Palette a word can be painted with — light accents for dark bands, dark
+ *  ones for pale bands, plus a mixer for anything else. */
 const COLORS = [
   { label: 'Default', hex: '' },
   { label: 'Cyan', hex: '#35C4F0' },
@@ -59,6 +74,12 @@ const COLORS = [
   { label: 'Green', hex: '#5BD37F' },
   { label: 'Red', hex: '#FF6B5A' },
   { label: 'Purple', hex: '#B79CF5' },
+  { label: 'Orange', hex: '#FF8A3D' },
+  { label: 'Pink', hex: '#FF7BB0' },
+  { label: 'Blue', hex: '#2F63D8' },
+  { label: 'Deep green', hex: '#12734A' },
+  { label: 'Black', hex: '#0B0B0B' },
+  { label: 'White', hex: '#FFFFFF' },
 ];
 
 interface Slide {
@@ -81,7 +102,8 @@ interface Design {
   pad: number;
   titleSize: number;
   subSize: number;
-  band: BandId;
+  /** any CSS colour — a preset swatch or one mixed in the picker */
+  bandFill: string;
 }
 
 const newSlide = (n: number): Slide => ({
@@ -94,7 +116,6 @@ const newSlide = (n: number): Slide => ({
   subTints: {},
 });
 
-const wordsOf = (s: string) => s.split(/\s+/).filter(Boolean);
 
 /** Wrap one run of words to a width, returning lines of word indices. */
 function wrap(
@@ -217,7 +238,7 @@ function MarketingBody() {
     pad: 56,
     titleSize: 96,
     subSize: 40,
-    band: 'dark',
+    bandFill: BAND_PRESETS[0].fill,
   });
   const [topic, setTopic] = useState('');
   const [slideCount, setSlideCount] = useState(5);
@@ -239,7 +260,10 @@ function MarketingBody() {
     () => layoutCard(slide, design, measureRef.current, outH),
     [slide, design, outH],
   );
-  const bandStyle = BANDS.find((b) => b.id === design.band)!;
+  const bandStyle = { fill: design.bandFill, ink: inkFor(design.bandFill) };
+  /** What the AI paints keywords with — the swatch in hand, unless that is
+   *  "Default", which would paint them the same colour as everything else. */
+  const accent = activeColor || COLORS[1].hex;
 
   const patch = (i: number, p: Partial<Slide>) =>
     setSlides((s) => s.map((sl, k) => (k === i ? { ...sl, ...p } : sl)));
@@ -252,10 +276,33 @@ function MarketingBody() {
           title: s.title,
           subtitle: s.subtitle,
           imagePrompt: s.imagePrompt,
+          titleTints: tintsFrom(s.title, s.titleKeywords, accent),
+          subTints: tintsFrom(s.subtitle, s.subtitleKeywords, accent),
         })),
       );
       setActive(0);
       toast.success(`Story written — ${r.slides.length} slides, ${r.cost} 🪙`);
+      void utils.auth.me.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  /** Ask the AI which words carry each card, and paint those. Re-runnable, so
+   *  a card typed or rewritten by hand gets the same treatment. */
+  const highlight = trpc.marketing.highlight.useMutation({
+    onSuccess: (r) => {
+      let painted = 0;
+      setSlides((cur) =>
+        cur.map((s, i) => {
+          const k = r.slides[i];
+          if (!k) return s;
+          const titleTints = tintsFrom(s.title, k.titleKeywords, accent);
+          const subTints = tintsFrom(s.subtitle, k.subtitleKeywords, accent);
+          painted += Object.keys(titleTints).length + Object.keys(subTints).length;
+          return { ...s, titleTints, subTints };
+        }),
+      );
+      toast.success(`${painted} keyword${painted === 1 ? '' : 's'} highlighted — ${r.cost} 🪙`);
       void utils.auth.me.invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -447,61 +494,29 @@ function MarketingBody() {
                   fontWeight: 900,
                 }}
               >
-                {layout.titleLines.map((lineWords, li) => (
-                  <div
-                    key={`t${li}`}
-                    className="whitespace-nowrap text-center"
-                    style={{ fontSize: cq(layout.titleSize), lineHeight: 1.1 }}
-                  >
-                    {lineWords.map((j, k) => (
-                      <button
-                        key={j}
-                        type="button"
-                        onClick={() => paint('title', j)}
-                        title={`Paint "${layout.titleWords[j]}"`}
-                        className="cursor-pointer bg-transparent p-0 uppercase hover:opacity-75"
-                        style={{
-                          color: slide.titleTints[j] || bandStyle.ink,
-                          font: 'inherit',
-                          fontSize: 'inherit',
-                          lineHeight: 'inherit',
-                        }}
-                      >
-                        {layout.titleWords[j]}
-                        {k < lineWords.length - 1 ? ' ' : ''}
-                      </button>
-                    ))}
-                  </div>
-                ))}
+                <WordRun
+                  lines={layout.titleLines}
+                  words={layout.titleWords}
+                  tints={slide.titleTints}
+                  ink={bandStyle.ink}
+                  fontSize={cq(layout.titleSize)}
+                  lineHeight={1.1}
+                  upper
+                  onPaint={(j) => paint('title', j)}
+                />
                 {layout.titleLines.length > 0 && layout.subLines.length > 0 && (
                   <div style={{ height: cq(layout.subSize * 0.6) }} />
                 )}
-                {layout.subLines.map((lineWords, li) => (
-                  <div
-                    key={`s${li}`}
-                    className="whitespace-nowrap text-center"
-                    style={{ fontSize: cq(layout.subSize), lineHeight: 1.32 }}
-                  >
-                    {lineWords.map((j, k) => (
-                      <button
-                        key={j}
-                        type="button"
-                        onClick={() => paint('subtitle', j)}
-                        title={`Paint "${layout.subWords[j]}"`}
-                        className="cursor-pointer bg-transparent p-0 hover:opacity-75"
-                        style={{
-                          color: slide.subTints[j] || bandStyle.ink,
-                          font: 'inherit',
-                          fontSize: 'inherit',
-                          lineHeight: 'inherit',
-                        }}
-                      >
-                        {layout.subWords[j]}
-                        {k < lineWords.length - 1 ? ' ' : ''}
-                      </button>
-                    ))}
-                  </div>
-                ))}
+                <WordRun
+                  lines={layout.subLines}
+                  words={layout.subWords}
+                  tints={slide.subTints}
+                  ink={bandStyle.ink}
+                  fontSize={cq(layout.subSize)}
+                  lineHeight={1.32}
+                  upper={false}
+                  onPaint={(j) => paint('subtitle', j)}
+                />
               </div>
             )}
           </div>
@@ -713,23 +728,40 @@ function MarketingBody() {
                   {f.label}
                 </button>
               ))}
-              <span className="mx-1 h-5 w-px bg-pencil" />
-              {BANDS.map((b) => (
-                <button
-                  key={b.id}
-                  type="button"
-                  onClick={() => setDesign((d) => ({ ...d, band: b.id }))}
-                  aria-pressed={design.band === b.id}
-                  className={cn(
-                    'micro rounded-wobble-sm border-2 px-2 py-1 text-[0.6rem] font-bold transition-colors',
-                    design.band === b.id
-                      ? 'border-ink bg-yellow text-ink shadow-offset'
-                      : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
-                  )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="micro w-28 shrink-0 text-[0.6rem] text-ink-soft">Band colour</span>
+              <div className="flex flex-1 flex-wrap items-center gap-1.5">
+                {BAND_PRESETS.map((b) => (
+                  <button
+                    key={b.label}
+                    type="button"
+                    onClick={() => setDesign((d) => ({ ...d, bandFill: b.fill }))}
+                    aria-label={b.label}
+                    aria-pressed={design.bandFill === b.fill}
+                    title={b.label}
+                    className={cn(
+                      'h-7 w-7 rounded-full border-2 transition-transform hover:scale-110',
+                      design.bandFill === b.fill ? 'border-ink ring-2 ring-blue' : 'border-pencil',
+                      b.label === 'Glass' && 'bg-paper-2',
+                    )}
+                    style={{ backgroundColor: b.fill }}
+                  />
+                ))}
+                <label
+                  title="Mix any other colour"
+                  className="flex h-7 cursor-pointer items-center gap-1 rounded-wobble-sm border-2 border-dashed border-pencil px-1.5 text-ink-soft hover:border-ink hover:text-ink"
                 >
-                  {b.label}
-                </button>
-              ))}
+                  <Palette className="h-3.5 w-3.5" strokeWidth={2} />
+                  <input
+                    type="color"
+                    aria-label="Custom band colour"
+                    value={/^#[0-9a-f]{6}$/i.test(design.bandFill) ? design.bandFill : '#0B0B0B'}
+                    onChange={(e) => setDesign((d) => ({ ...d, bandFill: e.target.value }))}
+                    className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0"
+                  />
+                </label>
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <button
@@ -820,8 +852,30 @@ function MarketingBody() {
                 Reset slide colours
               </button>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <SketchButton
+                variant="accent"
+                loading={highlight.isPending}
+                disabled={slides.every((s) => !s.title.trim() && !s.subtitle.trim())}
+                onClick={() =>
+                  highlight.mutate({
+                    slides: slides
+                      .slice(0, 20)
+                      .map((s) => ({ title: s.title, subtitle: s.subtitle })),
+                  })
+                }
+              >
+                <Sparkles className="h-4 w-4" strokeWidth={2.5} /> Highlight the keywords
+                {quote.data ? ` — ${quote.data.highlight} 🪙` : ''}
+              </SketchButton>
+            </div>
             <p className="micro text-[0.58rem] text-ink-faint">
-              Pick a colour, then click words in the preview — title or subtitle, either one.
+              The AI reads every card and paints the words that carry it —{' '}
+              <span className="font-bold" style={{ color: accent }}>
+                in the swatch you have in hand
+              </span>
+              . It also does this the moment a carousel is written. To change one yourself, pick a
+              colour and click any word in the preview.
             </p>
             <div className="flex flex-wrap items-center gap-2 border-t-2 border-dashed border-pencil pt-3">
               <SketchButton variant="accent" loading={busy} onClick={() => void download(false)}>
@@ -843,6 +897,66 @@ function MarketingBody() {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * One wrapped run of words — every word its own clickable target.
+ *
+ * The gap between two words is its own element with white-space:pre. A space
+ * left at the end of an inline-block (which is what a <button> is) gets
+ * trimmed by the browser, and that is what ran the caption together into
+ * "UPGRADEYOUR" while the canvas export, which measures its own spaces,
+ * looked fine.
+ */
+function WordRun({
+  lines,
+  words,
+  tints,
+  ink,
+  fontSize,
+  lineHeight,
+  upper,
+  onPaint,
+}: {
+  lines: number[][];
+  words: string[];
+  tints: Record<number, string>;
+  ink: string;
+  fontSize: string;
+  lineHeight: number;
+  upper: boolean;
+  onPaint: (wordIndex: number) => void;
+}) {
+  return (
+    <>
+      {lines.map((lineWords, li) => (
+        <div key={li} className="whitespace-nowrap text-center" style={{ fontSize, lineHeight }}>
+          {lineWords.map((j, k) => (
+            <span key={j}>
+              <button
+                type="button"
+                onClick={() => onPaint(j)}
+                title={`Paint "${words[j]}"`}
+                className={cn(
+                  'cursor-pointer bg-transparent p-0 hover:opacity-70',
+                  upper && 'uppercase',
+                )}
+                style={{
+                  color: tints[j] || ink,
+                  font: 'inherit',
+                  fontSize: 'inherit',
+                  lineHeight: 'inherit',
+                }}
+              >
+                {words[j]}
+              </button>
+              {k < lineWords.length - 1 && <span style={{ whiteSpace: 'pre' }}> </span>}
+            </span>
+          ))}
+        </div>
+      ))}
+    </>
   );
 }
 
