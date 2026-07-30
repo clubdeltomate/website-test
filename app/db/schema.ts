@@ -47,6 +47,10 @@ export const users = appSchema.table(
     // Profile picture: bytes in slideImages, served from /api/img/:id.
     // Null falls back to the initial-letter circle everywhere.
     avatarImageId: integer("avatarImageId"),
+    // Which AI-portrait variant this account drew. Every new portrait takes
+    // one past the highest ever used, so no two people end up with the same
+    // animal in the same pose — see AVATAR_ANIMALS / AVATAR_POSES.
+    avatarVariant: integer("avatarVariant"),
     // Moderators hold a pool of un-gifted customization "tickets" bought from
     // the admin (paid for in credits). They gift them to users, one ticket =
     // one paid customization on one of the moderator's repos.
