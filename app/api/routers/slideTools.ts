@@ -6,7 +6,7 @@ import { authedProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
 import { favoriteSlugs } from "./repos.js";
 import { externalizeDeckImages, IMAGE_URL_PREFIX } from "../deck-images.js";
-import { makeCardBanner, TOOL_BANNER_DIRECTIVE } from "../card-banner.js";
+import { makeCardBanner, TOOL_BANNER_DIRECTIVE, TOOL_BANNER_SCENES } from "../card-banner.js";
 import { assignedSlugs } from "./assignments.js";
 import { favorites, runs, slideTools, users, type SlideTool, type User } from "../../db/schema.js";
 import { imageStyleSchema, levelSchema, slugify, templateSchema } from "../ai/prompts.js";
@@ -219,19 +219,13 @@ export const slideToolsRouter = createRouter({
       if (!canEdit(tool, ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only the tool's owner can draw its banner" });
       }
-      let subject = tool.bannerPrompt;
-      if (!subject) {
-        const deck = tool.deckJson != null ? (tool.deckJson as SlideDeck) : null;
-        const slideTitles =
-          deck && Array.isArray(deck.slides)
-            ? deck.slides.slice(0, 6).map((s) => s.title).join("; ")
-            : "";
-        subject =
-          `A header banner for a lesson presentation called "${tool.name}" about ${tool.topic || tool.description}.` +
-          (slideTitles ? ` It covers: ${slideTitles}.` : "");
-      }
-      // A presentation's banner is a little watercolor painting — the repo
-      // keeps the pencil notebook look, so the two card kinds read apart.
+      // The scene is fixed by the card's CATEGORY (course → the aquarium,
+      // restaurant → food, …), not by the tool's own content — computed
+      // fresh every time so a style change reaches old cards through their
+      // Refresh button instead of being frozen into a stored prompt.
+      const scene =
+        TOOL_BANNER_SCENES[(tool.template ?? "course") as string] ?? TOOL_BANNER_SCENES.course;
+      const subject = `A photographic header strip showing ${scene}.`;
       const { imageId, cost } = await makeCardBanner(ctx.user, subject, TOOL_BANNER_DIRECTIVE);
       await db
         .update(slideTools)

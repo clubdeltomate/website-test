@@ -32,12 +32,36 @@ export const REPO_BANNER_DIRECTIVE =
   "glossy illustration. No faces, no full figures.";
 
 export const TOOL_BANNER_DIRECTIVE =
-  `${STRIP_SHAPE} Style, strictly: a soft watercolor (acuarela) painting about the lesson's ` +
-  "content — gentle washes of pretty color, loose wet edges, white paper showing through. " +
-  "Decorative little scenes and motifs from the subject; small cute anthropomorphic " +
-  "characters are welcome as long as each one fits entirely inside the middle band of the " +
-  "strip. Watercolor texture only — NOT a photograph, NOT digital flat design, NOT pencil " +
-  "sketch. No text.";
+  `${STRIP_SHAPE} Style, strictly: a HYPER-REALISTIC photograph — as real as it gets. ` +
+  "Natural light, true-to-life color, sharp professional-photography detail, shallow depth " +
+  "of field where it helps. NOT an illustration, NOT watercolor, NOT cartoon, NOT digital " +
+  "art, NOT a painting of any kind. No text, no watermarks.";
+
+/**
+ * What each slide-tool banner photographs, by card category. The scene is
+ * fixed per category — a course banner is always the aquarium, a restaurant
+ * banner always food — so the card kinds read consistently across the shelf.
+ */
+export const TOOL_BANNER_SCENES: Record<string, string> = {
+  course:
+    "an aquarium filled with deep blue ocean water: schools of fish swimming past, now and " +
+    "then one big fish gliding through, coral, bubbles and soft light rays from above",
+  restaurant:
+    "beautiful real food: freshly plated dishes, vivid ingredients, a little steam rising, " +
+    "restaurant-kitchen energy",
+  service:
+    "real tradespeople at work — a plumber under a sink, a roofer on shingles, a mower on a " +
+    "lawn, a mechanic over an engine — honest tools and working hands",
+  shop:
+    "people out shopping: storefronts, shopping bags in hand, hands browsing shelves and " +
+    "market stalls",
+  walkthrough:
+    "a bright modern office: people at desks and whiteboards walking a team through screens " +
+    "and slides, explainer-video energy",
+  news:
+    "the news in motion: a broadcast desk, printing presses, fresh newspapers, glowing " +
+    "headline tickers",
+};
 
 /**
  * Generate one card banner, charged like any other image and only after the
