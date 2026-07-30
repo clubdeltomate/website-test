@@ -51,6 +51,20 @@ export async function ensureRequiredSchema(): Promise<void> {
     await client.query(
       `CREATE INDEX IF NOT EXISTS "slideImages_owner_idx" ON sketchlearn."slideImages" ("ownerId")`,
     );
+    // Pictures placed in a unit next to its lessons.
+    await client.query(
+      `CREATE TABLE IF NOT EXISTS sketchlearn."unitImages" (
+         id serial PRIMARY KEY,
+         "unitId" integer NOT NULL,
+         "imageId" integer NOT NULL,
+         caption varchar(300),
+         "orderIndex" integer NOT NULL,
+         "createdAt" timestamp NOT NULL DEFAULT now()
+       )`,
+    );
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS "unitImages_unit_idx" ON sketchlearn."unitImages" ("unitId", "orderIndex")`,
+    );
     // A ticket may belong to no repo (a general ticket for the slide tool).
     await client.query(
       `ALTER TABLE sketchlearn.tickets ALTER COLUMN "repoId" DROP NOT NULL`,

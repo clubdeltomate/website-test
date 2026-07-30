@@ -7,8 +7,12 @@ import {
   Clapperboard,
   Clock,
   Eye,
+  BookOpen,
+  ChevronUp,
   Hourglass,
+  Image as ImageIcon,
   KeyRound,
+  Upload,
   Pencil,
   PencilRuler,
   Plus,
@@ -30,7 +34,14 @@ import { DoodleCheck } from '@/components/sketch/DoodleIcons';
 import { trpc } from '@/providers/trpc';
 import CreateToolModal from '@/components/slides/CreateToolModal';
 import { useLessonGeneration } from '@/providers/lesson-generation';
-import type { LessonSeed, RepoLesson, RepoPurpose, RepoTemplate, RepoUnit } from '@contracts/types';
+import type {
+  LessonSeed,
+  RepoLesson,
+  RepoPurpose,
+  RepoTemplate,
+  RepoUnit,
+  UnitImage,
+} from '@contracts/types';
 import { repoPurpose } from '@contracts/types';
 import { TEMPLATE_META } from './shared';
 
@@ -130,9 +141,12 @@ export default function UnitCard({
 
   /* ---------------- local UI state ---------------- */
   const [renaming, setRenaming] = useState(false);
+  /** null = closed, 'choose' = pick a kind, then the form for that kind. */
+  const [adding, setAdding] = useState<null | 'choose' | 'lesson' | 'image'>(null);
+  const [imagePrompt, setImagePrompt] = useState('');
+  const [imageCaption, setImageCaption] = useState('');
   const [renameDraft, setRenameDraft] = useState(unit.title);
   const [confirmDeleteUnit, setConfirmDeleteUnit] = useState(false);
-  const [addingLesson, setAddingLesson] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newObjective, setNewObjective] = useState('');
 
@@ -143,6 +157,53 @@ export default function UnitCard({
       renameUnit.mutate({ unitId: unit.id, title: next });
     } else {
       setRenameDraft(unit.title);
+    }
+  };
+
+  const moveItem = trpc.unitImages.move.useMutation({
+    onSuccess: (r) => {
+      if (r.moved) refresh();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const addImage = trpc.unitImages.create.useMutation({
+    onSuccess: (r) => {
+      toast.success(r.cost > 0 ? `Image added — ${r.cost} 🪙` : 'Image added');
+      setAdding(null);
+      setImagePrompt('');
+      setImageCaption('');
+      refresh();
+      // A generated image was paid for — the coin count in the top bar reads
+      // auth.me, which nothing else here touches.
+      if (r.cost > 0) void utils.auth.me.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const removeImage = trpc.unitImages.remove.useMutation({
+    onSuccess: () => refresh(),
+    onError: (e) => toast.error(e.message),
+  });
+
+  /** Reads a picked file as base64 without the data: prefix. */
+  const readAsBase64 = (file: File) =>
+    new Promise<{ mime: string; data: string }>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onerror = () => reject(new Error("That file couldn't be read"));
+      fr.onload = () => {
+        const out = String(fr.result);
+        const comma = out.indexOf(',');
+        resolve({ mime: file.type || 'image/png', data: comma >= 0 ? out.slice(comma + 1) : out });
+      };
+      fr.readAsDataURL(file);
+    });
+
+  const onPickFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const { mime, data } = await readAsBase64(file);
+      addImage.mutate({ unitId: unit.id, source: 'upload', mime, data, caption: imageCaption.trim() || undefined });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "That file couldn't be read");
     }
   };
 
@@ -159,7 +220,7 @@ export default function UnitCard({
         onSuccess: () => {
           setNewTitle('');
           setNewObjective('');
-          setAddingLesson(false);
+          setAdding(null);
         },
       },
     );
@@ -168,6 +229,23 @@ export default function UnitCard({
   const topLevel = unit.lessons
     .filter((l) => l.parentLessonId == null)
     .sort((a, b) => a.orderIndex - b.orderIndex);
+  /**
+   * Lessons and images in ONE sequence. They share an orderIndex space server
+   * side precisely so a picture can sit above or below a lesson rather than in
+   * a separate band of its own.
+   */
+  type UnitItem =
+    | { kind: 'lesson'; id: number; orderIndex: number; lesson: RepoLesson }
+    | { kind: 'image'; id: number; orderIndex: number; image: UnitImage };
+  const items: UnitItem[] = [
+    ...topLevel.map((l) => ({ kind: 'lesson' as const, id: l.id, orderIndex: l.orderIndex, lesson: l })),
+    ...(unit.images ?? []).map((i) => ({
+      kind: 'image' as const,
+      id: i.id,
+      orderIndex: i.orderIndex,
+      image: i,
+    })),
+  ].sort((a, b) => a.orderIndex - b.orderIndex || a.kind.localeCompare(b.kind));
   const subByParent = new Map<number, RepoLesson[]>();
   for (const l of unit.lessons) {
     if (l.parentLessonId != null) {
@@ -339,8 +417,48 @@ export default function UnitCard({
                   No {meta.lessonNoun.toLowerCase()}s yet
                 </div>
               )}
-              {topLevel.map((lesson) => (
-                <div key={lesson.id} className="flex flex-col gap-3">
+              {items.map((item, idx) => (
+                <div key={`${item.kind}-${item.id}`} className="flex gap-2">
+                  {/* Move controls: one column beside the item so a picture and
+                      a lesson are reordered the same way, by the same buttons. */}
+                  {canEdit && items.length > 1 && (
+                    <span className="flex shrink-0 flex-col justify-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          moveItem.mutate({ unitId: unit.id, kind: item.kind, id: item.id, direction: 'up' })
+                        }
+                        disabled={idx === 0 || moveItem.isPending}
+                        aria-label="Move up"
+                        title="Move up"
+                        className="rounded-wobble-sm border-2 border-dashed border-pencil p-1 text-ink-faint transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
+                      >
+                        <ChevronUp className="h-3.5 w-3.5" strokeWidth={2.5} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          moveItem.mutate({ unitId: unit.id, kind: item.kind, id: item.id, direction: 'down' })
+                        }
+                        disabled={idx === items.length - 1 || moveItem.isPending}
+                        aria-label="Move down"
+                        title="Move down"
+                        className="rounded-wobble-sm border-2 border-dashed border-pencil p-1 text-ink-faint transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" strokeWidth={2.5} />
+                      </button>
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1 flex flex-col gap-3">
+                  {item.kind === 'image' ? (
+                    <UnitImageCard
+                      image={item.image}
+                      canEdit={canEdit}
+                      onRemove={() => removeImage.mutate({ imageId: item.id })}
+                    />
+                  ) : (
+                  <>
+                  {(() => { const lesson = item.lesson; return (<>
                   <LessonCard
                     lesson={lesson}
                     badge={`${meta.lessonNoun} ${lesson.globalSeq} of ${lessonSeqTotal}`}
@@ -373,62 +491,219 @@ export default function UnitCard({
                       />
                     </div>
                   ))}
+                  </>); })()}
+                  </>
+                  )}
+                  </div>
                 </div>
               ))}
 
               {/* add-lesson affordance (owner/admin) */}
-              {canEdit &&
-                (addingLesson ? (
-                  <div className="rounded-wobble-sm border-2 border-dashed border-blue bg-paper px-3 py-3">
-                    <span className="micro block text-[0.58rem] text-ink-faint">
-                      New {meta.lessonNoun.toLowerCase()} — added at the end of this {meta.unitNoun.toLowerCase()}
-                    </span>
-                    <input
-                      autoFocus
-                      value={newTitle}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                      placeholder={`${meta.lessonNoun} title`}
-                      aria-label={`New ${meta.lessonNoun.toLowerCase()} title`}
-                      className="mt-2 w-full rounded-wobble-sm border-2 border-ink bg-paper-3 px-2.5 py-1.5 font-heading text-sm font-semibold text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
-                    />
-                    <textarea
-                      value={newObjective}
-                      onChange={(e) => setNewObjective(e.target.value)}
-                      placeholder={`${meta.objectiveNoun} / prompt — this exact text seeds the slide tool`}
-                      aria-label={`New ${meta.lessonNoun.toLowerCase()} ${meta.objectiveNoun.toLowerCase()}`}
-                      rows={3}
-                      className="mt-2 w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-2.5 py-1.5 font-mono text-[0.8rem] leading-relaxed text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
-                    />
-                    <div className="mt-2 flex items-center justify-end gap-2">
-                      <SketchButton variant="ghost" size="sm" onClick={() => setAddingLesson(false)}>
-                        Cancel
-                      </SketchButton>
-                      <SketchButton
-                        variant="accent"
-                        size="sm"
-                        loading={createLesson.isPending}
-                        onClick={submitNewLesson}
-                      >
-                        <Plus className="h-4 w-4" />
-                        Add {meta.lessonNoun.toLowerCase()}
-                      </SketchButton>
+              {canEdit && (
+                <>
+                  {adding === null && (
+                    <button
+                      type="button"
+                      onClick={() => setAdding('choose')}
+                      className="flex items-center justify-center gap-1.5 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-2/40 px-3 py-2 font-heading text-sm font-semibold text-ink-faint transition-colors hover:border-ink hover:text-ink"
+                    >
+                      <Plus className="h-4 w-4" strokeWidth={2} />
+                      Add to this {meta.unitNoun.toLowerCase()}
+                    </button>
+                  )}
+
+                  {/* Which kind first. Asking before the form means the image
+                      path never has to pretend to be a lesson with a title. */}
+                  {adding === 'choose' && (
+                    <div className="rounded-wobble-sm border-2 border-dashed border-blue bg-paper px-3 py-3">
+                      <span className="micro block text-[0.58rem] text-ink-faint">
+                        What are you adding to this {meta.unitNoun.toLowerCase()}?
+                      </span>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => setAdding('lesson')}
+                          className="flex flex-col items-start gap-0.5 rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-left shadow-offset transition-transform hover:-translate-y-0.5"
+                        >
+                          <span className="flex items-center gap-1.5 font-heading text-sm font-bold text-ink">
+                            <BookOpen className="h-4 w-4" strokeWidth={2} /> {meta.lessonNoun}
+                          </span>
+                          <span className="micro text-[0.58rem] text-ink-faint">
+                            A title and a prompt — something to generate and play
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAdding('image')}
+                          className="flex flex-col items-start gap-0.5 rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-left shadow-offset transition-transform hover:-translate-y-0.5"
+                        >
+                          <span className="flex items-center gap-1.5 font-heading text-sm font-bold text-ink">
+                            <ImageIcon className="h-4 w-4" strokeWidth={2} /> Image
+                          </span>
+                          <span className="micro text-[0.58rem] text-ink-faint">
+                            Upload one, or have the AI draw it
+                          </span>
+                        </button>
+                      </div>
+                      <div className="mt-2 flex justify-end">
+                        <SketchButton variant="ghost" size="sm" onClick={() => setAdding(null)}>
+                          Cancel
+                        </SketchButton>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setAddingLesson(true)}
-                    className="flex items-center justify-center gap-1.5 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-2/40 px-3 py-2 font-heading text-sm font-semibold text-ink-faint transition-colors hover:border-ink hover:text-ink"
-                  >
-                    <Plus className="h-4 w-4" strokeWidth={2} />
-                    Add {meta.lessonNoun.toLowerCase()}
-                  </button>
-                ))}
+                  )}
+
+                  {adding === 'lesson' && (
+                    <div className="rounded-wobble-sm border-2 border-dashed border-blue bg-paper px-3 py-3">
+                      <span className="micro block text-[0.58rem] text-ink-faint">
+                        New {meta.lessonNoun.toLowerCase()} — added at the end of this {meta.unitNoun.toLowerCase()}
+                      </span>
+                      <input
+                        autoFocus
+                        value={newTitle}
+                        onChange={(e) => setNewTitle(e.target.value)}
+                        placeholder={`${meta.lessonNoun} title`}
+                        aria-label={`New ${meta.lessonNoun.toLowerCase()} title`}
+                        className="mt-2 w-full rounded-wobble-sm border-2 border-ink bg-paper-3 px-2.5 py-1.5 font-heading text-sm font-semibold text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
+                      />
+                      <textarea
+                        value={newObjective}
+                        onChange={(e) => setNewObjective(e.target.value)}
+                        placeholder={`${meta.objectiveNoun} / prompt — this exact text seeds the slide tool`}
+                        aria-label={`New ${meta.lessonNoun.toLowerCase()} ${meta.objectiveNoun.toLowerCase()}`}
+                        rows={3}
+                        className="mt-2 w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-2.5 py-1.5 font-mono text-[0.8rem] leading-relaxed text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
+                      />
+                      <div className="mt-2 flex items-center justify-end gap-2">
+                        <SketchButton variant="ghost" size="sm" onClick={() => setAdding(null)}>
+                          Cancel
+                        </SketchButton>
+                        <SketchButton
+                          variant="accent"
+                          size="sm"
+                          loading={createLesson.isPending}
+                          onClick={submitNewLesson}
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add {meta.lessonNoun.toLowerCase()}
+                        </SketchButton>
+                      </div>
+                    </div>
+                  )}
+
+                  {adding === 'image' && (
+                    <div className="rounded-wobble-sm border-2 border-dashed border-blue bg-paper px-3 py-3">
+                      <span className="micro block text-[0.58rem] text-ink-faint">
+                        New image — added at the end, then move it wherever you want
+                      </span>
+                      <input
+                        value={imageCaption}
+                        onChange={(e) => setImageCaption(e.target.value)}
+                        placeholder="Caption (optional)"
+                        aria-label="Image caption"
+                        className="mt-2 w-full rounded-wobble-sm border-2 border-ink bg-paper-3 px-2.5 py-1.5 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
+                      />
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-wobble-sm border-2 border-dashed border-pencil px-3 py-2.5">
+                          <span className="micro block text-[0.58rem] font-semibold text-ink-soft">
+                            Upload — free
+                          </span>
+                          <label className="mt-2 flex cursor-pointer items-center justify-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-1.5 font-heading text-sm font-bold text-ink shadow-offset">
+                            <Upload className="h-4 w-4" strokeWidth={2} /> Choose a file
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                              className="hidden"
+                              onChange={(e) => void onPickFile(e.target.files?.[0])}
+                            />
+                          </label>
+                        </div>
+                        <div className="rounded-wobble-sm border-2 border-dashed border-pencil px-3 py-2.5">
+                          <span className="micro block text-[0.58rem] font-semibold text-ink-soft">
+                            Let the AI draw it — costs credits
+                          </span>
+                          <textarea
+                            value={imagePrompt}
+                            onChange={(e) => setImagePrompt(e.target.value)}
+                            placeholder="What should it show?"
+                            rows={2}
+                            aria-label="Image prompt"
+                            className="mt-2 w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-2.5 py-1.5 text-[0.8rem] text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
+                          />
+                          <SketchButton
+                            variant="accent"
+                            size="sm"
+                            className="mt-2 w-full justify-center"
+                            loading={addImage.isPending}
+                            disabled={imagePrompt.trim().length < 3}
+                            onClick={() =>
+                              addImage.mutate({
+                                unitId: unit.id,
+                                source: 'generate',
+                                prompt: imagePrompt.trim(),
+                                caption: imageCaption.trim() || undefined,
+                              })
+                            }
+                          >
+                            <Sparkles className="h-4 w-4" strokeWidth={2} /> Generate
+                          </SketchButton>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex justify-end">
+                        <SketchButton variant="ghost" size="sm" onClick={() => setAdding(null)}>
+                          Cancel
+                        </SketchButton>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
     </motion.section>
+  );
+}
+
+/**
+ * A picture sitting in a unit's list. Deliberately the same footprint as a
+ * lesson card — same border, same padding, same width — because the author
+ * places it in that list and expects it to occupy a slot there, not float at a
+ * different size.
+ */
+function UnitImageCard({
+  image,
+  canEdit,
+  onRemove,
+}: {
+  image: UnitImage;
+  canEdit: boolean;
+  onRemove: () => void;
+}) {
+  return (
+    <figure className="relative rounded-wobble-sm border-2 border-dotted border-pencil bg-paper-3 p-4 shadow-offset">
+      {canEdit && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label="Remove image"
+          title="Remove image"
+          className="absolute right-3 top-3 z-10 rounded-wobble-sm border-2 border-transparent bg-paper-3/80 p-1 text-ink-faint transition-colors hover:border-dashed hover:border-red hover:text-red"
+        >
+          <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+        </button>
+      )}
+      <img
+        src={image.url}
+        alt={image.caption ?? ''}
+        loading="lazy"
+        className="max-h-[420px] w-full rounded-wobble-sm border-2 border-ink object-contain"
+      />
+      {image.caption && (
+        <figcaption className="mt-2 text-sm text-ink-soft">{image.caption}</figcaption>
+      )}
+    </figure>
   );
 }
 

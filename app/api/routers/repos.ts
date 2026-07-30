@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray, like, or, desc, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, like, or, desc, ne } from "drizzle-orm";
 import { createRouter, publicQuery } from "../middleware.js";
 import { authedProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
@@ -11,13 +11,14 @@ import {
   repos,
   runs,
   slideTools,
+  unitImages,
   units,
   users,
   type Repo,
   type User,
 } from "../../db/schema.js";
 import { repoRef, slugify, templateSchema } from "../ai/prompts.js";
-import { externalizeDeckImages } from "../deck-images.js";
+import { externalizeDeckImages, IMAGE_URL_PREFIX } from "../deck-images.js";
 import { generateImage } from "../ai/provider.js";
 import { courseMemory } from "../memory.js";
 import { isPassingScore } from "../../contracts/progress.js";
@@ -440,7 +441,23 @@ export const reposRouter = createRouter({
           myHasCustomization: myCustomLessonIds.has(l.id),
           ...lessonProgress(l.id, viewerRuns),
         }));
-        unitList.push({ id: u.id, title: u.title, orderIndex: u.orderIndex, lessons: lessonList });
+        const pics = await db
+          .select()
+          .from(unitImages)
+          .where(eq(unitImages.unitId, u.id))
+          .orderBy(asc(unitImages.orderIndex));
+        unitList.push({
+          id: u.id,
+          title: u.title,
+          orderIndex: u.orderIndex,
+          lessons: lessonList,
+          images: pics.map((p) => ({
+            id: p.id,
+            url: `${IMAGE_URL_PREFIX}${p.imageId}`,
+            caption: p.caption,
+            orderIndex: p.orderIndex,
+          })),
+        });
       }
       let toolName: string | null = null;
       if (repo.studyToolSlug) {
