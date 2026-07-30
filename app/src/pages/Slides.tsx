@@ -719,6 +719,11 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                           than anyone needed to read. */}
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Chip kind={tool.defaultLevel}>{tool.defaultLevel}</Chip>
+                        {/* category as its doodle only — the word lives in the
+                            hover title, same as on the repo cards */}
+                        <Chip kind="neutral" title={tool.template} aria-label={tool.template}>
+                          <TemplateIcon template={tool.template} className="h-3.5 w-3.5" />
+                        </Chip>
                         <SourceBadge source={tool.source} compact />
                         {tool.assigned && (
                           <Chip
