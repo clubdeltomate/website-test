@@ -14,6 +14,10 @@ import { IMAGE_URL_PREFIX } from "../deck-images.js";
  *  short AI writes (grading, recalibration) rather than an image price. */
 const STORYBOARD_COST = 2;
 
+/** Picking out the words worth colouring is a much smaller read than writing
+ *  the whole carousel, so it is priced below one. */
+const HIGHLIGHT_COST = 1;
+
 /** Aspect the backdrop is composed for — the post formats the editor offers. */
 const FORMAT_SHAPE: Record<string, string> = {
   "9:16": "a vertical 9:16 story frame (portrait, much taller than wide)",
@@ -39,21 +43,43 @@ function postDirective(format: string): string {
   );
 }
 
-const slideSchema = z.object({
-  title: z.string().max(120).default(""),
-  subtitle: z.string().max(300).default(""),
-  imagePrompt: z.string().max(600).default(""),
+/** The words the AI thinks carry the meaning of a line. Returned as words
+ *  rather than positions because models count words unreliably — the editor
+ *  matches them back onto the text it is actually showing. */
+const keywordsSchema = z.object({
+  titleKeywords: z.array(z.string().max(60)).max(12).default([]),
+  subtitleKeywords: z.array(z.string().max(60)).max(12).default([]),
 });
+
+const slideSchema = z
+  .object({
+    title: z.string().max(120).default(""),
+    subtitle: z.string().max(300).default(""),
+    imagePrompt: z.string().max(600).default(""),
+  })
+  .merge(keywordsSchema);
+
+/** How the keyword half of a reply is asked for, shared by both endpoints so
+ *  a story write and a later re-highlight pick words the same way. */
+const KEYWORD_RULE =
+  "Also pick out the words worth colouring — the ones that carry the meaning and " +
+  "should catch the eye when someone scrolls past. titleKeywords: 1 to 2 words from " +
+  "the title, copied EXACTLY as they appear there. subtitleKeywords: 2 to 4 words from " +
+  "the subtitle, again copied exactly. Never the whole line, never filler like " +
+  '"the", "your", "and" — nouns and verbs that matter.';
 
 export const marketingRouter = createRouter({
   /** What a backdrop and a storyboard cost — quoted on their buttons. */
-  quote: adminProcedure.query(async (): Promise<{ image: number; storyboard: number }> => {
-    const { prices } = await getSettings();
-    return {
-      image: Math.max(1, Math.ceil(prices.perImageSlide)),
-      storyboard: STORYBOARD_COST,
-    };
-  }),
+  quote: adminProcedure.query(
+    async (): Promise<{ image: number; storyboard: number; highlight: number }> => {
+      const { prices } = await getSettings();
+      return {
+        image: Math.max(1, Math.ceil(prices.perImageSlide)),
+        storyboard: STORYBOARD_COST,
+        highlight: HIGHLIGHT_COST,
+      };
+    },
+  ),
 
   /**
    * Write the whole carousel: an opening hook, the steps in between, and a
@@ -86,7 +112,9 @@ export const marketingRouter = createRouter({
           "subtitle — one or two short sentences that explain it; imagePrompt — a concrete " +
           "description of a photograph for that slide's backdrop (setting, subject, action, " +
           "light), showing adults, no text in the picture. Write for adults. " +
-          'Reply STRICT JSON ONLY: {"slides":[{"title":"…","subtitle":"…","imagePrompt":"…"}]}';
+          KEYWORD_RULE +
+          ' Reply STRICT JSON ONLY: {"slides":[{"title":"…","subtitle":"…","imagePrompt":"…",' +
+          '"titleKeywords":["…"],"subtitleKeywords":["…"]}]}';
         let parsed: { slides?: unknown } | null = null;
         for (let attempt = 0; attempt < 2 && parsed === null; attempt++) {
           try {
@@ -102,7 +130,7 @@ export const marketingRouter = createRouter({
                       : `${input.topic}\n\nReminder: STRICT JSON ONLY, exactly the requested shape.`,
                 },
               ],
-              maxTokens: 2000,
+              maxTokens: 3000,
             });
             if (!result) break;
             parsed = JSON.parse(extractJson(result.text)) as { slides?: unknown };
@@ -120,6 +148,82 @@ export const marketingRouter = createRouter({
         }
         await applyTokenDelta(ctx.user.id, -STORYBOARD_COST, `carousel storyboard: ${input.topic.slice(0, 55)}`);
         return { slides: slides.data.slice(0, input.slideCount), cost: STORYBOARD_COST };
+      },
+    ),
+
+  /**
+   * Re-read cards that are already written — typed by hand, or edited after
+   * the storyboard — and say which words to colour. Separate from the write
+   * so the highlight can follow the text as it changes.
+   */
+  highlight: adminProcedure
+    .input(
+      z.object({
+        slides: z
+          .array(z.object({ title: z.string().max(120), subtitle: z.string().max(300) }))
+          .min(1)
+          .max(10),
+      }),
+    )
+    .mutation(
+      async ({
+        ctx,
+        input,
+      }): Promise<{ slides: z.infer<typeof keywordsSchema>[]; cost: number }> => {
+        if (ctx.user.tokenBalance < HIGHLIGHT_COST) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `INSUFFICIENT_TOKENS: highlighting costs ${HIGHLIGHT_COST} 🪙, you have ${ctx.user.tokenBalance} 🪙`,
+          });
+        }
+        const system =
+          "You are a marketing designer choosing which words on a social card get painted " +
+          "a bright accent colour. You are given the cards of one carousel, in order. " +
+          KEYWORD_RULE +
+          " Return one entry per card, in the same order as given, even if a card is empty " +
+          "(use empty arrays then). " +
+          'Reply STRICT JSON ONLY: {"slides":[{"titleKeywords":["…"],"subtitleKeywords":["…"]}]}';
+        const cards = input.slides
+          .map((s, i) => `Card ${i + 1}\nTitle: ${s.title || "(empty)"}\nSubtitle: ${s.subtitle || "(empty)"}`)
+          .join("\n\n");
+        let parsed: { slides?: unknown } | null = null;
+        for (let attempt = 0; attempt < 2 && parsed === null; attempt++) {
+          try {
+            const result = await completeText({
+              userId: ctx.user.id,
+              messages: [
+                { role: "system", content: system },
+                {
+                  role: "user",
+                  content:
+                    attempt === 0
+                      ? cards
+                      : `${cards}\n\nReminder: STRICT JSON ONLY, exactly ${input.slides.length} entries.`,
+                },
+              ],
+              maxTokens: 1200,
+            });
+            if (!result) break;
+            parsed = JSON.parse(extractJson(result.text)) as { slides?: unknown };
+          } catch (err) {
+            console.warn(`[marketing.highlight] attempt ${attempt + 1} failed:`, err);
+          }
+        }
+        const picked = z.array(keywordsSchema).min(1).safeParse(parsed?.slides);
+        if (!picked.success) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "AI_UNAVAILABLE: no AI provider picked the keywords — nothing was charged. Check the server AI keys and try again.",
+          });
+        }
+        await applyTokenDelta(ctx.user.id, -HIGHLIGHT_COST, `carousel keywords: ${input.slides.length} cards`);
+        // Pad a short reply so slide N of the answer always lines up with slide N
+        // of the editor rather than silently sliding onto the wrong card.
+        const slides = input.slides.map(
+          (_, i) => picked.data[i] ?? { titleKeywords: [], subtitleKeywords: [] },
+        );
+        return { slides, cost: HIGHLIGHT_COST };
       },
     ),
 
