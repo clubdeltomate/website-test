@@ -41,6 +41,9 @@ export const users = appSchema.table(
     name: varchar("name", { length: 255 }).notNull(),
     role: roleEnum("role").notNull().default("user"),
     tokenBalance: integer("tokenBalance").notNull().default(50),
+    // Admin-granted check mark, shown beside the name on the profile and on
+    // everything the user publishes. Vouches for the person, not a role.
+    verified: boolean("verified").notNull().default(false),
     // Moderators hold a pool of un-gifted customization "tickets" bought from
     // the admin (paid for in credits). They gift them to users, one ticket =
     // one paid customization on one of the moderator's repos.

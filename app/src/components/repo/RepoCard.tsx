@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import Chip from '@/components/sketch/Chip';
 import { trpc } from '@/providers/trpc';
 import type { RepoSummary } from '@contracts/types';
-import { ProgressStrip, SourceBadge, TemplateIcon, TEMPLATE_CIRCLE_BG, relTime } from './shared';
+import { ProgressStrip, SourceBadge, TemplateIcon, TEMPLATE_CIRCLE_BG, VerifiedBadge, relTime } from './shared';
 
 export interface RepoCardProps {
   repo: RepoSummary;
@@ -127,9 +127,10 @@ function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete }: R
 
         {/* footer */}
         <div className="mt-3 flex items-center justify-between border-t-2 border-dashed border-pencil pt-2.5">
-          <span className="text-xs text-ink-faint">
+          <span className="flex items-center gap-1 text-xs text-ink-faint">
             sketched {relTime(repo.createdAt)}
             {repo.ownerName ? ` · by ${repo.ownerName}` : ''}
+            {repo.ownerName && repo.ownerVerified && <VerifiedBadge />}
           </span>
           <ChevronRight className="h-4 w-4 text-ink-faint transition-transform duration-150 group-hover:translate-x-1 group-hover:text-ink" />
         </div>

@@ -10,6 +10,7 @@ import {
   Newspaper,
   Sparkles,
   Hand,
+  BadgeCheck,
 } from 'lucide-react';
 import { Toaster } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -133,6 +134,22 @@ export function TemplateIcon({
 }) {
   const Icon = TEMPLATE_META[template]?.icon ?? BookOpen;
   return <Icon className={cn('h-[18px] w-[18px]', className)} strokeWidth={2} />;
+}
+
+/**
+ * The admin-granted verification mark, drawn right after a verified user's
+ * name — on their profile and on every card they publish. One definition so
+ * the mark is identical everywhere, because a check that changes shape from
+ * page to page stops reading as the same credential.
+ */
+export function VerifiedBadge({ className }: { className?: string }) {
+  return (
+    <BadgeCheck
+      aria-label="Verified"
+      className={cn('inline h-3.5 w-3.5 shrink-0 align-[-2px] text-blue', className)}
+      strokeWidth={2.5}
+    />
+  );
 }
 
 /**
