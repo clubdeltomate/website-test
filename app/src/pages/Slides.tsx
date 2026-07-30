@@ -789,15 +789,18 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                               <Play className="h-3.5 w-3.5" strokeWidth={2.5} />
                               Play
                             </SketchButton>
+                            {/* Icon-only from here on: the words made the row
+                                overflow. The hover title carries the words —
+                                a small tab appears explaining each button. */}
                             {tool.bestRunId != null ? (
                               <Link to={`/runs/${tool.bestRunId}/replay`}>
                                 <SketchButton
                                   variant="ghost"
                                   size="sm"
-                                  title="Scroll the best run — every slide with its answers, no credits"
+                                  aria-label="Best run"
+                                  title="Best run — scroll every slide with its answers, no credits"
                                 >
-                                  <Eye className="h-3.5 w-3.5" strokeWidth={2} />
-                                  Best run
+                                  <Eye className="h-4 w-4" strokeWidth={2} />
                                 </SketchButton>
                               </Link>
                             ) : (
@@ -805,10 +808,10 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                                 variant="ghost"
                                 size="sm"
                                 disabled
-                                title="Play it once — or write the answer key — and the best run opens here"
+                                aria-label="Best run"
+                                title="Best run — play it once (or write the answer key) and it opens here"
                               >
-                                <Eye className="h-3.5 w-3.5" strokeWidth={2} />
-                                Best run
+                                <Eye className="h-4 w-4" strokeWidth={2} />
                               </SketchButton>
                             )}
                             {/* The owner can always edit the presentation —
@@ -817,9 +820,13 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                                 it, so there is no deckless excuse. */}
                             {canDeleteTool(tool) && (
                               <Link to={`/slides/build/${tool.slug}`}>
-                                <SketchButton variant="ghost" size="sm" title="Edit every slide — text, questions, answers">
-                                  <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
-                                  Edit
+                                <SketchButton
+                                  variant="ghost"
+                                  size="sm"
+                                  aria-label="Edit"
+                                  title="Edit — every slide, text, questions, answers"
+                                >
+                                  <Pencil className="h-4 w-4" strokeWidth={2} />
                                 </SketchButton>
                               </Link>
                             )}
@@ -836,9 +843,13 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                             </Link>
                             {canDeleteTool(tool) && (
                               <Link to={`/slides/build/${tool.slug}`}>
-                                <SketchButton variant="ghost" size="sm">
-                                  <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
-                                  Edit
+                                <SketchButton
+                                  variant="ghost"
+                                  size="sm"
+                                  aria-label="Edit"
+                                  title="Edit — every slide, text, questions, answers"
+                                >
+                                  <Pencil className="h-4 w-4" strokeWidth={2} />
                                 </SketchButton>
                               </Link>
                             )}
@@ -857,9 +868,13 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                             </SketchButton>
                             {canDeleteTool(tool) && (
                               <Link to={`/slides/build/${tool.slug}`}>
-                                <SketchButton variant="ghost" size="sm" title="Edit every slide — text, questions, answers">
-                                  <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
-                                  Edit
+                                <SketchButton
+                                  variant="ghost"
+                                  size="sm"
+                                  aria-label="Edit"
+                                  title="Edit — every slide, text, questions, answers"
+                                >
+                                  <Pencil className="h-4 w-4" strokeWidth={2} />
                                 </SketchButton>
                               </Link>
                             )}

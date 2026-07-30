@@ -57,6 +57,29 @@ export const assignmentsRouter = createRouter({
       return { ok: true as const, alreadyAssigned: false };
     }),
 
+  /**
+   * Who already holds this item — the Assign popup greys those users out
+   * instead of offering to assign twice. Same audience as assign itself.
+   */
+  listFor: authedProcedure
+    .input(z.object({ targetType: z.enum(["slideTool", "repo"]), slug: z.string().min(1) }))
+    .query(async ({ ctx, input }): Promise<number[]> => {
+      const db = getDb();
+      const target =
+        input.targetType === "slideTool"
+          ? await db.query.slideTools.findFirst({ where: eq(slideTools.slug, input.slug) })
+          : await db.query.repos.findFirst({ where: eq(repos.slug, input.slug) });
+      if (!target) return [];
+      const isOwner = target.ownerId === ctx.user.id;
+      const isStaff = ctx.user.role === "moderator" || ctx.user.role === "admin";
+      if (!isOwner && !isStaff) return [];
+      const rows = await db
+        .select({ userId: assignments.userId })
+        .from(assignments)
+        .where(and(eq(assignments.targetType, input.targetType), eq(assignments.targetSlug, input.slug)));
+      return rows.map((r) => r.userId);
+    }),
+
   /** The assigner (or staff) can take it back; the assignee can clear their own shelf. */
   unassign: authedProcedure
     .input(targetSchema)
