@@ -762,9 +762,13 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                                 Best run
                               </SketchButton>
                             )}
-                            {tool.hasDeck && canDeleteTool(tool) && (
+                            {/* The owner can always edit the presentation —
+                                the builder loads the latest generation when
+                                no deck was saved yet, and saving materializes
+                                it, so there is no deckless excuse. */}
+                            {canDeleteTool(tool) && (
                               <Link to={`/slides/build/${tool.slug}`}>
-                                <SketchButton variant="ghost" size="sm">
+                                <SketchButton variant="ghost" size="sm" title="Edit every slide — text, questions, answers">
                                   <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
                                   Edit
                                 </SketchButton>
@@ -802,6 +806,14 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                               <Play className="h-3.5 w-3.5" strokeWidth={2.5} />
                               Play
                             </SketchButton>
+                            {canDeleteTool(tool) && (
+                              <Link to={`/slides/build/${tool.slug}`}>
+                                <SketchButton variant="ghost" size="sm" title="Edit every slide — text, questions, answers">
+                                  <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                                  Edit
+                                </SketchButton>
+                              </Link>
+                            )}
                             <Link to={`/slides/${tool.slug}`}>
                               <SketchButton variant="ghost" size="sm">
                                 Open
