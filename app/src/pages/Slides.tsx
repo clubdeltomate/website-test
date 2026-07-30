@@ -10,7 +10,6 @@ import {
   Plus,
   Presentation,
   Eye,
-  Wand2,
   Sparkles,
   MoreHorizontal,
   Trash2,
@@ -33,7 +32,7 @@ import EmptyState from '@/components/sketch/EmptyState';
 import AuthWall from '@/components/AuthWall';
 import { Toaster } from '@/components/ui/sonner';
 import CreateToolModal from '@/components/slides/CreateToolModal';
-import { SourceBadge, TemplateIcon, TEMPLATE_CIRCLE_BG, TEMPLATE_META } from '@/components/repo/shared';
+import { SourceBadge, TemplateIcon, TEMPLATE_CIRCLE_BG, TEMPLATE_META, VerifiedBadge } from '@/components/repo/shared';
 
 type SortKey = 'recent' | 'name' | 'plays';
 type ViewMode = 'cards' | 'table';
@@ -614,7 +613,10 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                               Draft
                             </span>
                           )}
-                          <span className="micro truncate text-ink-faint">by {tool.ownerName}</span>
+                          <span className="micro flex min-w-0 items-center gap-1 truncate text-ink-faint">
+                            by {tool.ownerName}
+                            {tool.ownerVerified && <VerifiedBadge />}
+                          </span>
                         </span>
                         <span className="flex items-center gap-0.5">
                           {repo && (
@@ -687,14 +689,20 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                             </Link>
                           </>
                         ) : tool.hasQuiz ? (
-                          // Quiz material: regenerate it your way, or browse
-                          // what has already been answered — the best run costs
-                          // nothing to read, which is the whole point.
+                          // Quiz material: Play replays the presentation
+                          // itself (the saved deck, or the latest generation)
+                          // — free, nothing regenerated, never the settings
+                          // page. Best run browses what was answered.
                           <>
-                            <Link to={`/slides/${tool.slug}`}>
-                              <SketchButton variant="accent" size="sm" className="w-40 justify-center">
-                                <Wand2 className="h-3.5 w-3.5" strokeWidth={2.5} />
-                                Customize
+                            <Link to={`/slides/show/${tool.slug}`}>
+                              <SketchButton
+                                variant="accent"
+                                size="sm"
+                                className="w-40 justify-center"
+                                title="Play this presentation again — free, nothing regenerated"
+                              >
+                                <Play className="h-3.5 w-3.5" strokeWidth={2.5} />
+                                Play
                               </SketchButton>
                             </Link>
                             {tool.bestRunId != null ? (
@@ -749,8 +757,13 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                           </>
                         ) : (
                           <>
-                            <Link to={`/slides/${tool.slug}`}>
-                              <SketchButton variant="accent" size="sm" className="w-40 justify-center">
+                            <Link to={`/slides/show/${tool.slug}`}>
+                              <SketchButton
+                                variant="accent"
+                                size="sm"
+                                className="w-40 justify-center"
+                                title="Play the latest generation of this presentation — free"
+                              >
                                 <Play className="h-3.5 w-3.5" strokeWidth={2.5} />
                                 Play
                               </SketchButton>

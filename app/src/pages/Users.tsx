@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { motion } from 'framer-motion';
 import { LibraryBig, Search, UserCheck, UserPlus } from 'lucide-react';
+import { VerifiedBadge } from '@/components/repo/shared';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { trpc } from '@/providers/trpc';
@@ -185,7 +186,10 @@ export default function Users() {
                   {u.name.charAt(0).toUpperCase()}
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate font-heading text-lg font-bold text-ink">{u.name}</span>
+                  <span className="flex items-center gap-1 truncate font-heading text-lg font-bold text-ink">
+                    {u.name}
+                    {u.verified && <VerifiedBadge />}
+                  </span>
                   <span className="mt-1 flex items-center gap-2">
                     <Chip kind={u.role}>{u.role}</Chip>
                     <span className="micro flex items-center gap-1 text-[0.62rem] text-ink-faint">

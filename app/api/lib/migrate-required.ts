@@ -73,6 +73,10 @@ export async function ensureRequiredSchema(): Promise<void> {
     await client.query(
       `ALTER TABLE sketchlearn.lessons ADD COLUMN IF NOT EXISTS "answerKeyGenerations" integer NOT NULL DEFAULT 0`,
     );
+    // Admin-granted verification badge; every users query selects the column.
+    await client.query(
+      `ALTER TABLE sketchlearn.users ADD COLUMN IF NOT EXISTS "verified" boolean NOT NULL DEFAULT false`,
+    );
   } finally {
     await client.end();
   }

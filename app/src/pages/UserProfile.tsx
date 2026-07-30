@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import {
   ArrowLeft,
+  BadgeCheck,
   ChevronLeft,
   ChevronRight,
   Coins,
@@ -24,7 +25,7 @@ import SketchButton from '@/components/sketch/SketchButton';
 import { SketchInput, SketchSelect } from '@/components/admin/controls';
 import SketchToaster from '@/components/admin/SketchToaster';
 import RepoCard from '@/components/repo/RepoCard';
-import { TemplateIcon } from '@/components/repo/shared';
+import { TemplateIcon, VerifiedBadge } from '@/components/repo/shared';
 import { normalizeUsername, USERNAME_MAX_LENGTH } from '@contracts/types';
 import type {
   ContentSource,
@@ -86,6 +87,13 @@ export default function UserProfile() {
       toast.error(e.message);
     },
     onSettled: () => void utils.users.profile.invalidate({ userId }),
+  });
+  const setVerified = trpc.users.setVerified.useMutation({
+    onSuccess: (_r, vars) => {
+      toast.success(vars.verified ? 'Verified ✓ — the check now travels with their name' : 'Verification removed');
+      void utils.users.profile.invalidate({ userId });
+    },
+    onError: (e) => toast.error(e.message),
   });
   const toggleRepoFav = trpc.repos.toggleFavorite.useMutation({
     onError: (e) => toast.error(e.message),
@@ -182,7 +190,10 @@ export default function UserProfile() {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="font-display text-3xl font-bold text-ink">{p.name}</h2>
+            <h2 className="flex items-center gap-1.5 font-display text-3xl font-bold text-ink">
+              {p.name}
+              {p.verified && <VerifiedBadge className="h-6 w-6" />}
+            </h2>
             <Chip kind={p.role}>{p.role}</Chip>
             {isSelf && <Chip kind="neutral">you</Chip>}
             {/* Rename from the page you are already looking at. An admin fixing
@@ -258,6 +269,21 @@ export default function UserProfile() {
               </>
             )}
           </button>
+          {viewerIsAdmin && !isSelf && (
+            <SketchButton
+              variant={p.verified ? 'ghost' : 'secondary'}
+              size="sm"
+              loading={setVerified.isPending}
+              onClick={() => setVerified.mutate({ userId, verified: !p.verified })}
+              title={
+                p.verified
+                  ? 'Withdraw the verification check from this account'
+                  : 'Vouch for this account — a check mark joins their name on their profile and their cards'
+              }
+            >
+              <BadgeCheck className="h-4 w-4" strokeWidth={2} /> {p.verified ? 'Unverify' : 'Verify'}
+            </SketchButton>
+          )}
           {canGrantTickets && (
             <SketchButton variant="accent" size="sm" onClick={() => setGrantOpen(true)}>
               <Ticket className="h-4 w-4" /> Give tickets

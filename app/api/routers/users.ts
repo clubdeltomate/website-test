@@ -74,6 +74,7 @@ export const usersRouter = createRouter({
           id: u.id,
           name: u.name,
           role: u.role,
+          verified: u.verified,
           repoCount: counts.get(u.id) ?? 0,
           templates: [...(cats.get(u.id) ?? [])] as RepoTemplate[],
           following: favs.has(String(u.id)),
@@ -110,6 +111,7 @@ export const usersRouter = createRouter({
         id: user.id,
         name: user.name,
         role: user.role,
+        verified: user.verified,
         createdAt: user.createdAt,
         whatsapp: user.whatsapp ?? null,
         socials: Array.isArray(user.socials) ? (user.socials as string[]) : [],
@@ -312,6 +314,21 @@ export const usersRouter = createRouter({
       const user = await db.query.users.findFirst({ where: eq(users.id, input.userId) });
       if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
       await db.update(users).set({ role: input.role }).where(eq(users.id, input.userId));
+      return { ok: true as const };
+    }),
+
+  /**
+   * Admin only — grant or withdraw the verification check mark. It vouches
+   * for the person behind the account, so it travels with their name: the
+   * profile header and every card they publish draw it.
+   */
+  setVerified: adminProcedure
+    .input(z.object({ userId: z.number().int(), verified: z.boolean() }))
+    .mutation(async ({ input }): Promise<{ ok: true }> => {
+      const db = getDb();
+      const user = await db.query.users.findFirst({ where: eq(users.id, input.userId) });
+      if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      await db.update(users).set({ verified: input.verified }).where(eq(users.id, input.userId));
       return { ok: true as const };
     }),
 

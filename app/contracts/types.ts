@@ -393,6 +393,8 @@ export interface DirectoryUser {
   id: number;
   name: string;
   role: Role;
+  /** Admin-granted check mark shown beside the name everywhere it appears. */
+  verified: boolean;
   repoCount: number;
   /** distinct categories of the public repos they own (for topic filtering) */
   templates: RepoTemplate[];
@@ -410,6 +412,8 @@ export interface UserProfile {
   id: number;
   name: string;
   role: Role;
+  /** Admin-granted check mark shown beside the name everywhere it appears. */
+  verified: boolean;
   createdAt: Date;
   whatsapp: string | null;
   socials: string[];
@@ -446,6 +450,8 @@ export interface RepoSummary {
   favorite: boolean;
   ownerId: number | null;
   ownerName: string | null;
+  /** The owner's admin-granted check mark, drawn beside their name on cards. */
+  ownerVerified: boolean;
   createdAt: Date;
 }
 
@@ -549,6 +555,8 @@ export interface SlideToolSummary {
   runCount: number;
   ownerId: number | null;
   ownerName: string | null;
+  /** The owner's admin-granted check mark, drawn beside their name on cards. */
+  ownerVerified: boolean;
   createdAt: Date;
   /** True when this is quiz material — a saved deck with questions, or an
       education tool that will generate them. Quiz cards offer Customize +

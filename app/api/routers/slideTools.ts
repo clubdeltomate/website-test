@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray, ne, like, or, desc } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, ne, like, or, desc } from "drizzle-orm";
 import { createRouter, publicQuery } from "../middleware.js";
 import { authedProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
@@ -63,9 +63,11 @@ export async function toSummary(tool: SlideTool, userId: number | undefined): Pr
     favorite = !!fav;
   }
   let ownerName: string | null = null;
+  let ownerVerified = false;
   if (tool.ownerId) {
     const owner = await db.query.users.findFirst({ where: eq(users.id, tool.ownerId) });
     ownerName = owner?.name ?? null;
+    ownerVerified = owner?.verified ?? false;
   }
   return {
     slug: tool.slug,
@@ -86,6 +88,7 @@ export async function toSummary(tool: SlideTool, userId: number | undefined): Pr
     runCount: toolRuns.length,
     ownerId: tool.ownerId ?? null,
     ownerName,
+    ownerVerified,
     createdAt: tool.createdAt,
     // A saved deck answers directly; without one, an education tool is quiz
     // material by nature — its generations carry questions.
@@ -270,8 +273,23 @@ export const slideToolsRouter = createRouter({
       } | null> => {
         const db = getDb();
         const tool = await db.query.slideTools.findFirst({ where: eq(slideTools.slug, input.slug) });
-        if (!tool || tool.deckJson == null) return null;
+        if (!tool) return null;
         if (!tool.isPublic && (!ctx.user || !canEdit(tool, ctx.user))) return null;
+        // No saved deck? Play the tool's most recent generation instead. An
+        // AI tool keeps its decks inside run snapshots, and the card's Play
+        // button promises a replay — free, nothing regenerated — not a
+        // "couldn't find that deck" dead end.
+        let deckJson = tool.deckJson;
+        if (deckJson == null) {
+          const [latest] = await db
+            .select({ deckJson: runs.deckJson })
+            .from(runs)
+            .where(and(eq(runs.slideToolId, tool.id), isNotNull(runs.deckJson)))
+            .orderBy(desc(runs.completedAt))
+            .limit(1);
+          deckJson = latest?.deckJson ?? null;
+        }
+        if (deckJson == null) return null;
 
         const purpose = repoPurpose((tool.template ?? "course") as RepoTemplate);
         let commercial: import("../../contracts/types.js").CommercialInfo | null = null;
@@ -300,7 +318,7 @@ export const slideToolsRouter = createRouter({
             };
           }
         }
-        return { deck: tool.deckJson as SlideDeck, name: tool.name, commercial, walkthrough };
+        return { deck: deckJson as SlideDeck, name: tool.name, commercial, walkthrough };
       },
     ),
 

@@ -335,9 +335,11 @@ export async function repoSummaries(repoRows: Repo[], userId: number | undefined
       (ids) => ids.length > 0 && ids.every((id) => passedLessonIds.has(id)),
     ).length;
     let ownerName: string | null = null;
+    let ownerVerified = false;
     if (repo.ownerId) {
       const owner = await db.query.users.findFirst({ where: eq(users.id, repo.ownerId) });
       ownerName = owner?.name ?? null;
+      ownerVerified = owner?.verified ?? false;
     }
     out.push({
       slug: repo.slug,
@@ -355,6 +357,7 @@ export async function repoSummaries(repoRows: Repo[], userId: number | undefined
       favorite: favs.has(repo.slug),
       ownerId: repo.ownerId ?? null,
       ownerName,
+      ownerVerified,
       createdAt: repo.createdAt,
     });
   }
