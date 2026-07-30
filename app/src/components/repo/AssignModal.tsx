@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, UserPlus } from 'lucide-react';
+import { Check, Search, UserPlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { trpc } from '@/providers/trpc';
 import { SketchModal } from '@/components/admin/overlays';
@@ -27,7 +27,12 @@ export default function AssignModal({
   title: string;
 }) {
   const [q, setQ] = useState('');
+  const utils = trpc.useUtils();
   const directory = trpc.users.directory.useQuery({ q: q || undefined }, { enabled: open });
+  // Who already holds this item — their row says so instead of offering to
+  // assign a second time.
+  const holders = trpc.assignments.listFor.useQuery({ targetType, slug }, { enabled: open });
+  const held = new Set(holders.data ?? []);
   const assign = trpc.assignments.assign.useMutation({
     onSuccess: (r, vars) => {
       const who = directory.data?.find((u) => u.id === vars.userId)?.name ?? 'them';
@@ -36,7 +41,16 @@ export default function AssignModal({
           ? `Already on ${who}'s shelf`
           : `Assigned ✓ — it now shows on ${who}'s shelf`,
       );
+      void utils.assignments.listFor.invalidate({ targetType, slug });
       onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const unassign = trpc.assignments.unassign.useMutation({
+    onSuccess: (_r, vars) => {
+      const who = directory.data?.find((u) => u.id === vars.userId)?.name ?? 'them';
+      toast.success(`Removed from ${who}'s shelf`);
+      void utils.assignments.listFor.invalidate({ targetType, slug });
     },
     onError: (e) => toast.error(e.message),
   });
@@ -70,14 +84,35 @@ export default function AssignModal({
                 {u.role}
               </Chip>
             </span>
-            <SketchButton
-              variant="secondary"
-              size="sm"
-              loading={assign.isPending && assign.variables?.userId === u.id}
-              onClick={() => assign.mutate({ targetType, slug, userId: u.id })}
-            >
-              <UserPlus className="h-3.5 w-3.5" strokeWidth={2} /> Assign
-            </SketchButton>
+            {held.has(u.id) ? (
+              <span className="flex items-center gap-1">
+                <span
+                  title="Already on their shelf — an item can only be assigned to someone once"
+                  className="micro flex items-center gap-1 rounded-wobble-sm border-2 border-green bg-green-soft px-2 py-1 text-[0.6rem] font-bold text-green"
+                >
+                  <Check className="h-3.5 w-3.5" strokeWidth={2.5} /> Assigned
+                </span>
+                <button
+                  type="button"
+                  onClick={() => unassign.mutate({ targetType, slug, userId: u.id })}
+                  disabled={unassign.isPending}
+                  aria-label={`Remove from ${u.name}'s shelf`}
+                  title="Take it back off their shelf"
+                  className="rounded-wobble-sm p-1 text-ink-faint transition-colors hover:bg-red-soft hover:text-red"
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+                </button>
+              </span>
+            ) : (
+              <SketchButton
+                variant="secondary"
+                size="sm"
+                loading={assign.isPending && assign.variables?.userId === u.id}
+                onClick={() => assign.mutate({ targetType, slug, userId: u.id })}
+              >
+                <UserPlus className="h-3.5 w-3.5" strokeWidth={2} /> Assign
+              </SketchButton>
+            )}
           </div>
         ))}
         {directory.isSuccess && (directory.data ?? []).length === 0 && (
