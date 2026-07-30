@@ -13,6 +13,7 @@ import {
   BadgeCheck,
   RefreshCw,
 } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { PencilSpinner } from '@/components/sketch/SketchButton';
 import { Toaster } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -136,6 +137,55 @@ export function TemplateIcon({
 }) {
   const Icon = TEMPLATE_META[template]?.icon ?? BookOpen;
   return <Icon className={cn('h-[18px] w-[18px]', className)} strokeWidth={2} />;
+}
+
+/**
+ * The card's leading circle: the OWNER's profile picture (their initial in
+ * the app's avatar circle, colored by the card's category), clicking through
+ * to their profile page. Falls back to the category doodle when the item has
+ * no owner — the circle never goes empty.
+ */
+export function OwnerAvatar({
+  ownerId,
+  ownerName,
+  template,
+  className,
+}: {
+  ownerId: number | null;
+  ownerName: string | null;
+  template: RepoTemplate;
+  className?: string;
+}) {
+  // Programmatic navigation, not a <Link>: RepoCard's whole body already IS
+  // an anchor, and an <a> inside an <a> gets broken apart by the browser.
+  const navigate = useNavigate();
+  const circle = cn(
+    'flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-ink text-ink',
+    TEMPLATE_CIRCLE_BG[template] ?? 'bg-yellow-soft',
+    className,
+  );
+  if (ownerId == null || !ownerName) {
+    return (
+      <span className={circle} title={template}>
+        <TemplateIcon template={template} className="h-5 w-5" />
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        navigate(`/users/${ownerId}`);
+      }}
+      title={`Open ${ownerName}'s profile`}
+      aria-label={`Open ${ownerName}'s profile`}
+      className={cn(circle, 'cursor-pointer font-display text-xl font-bold transition-transform hover:scale-110')}
+    >
+      {ownerName.charAt(0).toUpperCase()}
+    </button>
+  );
 }
 
 /**

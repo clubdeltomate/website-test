@@ -368,6 +368,9 @@ export interface SessionUser {
   email: string;
   name: string;
   role: Role;
+  /** Admin-granted check mark; moderators/admins only, cleared on demotion.
+      Gates assigning — only admins and verified moderators may assign. */
+  verified: boolean;
   tokenBalance: number;
   /** moderator's pool of un-gifted customization tickets */
   ticketBalance: number;

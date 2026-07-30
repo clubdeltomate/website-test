@@ -14,6 +14,7 @@ function toSessionUser(u: User): SessionUser {
     email: u.email,
     name: u.name,
     role: u.role,
+    verified: u.verified,
     tokenBalance: u.tokenBalance,
     ticketBalance: u.ticketBalance,
     createdAt: u.createdAt,
