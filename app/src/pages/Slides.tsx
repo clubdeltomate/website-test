@@ -701,10 +701,16 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                       />
 
                       <div>
-                        <h3 className="line-clamp-2 font-heading text-lg font-semibold leading-snug text-ink">
+                        {/* Exactly two rows, always: long names cut off with …
+                            and short ones still reserve the space, so every
+                            card in a row lines up. */}
+                        <h3
+                          className="line-clamp-2 min-h-[2.75em] font-heading text-lg font-semibold leading-snug text-ink"
+                          title={tool.name}
+                        >
                           {tool.name}
                         </h3>
-                        <p className="font-mono text-xs text-ink-faint">{tool.slug}</p>
+                        <p className="truncate font-mono text-xs text-ink-faint">{tool.slug}</p>
                       </div>
 
                       {/* Just the level, an authorship logo, and whether
