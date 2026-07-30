@@ -1045,14 +1045,20 @@ function LessonCard({
                 <Clapperboard className="h-4 w-4" strokeWidth={2} /> Play
               </SketchButton>
             </Link>
-            {isOwner && (
-              <Link to={editHref} title="Edit this preset's slides" className="no-underline">
+            {/* the eye rides beside Play, like on the slide cards; the
+                pencil moved up into the meta row */}
+            {lesson.myBestRunId != null && (
+              <Link
+                to={`/runs/${lesson.myBestRunId}/replay`}
+                title="Best run — every slide with its answers, free to read"
+                className="no-underline"
+              >
                 <button
                   type="button"
                   className="rounded-wobble-sm border-2 border-pencil p-1.5 text-ink-soft transition-colors hover:border-ink hover:text-ink"
-                  aria-label="Edit preset"
+                  aria-label="Best run"
                 >
-                  <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                  <Eye className="h-3.5 w-3.5" strokeWidth={2} />
                 </button>
               </Link>
             )}
@@ -1121,15 +1127,23 @@ function LessonCard({
               <Clapperboard className="h-4 w-4" strokeWidth={2} /> Play
             </SketchButton>
           </Link>
-          <Link to={editHref} title="Edit the free preset's slides" className="no-underline">
-            <button
-              type="button"
-              className="rounded-wobble-sm border-2 border-pencil p-1.5 text-ink-soft transition-colors hover:border-ink hover:text-ink"
-              aria-label="Edit preset"
+          {/* the eye rides beside Play, like on the slide cards; the
+              pencil moved up into the meta row */}
+          {lesson.myBestRunId != null && (
+            <Link
+              to={`/runs/${lesson.myBestRunId}/replay`}
+              title="Best run — every slide with its answers, free to read"
+              className="no-underline"
             >
-              <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
-            </button>
-          </Link>
+              <button
+                type="button"
+                className="rounded-wobble-sm border-2 border-pencil p-1.5 text-ink-soft transition-colors hover:border-ink hover:text-ink"
+                aria-label="Best run"
+              >
+                <Eye className="h-3.5 w-3.5" strokeWidth={2} />
+              </button>
+            </Link>
+          )}
           <button
             type="button"
             onClick={() => deletePreset.mutate({ repoSlug: seed.repoSlug, lessonSeq: seed.lessonSeq })}
@@ -1263,21 +1277,19 @@ function LessonCard({
                 {lesson.myAttempts}×
               </span>
             )}
-            {lesson.myBestRunId != null && (
-              <Link
-                to={`/runs/${lesson.myBestRunId}/replay`}
-                title={
-                  lesson.fromAnswerKey
-                    ? 'Scroll the perfect run — every correct answer, no credits needed'
-                    : 'Open your highest-scoring run — its slides and the answers you gave'
-                }
-                className="micro flex items-center gap-1 rounded-wobble-sm border border-ink bg-paper-2 px-1.5 py-0.5 text-[0.58rem] font-semibold text-ink no-underline transition-colors hover:bg-blue-soft"
-              >
-                <Eye className="h-3 w-3" />
-                Best run
-              </Link>
-            )}
           </>
+        )}
+        {/* the pencil sits with the stickers now — the eye it swapped places
+            with lives beside Play, like on the slide cards */}
+        {isOwner && lesson.hasPreset && (
+          <Link
+            to={editHref}
+            title="Edit this preset's slides — text, questions, answers"
+            aria-label="Edit preset"
+            className={cfgChipDashed}
+          >
+            <Pencil className="h-3 w-3" strokeWidth={2} />
+          </Link>
         )}
         {controls && (
           <span className="ml-auto flex items-center gap-1">
