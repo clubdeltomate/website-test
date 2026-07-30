@@ -24,10 +24,14 @@ const ALLOWED_MIME = ["image/png", "image/jpeg", "image/webp", "image/gif", "ima
 const UNIT_BANNER_DIRECTIVE =
   "This image is a decorative unit banner displayed as an ultra-wide horizontal strip, " +
   "about 6:1 (very short for its width) — it will be cropped top and bottom to fit. " +
-  "Compose for that shape: small related objects, symbols or short words floating in an " +
-  "even, repeating arrangement across a pretty, softly colored background. Keep everything " +
-  "meaningful in the vertical middle band; nothing important near the top or bottom edges. " +
-  "No faces, no full human figures, no single large centered subject — they would be cut off.";
+  "Style, strictly: a student's hand-drawn sketch on a blank sheet of white notebook paper. " +
+  "Loose pencil-and-ink doodles of things from the unit's subject, with a few short " +
+  "handwritten words or labels from the lesson scattered between them, like margin notes. " +
+  "Sketch lines and paper texture only — NOT a photograph, NOT digital flat design, NOT " +
+  "glossy illustration. Spread the little drawings evenly along the strip and keep " +
+  "everything meaningful in the vertical middle band; nothing important near the top or " +
+  "bottom edges. No faces, no full human figures, no single large centered subject — they " +
+  "would be cut off.";
 
 async function unitContext(unitId: number): Promise<{ repo: Repo; unitId: number }> {
   const db = getDb();

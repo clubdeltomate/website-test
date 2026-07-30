@@ -14,10 +14,13 @@ import { getSettings } from "./settings.js";
  */
 export const CARD_BANNER_DIRECTIVE =
   "This image is a small decorative header strip on a card, displayed ultra-wide and very " +
-  "short (about 8:1) — it will be cropped top and bottom. Compose an abstract, pattern-like " +
-  "arrangement of small objects, symbols or motifs drawn from the subject, spread evenly " +
-  "across a pleasant softly-colored background. Keep everything in the vertical middle band; " +
-  "no faces, no full figures, no large single subject, no text.";
+  "short (about 8:1) — it will be cropped top and bottom. Style, strictly: a student's " +
+  "hand-drawn sketch on a blank sheet of white notebook paper. Loose pencil-and-ink doodles " +
+  "of things from the subject, with a few short handwritten words or labels from the lesson " +
+  "scattered between them, like margin notes. Sketch lines and paper texture only — NOT a " +
+  "photograph, NOT digital flat design, NOT glossy illustration. Spread the little drawings " +
+  "evenly along the strip and keep everything in the vertical middle band; no faces, no full " +
+  "figures, no large single subject.";
 
 /**
  * Generate one card banner, charged like any other image and only after the
