@@ -59,15 +59,24 @@ function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete, onA
           index % 4 === 3 && 'rounded-wobble-4',
         )}
       >
-        {/* top row: category doodle + favorite star */}
+        {/* top row: category doodle + owner + favorite star — the author's
+            name leads the card, same as on slide tool cards */}
         <div className="flex items-start justify-between">
-          <span
-            className={cn(
-              'flex h-11 w-11 items-center justify-center rounded-full border-2 border-ink text-ink',
-              TEMPLATE_CIRCLE_BG[repo.template] ?? 'bg-yellow-soft',
+          <span className="flex min-w-0 items-center gap-2">
+            <span
+              className={cn(
+                'flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-ink text-ink',
+                TEMPLATE_CIRCLE_BG[repo.template] ?? 'bg-yellow-soft',
+              )}
+            >
+              <TemplateIcon template={repo.template} className="h-5 w-5" />
+            </span>
+            {repo.ownerName && (
+              <span className="micro flex min-w-0 items-center gap-1 truncate text-ink-faint">
+                by {repo.ownerName}
+                {repo.ownerVerified && <VerifiedBadge />}
+              </span>
             )}
-          >
-            <TemplateIcon template={repo.template} className="h-5 w-5" />
           </span>
           <span className="flex items-center gap-0.5">
             <button

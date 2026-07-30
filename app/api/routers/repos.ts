@@ -18,7 +18,7 @@ import {
   type User,
 } from "../../db/schema.js";
 import { repoRef, slugify, templateSchema } from "../ai/prompts.js";
-import { makeCardBanner } from "../card-banner.js";
+import { makeCardBanner, REPO_BANNER_DIRECTIVE } from "../card-banner.js";
 import { assignedSlugs } from "./assignments.js";
 import { externalizeDeckImages, IMAGE_URL_PREFIX } from "../deck-images.js";
 import { generateImage } from "../ai/provider.js";
@@ -466,7 +466,7 @@ export const reposRouter = createRouter({
             ? ` Its units: ${repoUnits.slice(0, 6).map((u) => u.title).join("; ")}.`
             : "");
       }
-      const { imageId, cost } = await makeCardBanner(ctx.user, subject);
+      const { imageId, cost } = await makeCardBanner(ctx.user, subject, REPO_BANNER_DIRECTIVE);
       await db
         .update(repos)
         .set({ bannerImageId: imageId, bannerPrompt: subject })

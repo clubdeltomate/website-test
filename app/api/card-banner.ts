@@ -12,15 +12,32 @@ import { getSettings } from "./settings.js";
  * that thinks it is painting a poster puts the subject where the crop will
  * eat it.
  */
-export const CARD_BANNER_DIRECTIVE =
+const STRIP_SHAPE =
   "This image is a small decorative header strip on a card, displayed ultra-wide and very " +
-  "short (about 8:1) — it will be cropped top and bottom. Style, strictly: a student's " +
-  "hand-drawn sketch on a blank sheet of white notebook paper. Loose pencil-and-ink doodles " +
-  "of things from the subject, with a few short handwritten words or labels from the lesson " +
-  "scattered between them, like margin notes. Sketch lines and paper texture only — NOT a " +
-  "photograph, NOT digital flat design, NOT glossy illustration. Spread the little drawings " +
-  "evenly along the strip and keep everything in the vertical middle band; no faces, no full " +
-  "figures, no large single subject.";
+  "short (about 8:1) — it will be cropped top and bottom. Spread the elements evenly along " +
+  "the strip and keep everything in the vertical middle band; nothing important near the " +
+  "top or bottom edges, no large single centered subject.";
+
+/**
+ * Two looks, deliberately different so the two kinds of cards read apart at
+ * a glance: a REPO is a notebook, so its banner is pencil on notebook paper;
+ * a SLIDE TOOL is a finished presentation, so its banner is a little
+ * watercolor painting.
+ */
+export const REPO_BANNER_DIRECTIVE =
+  `${STRIP_SHAPE} Style, strictly: a student's hand-drawn sketch on a blank sheet of white ` +
+  "notebook paper. Loose pencil-and-ink doodles of things from the subject, with a few short " +
+  "handwritten words or labels from the lesson scattered between them, like margin notes. " +
+  "Sketch lines and paper texture only — NOT a photograph, NOT digital flat design, NOT " +
+  "glossy illustration. No faces, no full figures.";
+
+export const TOOL_BANNER_DIRECTIVE =
+  `${STRIP_SHAPE} Style, strictly: a soft watercolor (acuarela) painting about the lesson's ` +
+  "content — gentle washes of pretty color, loose wet edges, white paper showing through. " +
+  "Decorative little scenes and motifs from the subject; small cute anthropomorphic " +
+  "characters are welcome as long as each one fits entirely inside the middle band of the " +
+  "strip. Watercolor texture only — NOT a photograph, NOT digital flat design, NOT pencil " +
+  "sketch. No text.";
 
 /**
  * Generate one card banner, charged like any other image and only after the
@@ -30,6 +47,7 @@ export const CARD_BANNER_DIRECTIVE =
 export async function makeCardBanner(
   user: User,
   subject: string,
+  directive: string,
 ): Promise<{ imageId: number; cost: number }> {
   const { prices } = await getSettings();
   const cost = Math.max(1, Math.ceil(prices.perImageSlide));
@@ -41,7 +59,7 @@ export async function makeCardBanner(
   }
   const url = await generateImage({
     userId: user.id,
-    prompt: `${subject}\n\n${CARD_BANNER_DIRECTIVE}`,
+    prompt: `${subject}\n\n${directive}`,
   });
   if (!url) {
     throw new TRPCError({
