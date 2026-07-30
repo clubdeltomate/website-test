@@ -8,7 +8,7 @@ import { favoriteSlugs } from "./repos.js";
 import { externalizeDeckImages, IMAGE_URL_PREFIX } from "../deck-images.js";
 import { makeCardBanner, TOOL_BANNER_DIRECTIVE, TOOL_BANNER_SCENES } from "../card-banner.js";
 import { assignedSlugs } from "./assignments.js";
-import { favorites, runs, slideTools, users, type SlideTool, type User } from "../../db/schema.js";
+import { favorites, lessons, repos, runs, slideTools, units, users, type SlideTool, type User } from "../../db/schema.js";
 import { imageStyleSchema, levelSchema, slugify, templateSchema } from "../ai/prompts.js";
 import { AI_CHECKED_KINDS, TONES, repoPurpose } from "../../contracts/types.js";
 import type { RepoTemplate, SlideDeck, SlideToolSummary, Tone } from "../../contracts/types.js";
@@ -89,6 +89,21 @@ export async function toSummary(tool: SlideTool, userId: number | undefined): Pr
     });
     favorite = !!fav;
   }
+  // Where this presentation came from: a mirrored preset knows its repo
+  // directly; a repo's studio tool is found by the reverse pointer. Either
+  // way the card wears the repo's R-ref sticker.
+  let repoRef: string | null = null;
+  try {
+    if (tool.repoSlug) {
+      const r = await db.query.repos.findFirst({ where: eq(repos.slug, tool.repoSlug) });
+      repoRef = r?.ref ?? null;
+    } else {
+      const r = await db.query.repos.findFirst({ where: eq(repos.studyToolSlug, tool.slug) });
+      repoRef = r?.ref ?? null;
+    }
+  } catch (err) {
+    console.warn("[slideTools] repo ref unavailable:", err instanceof Error ? err.message : err);
+  }
   let ownerName: string | null = null;
   let ownerVerified = false;
   let ownerAvatarUrl: string | null = null;
@@ -119,6 +134,7 @@ export async function toSummary(tool: SlideTool, userId: number | undefined): Pr
     ownerName,
     ownerVerified,
     ownerAvatarUrl,
+    repoRef,
     createdAt: tool.createdAt,
     // A saved deck answers directly; without one, an education tool is quiz
     // material by nature — its generations carry questions.
@@ -321,13 +337,32 @@ export const slideToolsRouter = createRouter({
       if (!canEdit(tool, ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only the owner can edit this presentation" });
       }
+      const lean = (await externalizeDeckImages(input.deck as SlideDeck, ctx.user.id)).deck;
       await db
         .update(slideTools)
-        .set({
-          deckJson: (await externalizeDeckImages(input.deck as SlideDeck, ctx.user.id)).deck,
-          updatedAt: new Date(),
-        })
+        .set({ deckJson: lean, updatedAt: new Date() })
         .where(eq(slideTools.id, tool.id));
+      // A mirrored repo preset has TWO copies of its deck; editing the tool
+      // writes the lesson's preset too, or the repo would keep playing the
+      // version from before the edit.
+      if (tool.repoSlug && tool.repoLessonSeq != null) {
+        const repo = await db.query.repos.findFirst({ where: eq(repos.slug, tool.repoSlug) });
+        if (repo) {
+          const repoUnits = await db.select().from(units).where(eq(units.repoId, repo.id));
+          for (const u of repoUnits) {
+            const lesson = await db.query.lessons.findFirst({
+              where: and(eq(lessons.unitId, u.id), eq(lessons.globalSeq, tool.repoLessonSeq)),
+            });
+            if (lesson) {
+              await db
+                .update(lessons)
+                .set({ presetDeckJson: lean, presetAt: new Date() })
+                .where(eq(lessons.id, lesson.id));
+              break;
+            }
+          }
+        }
+      }
       return { ok: true };
     }),
 

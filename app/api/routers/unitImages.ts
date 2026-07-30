@@ -23,15 +23,15 @@ const ALLOWED_MIME = ["image/png", "image/jpeg", "image/webp", "image/gif", "ima
  */
 const UNIT_BANNER_DIRECTIVE =
   "This image is a decorative unit banner displayed as an ultra-wide horizontal strip, " +
-  "about 6:1 (very short for its width) — it will be cropped top and bottom to fit. " +
-  "Style, strictly: a NEAT PAPER COLLAGE — carefully cut-out photographic and printed " +
-  "pictures arranged side by side on a clean, calm background, edges gently layered like " +
-  "good scrapbooking: organized, tidy and pretty, never chaotic. The cut-outs show the " +
-  "unit's activities being done — or, for theoretical material, the objects and things the " +
-  "lessons actually mention. NOT a hand-drawn sketch, NOT a painting, NOT flat digital " +
-  "art. Spread the cut-outs evenly along the strip and keep everything meaningful in the " +
-  "vertical middle band; nothing important near the top or bottom edges. No text, no " +
-  "single large centered subject — it would be cut off.";
+  "about 6:1 (very short for its width) — it will be cropped top and bottom to fit; " +
+  "compose for exactly that frame. Style, strictly: professional ADVERTISING imagery — " +
+  "the polished marketing campaign a company would run to promote this exact subject at " +
+  "this level (a language academy's ad for a language unit, a culinary promo for a menu " +
+  "unit, and so on). The audience is ADULTS — mostly young adults — never children: no " +
+  "childish decoration, no kids. Show a diverse, multiracial mix of people. CRITICAL " +
+  "framing: every face and head fully inside the vertical middle band of the strip, never " +
+  "cropped by the edges; nothing important near the top or bottom. Realistic photographic " +
+  "quality, NOT a sketch, NOT a collage, NOT cartoon. No text, no logos.";
 
 async function unitContext(unitId: number): Promise<{ repo: Repo; unitId: number }> {
   const db = getDb();
@@ -225,9 +225,9 @@ export const unitImagesRouter = createRouter({
             .where(eq(lessons.unitId, u.id))
             .orderBy(asc(lessons.orderIndex));
           const subject =
-            `A decorative banner for a study unit called "${u.title}" from "${repo.title}". ` +
+            `An advertising banner promoting the unit "${u.title}" from "${repo.title}". ` +
             (ls.length > 0
-              ? `The unit covers: ${ls.slice(0, 6).map((l) => l.title).join("; ")}.`
+              ? `It covers: ${ls.slice(0, 6).map((l) => l.title).join("; ")}.`
               : "");
           const url = await generateImage({
             userId: ctx.user.id,
@@ -275,7 +275,9 @@ export const unitImagesRouter = createRouter({
         z.object({
           imageId: z.number().int(),
           source: z.literal("generate"),
-          prompt: z.string().min(3).max(1000),
+          /** Omitted → the server writes the prompt from the unit's own
+              title and lessons, so one press regenerates in place. */
+          prompt: z.string().min(3).max(1000).optional(),
         }),
       ]),
     )
@@ -312,9 +314,24 @@ export const unitImagesRouter = createRouter({
             message: `INSUFFICIENT_TOKENS: an image costs ${cost} 🪙, you have ${ctx.user.tokenBalance} 🪙`,
           });
         }
+        // No prompt given → write it from the unit itself, so a single press
+        // of the regenerate button reseeds a banner that reflects exactly
+        // what this unit teaches.
+        let subject = input.prompt;
+        if (!subject) {
+          const unit = await db.query.units.findFirst({ where: eq(units.id, row.unitId) });
+          const ls = await db
+            .select({ title: lessons.title })
+            .from(lessons)
+            .where(eq(lessons.unitId, row.unitId))
+            .orderBy(asc(lessons.orderIndex));
+          subject =
+            `An advertising banner promoting the unit "${unit?.title ?? repo.title}" from "${repo.title}".` +
+            (ls.length > 0 ? ` It covers: ${ls.slice(0, 6).map((l) => l.title).join("; ")}.` : "");
+        }
         const url = await generateImage({
           userId: ctx.user.id,
-          prompt: `${input.prompt}\n\n${UNIT_BANNER_DIRECTIVE}`,
+          prompt: `${subject}\n\n${UNIT_BANNER_DIRECTIVE}`,
         });
         if (!url) {
           throw new TRPCError({
@@ -329,7 +346,7 @@ export const unitImagesRouter = createRouter({
             message: "The generator returned an image in a form we can't store",
           });
         }
-        await applyTokenDelta(ctx.user.id, -cost, `unit image redraw: ${input.prompt.slice(0, 55)}`);
+        await applyTokenDelta(ctx.user.id, -cost, `unit image redraw: ${subject.slice(0, 55)}`);
         newImageId = await storeBytes(m[1], m[2], ctx.user.id);
       }
       // Old bytes stay in slideImages — same reasoning as remove.

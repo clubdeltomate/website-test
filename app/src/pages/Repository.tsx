@@ -4,9 +4,7 @@ import { AnimatePresence, animate, motion, useMotionValue, useTransform } from '
 import {
   Check,
   Clapperboard,
-  ExternalLink,
   Pencil,
-  Play,
   Plus,
   Presentation,
   Share2,
@@ -340,55 +338,9 @@ export default function Repository() {
         <StatCard index={3} value={avgScore ?? 0} label="Avg score" suffix={avgScore === null ? '—' : '%'} />
       </section>
 
-      {/* linked slide tool card */}
-      {data.studyToolSlug && (
-        <motion.section
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1, ease: EASE }}
-          className="relative mt-6 rounded-wobble-4 border-2 border-ink bg-blue-soft/60 p-5 pt-7 shadow-offset"
-        >
-          <WashiTape color="blue" rotate={2} className="left-1/2 -translate-x-1/2" />
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="micro text-[0.62rem] text-ink-faint">Linked slide tool — pre-linked ✦</p>
-              <h3 className="mt-1 flex flex-wrap items-center gap-2 font-heading text-xl font-semibold text-ink">
-                <Presentation className="h-5 w-5 text-blue" strokeWidth={2} />
-                {data.toolName ?? data.studyToolSlug}
-                <span className="rounded-wobble-sm border-2 border-ink bg-paper-2 px-1.5 py-0.5 font-mono text-xs text-ink-soft">
-                  {data.studyToolSlug}
-                </span>
-              </h3>
-              <p className="mt-1 text-sm text-ink-soft">
-                Every 🎬 below opens this tool with that {meta.lessonNoun.toLowerCase()}'s{' '}
-                {meta.objectiveNoun.toLowerCase()} preset.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Link to={`/slides/${data.studyToolSlug}`} className="no-underline">
-                <SketchButton variant="secondary" size="sm">
-                  <ExternalLink className="h-4 w-4" />
-                  Open tool
-                </SketchButton>
-              </Link>
-              {nextUpUrl &&
-                (isGuest ? (
-                  <SketchButton variant="accent" size="sm" onClick={() => setAuthWallOpen(true)}>
-                    <Play className="h-4 w-4" />
-                    Play next {meta.lessonNoun.toLowerCase()}
-                  </SketchButton>
-                ) : (
-                  <Link to={nextUpUrl} className="no-underline">
-                    <SketchButton variant="accent" size="sm">
-                      <Play className="h-4 w-4" />
-                      Play next {meta.lessonNoun.toLowerCase()}
-                    </SketchButton>
-                  </Link>
-                ))}
-            </div>
-          </div>
-        </motion.section>
-      )}
+      {/* The old "Linked slide tool — pre-linked" card is gone: the wizard
+          replaced that workflow, and the tool now lives on the Slides page
+          wearing the repo's R-ref sticker instead. */}
 
       {/* owner leads (commercial repos only) */}
       {canEdit && repoPurpose(data.template) === 'commercial' && (
@@ -437,15 +389,19 @@ export default function Repository() {
         {canEdit && <AddUnitCard slug={data.slug} unitNoun={meta.unitNoun} />}
       </section>
 
-      {/* saved (set) presentations — free to play */}
-      <div className="mt-10">
-        <SavedPresentationsTable slug={data.slug} canEdit={canEdit} units={data.units} />
-      </div>
-
-      {/* lesson runs */}
-      <div className="mt-10">
-        <LessonRunsTable slug={data.slug} repoRef={data.ref} unitByLessonId={unitByLessonId} />
-      </div>
+      {/* saved presentations + lesson runs — ADMIN diagnostics only. The
+          lessons above already carry Play/eye for everyone else; these raw
+          tables are back-office views, not part of the course. */}
+      {role === 'admin' && (
+        <>
+          <div className="mt-10">
+            <SavedPresentationsTable slug={data.slug} canEdit={canEdit} units={data.units} />
+          </div>
+          <div className="mt-10">
+            <LessonRunsTable slug={data.slug} repoRef={data.ref} unitByLessonId={unitByLessonId} />
+          </div>
+        </>
+      )}
 
       {/* delete confirm modal */}
       <DeleteModal

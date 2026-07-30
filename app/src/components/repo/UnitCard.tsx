@@ -691,14 +691,10 @@ function UnitImageCard({
   onRemove: () => void;
   onChanged: () => void;
 }) {
-  const [redrawing, setRedrawing] = useState(false);
-  const [redrawPrompt, setRedrawPrompt] = useState('');
   const utils = trpc.useUtils();
   const replace = trpc.unitImages.replace.useMutation({
     onSuccess: (r) => {
       toast.success(r.cost > 0 ? `Redrawn — ${r.cost} 🪙` : 'Image replaced');
-      setRedrawing(false);
-      setRedrawPrompt('');
       onChanged();
       if (r.cost > 0) void utils.auth.me.invalidate();
     },
@@ -737,18 +733,17 @@ function UnitImageCard({
               onChange={(e) => onPickReplacement(e.target.files?.[0])}
             />
           </label>
+          {/* one press, no prompt: the server rewrites the prompt from the
+              unit's own lessons and reseeds a fresh banner */}
           <button
             type="button"
-            onClick={() => setRedrawing((v) => !v)}
+            onClick={() => replace.mutate({ imageId: image.id, source: 'generate' })}
+            disabled={replace.isPending}
             aria-label="Regenerate image"
-            title="Have the AI redraw this picture differently (costs credits)"
-            className="rounded-wobble-sm border-2 border-transparent bg-paper-3/80 p-1 text-ink-faint transition-colors hover:border-dashed hover:border-ink hover:text-ink"
+            title="Regenerate this banner from the unit's content (costs credits)"
+            className="rounded-wobble-sm border-2 border-transparent bg-paper-3/80 p-1 text-ink-faint transition-colors hover:border-dashed hover:border-ink hover:text-ink disabled:cursor-wait"
           >
-            {replace.isPending && !redrawing ? (
-              <PencilSpinner />
-            ) : (
-              <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />
-            )}
+            {replace.isPending ? <PencilSpinner /> : <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />}
           </button>
           <button
             type="button"
@@ -770,28 +765,6 @@ function UnitImageCard({
       />
       {image.caption && (
         <figcaption className="mt-1.5 text-sm text-ink-soft">{image.caption}</figcaption>
-      )}
-      {redrawing && canEdit && (
-        <div className="mt-2 flex items-center gap-2">
-          <input
-            value={redrawPrompt}
-            onChange={(e) => setRedrawPrompt(e.target.value)}
-            placeholder="How should it look instead?"
-            aria-label="Redraw prompt"
-            className="w-full rounded-wobble-sm border-2 border-ink bg-paper px-2.5 py-1.5 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
-          />
-          <SketchButton
-            variant="accent"
-            size="sm"
-            loading={replace.isPending}
-            disabled={redrawPrompt.trim().length < 3}
-            onClick={() =>
-              replace.mutate({ imageId: image.id, source: 'generate', prompt: redrawPrompt.trim() })
-            }
-          >
-            Redraw
-          </SketchButton>
-        </div>
       )}
     </figure>
   );
