@@ -724,6 +724,15 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                         <Chip kind="neutral" title={tool.template} aria-label={tool.template}>
                           <TemplateIcon template={tool.template} className="h-3.5 w-3.5" />
                         </Chip>
+                        {/* born in a repo: the R + ref code says which one */}
+                        {tool.repoRef && (
+                          <Chip
+                            kind="repo-ref"
+                            title={`From notebook #${tool.repoRef} — this presentation lives in that repo`}
+                          >
+                            R{tool.repoRef}
+                          </Chip>
+                        )}
                         <SourceBadge source={tool.source} compact />
                         {tool.assigned && (
                           <Chip

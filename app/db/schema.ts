@@ -190,10 +190,15 @@ export const slideTools = appSchema.table(
     // is kept so Refresh can reseed a new image from the same description.
     bannerImageId: integer("bannerImageId"),
     bannerPrompt: text("bannerPrompt"),
+    // Set when this tool IS a repo lesson's saved presentation, mirrored here
+    // so it shows on the Slides page. The pair locates the lesson, keeps the
+    // two copies in sync, and puts the R-ref sticker on the card.
+    repoSlug: varchar("repoSlug", { length: 191 }),
+    repoLessonSeq: integer("repoLessonSeq"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index("slideTools_owner_idx").on(t.ownerId)],
+  (t) => [index("slideTools_owner_idx").on(t.ownerId), index("slideTools_repo_idx").on(t.repoSlug)],
 );
 
 /**

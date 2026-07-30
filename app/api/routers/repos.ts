@@ -99,6 +99,7 @@ export async function writeLessonPreset(
     .update(lessons)
     .set({ presetDeckJson: prepared, presetAt: new Date() })
     .where(eq(lessons.id, lesson.id));
+  await mirrorPresetTool(repo, lesson.globalSeq, lesson.title, lesson.objective, prepared as SlideDeck | null);
 }
 
 /** Save a user's own generated deck for a lesson. See writeLessonPreset. */
@@ -131,6 +132,47 @@ export async function writeCustomization(
  * attach a finished play to and must not discard the play when the repo never
  * had one (a hand-built repo doesn't).
  */
+/**
+ * Keep a repo lesson's saved presentation visible on the Slides page: every
+ * preset write upserts a real slideTools row (slug preset-<repo>-l<seq>)
+ * carrying the same deck, and clearing the preset removes it. A real row —
+ * not a pseudo-entry — so Play, banners, cost gates and assigning all work
+ * on it unchanged; repoSlug/repoLessonSeq tie it back for the R-ref sticker
+ * and for keeping the two copies in sync.
+ */
+export async function mirrorPresetTool(
+  repo: Repo,
+  lessonSeq: number,
+  title: string,
+  objective: string,
+  deck: SlideDeck | null,
+): Promise<void> {
+  const db = getDb();
+  const slug = `preset-${repo.slug}-l${lessonSeq}`.slice(0, 191);
+  if (!deck) {
+    await db.delete(slideTools).where(eq(slideTools.slug, slug));
+    return;
+  }
+  const existing = await db.query.slideTools.findFirst({ where: eq(slideTools.slug, slug) });
+  const fields = {
+    name: title.slice(0, 255),
+    description: objective.slice(0, 4000),
+    topic: title.slice(0, 2000),
+    defaultLevel: (deck.level ?? "A1") as (typeof slideTools.$inferInsert)["defaultLevel"],
+    template: repo.template,
+    deckJson: deck,
+    isPublic: repo.isPublic,
+    ownerId: repo.ownerId,
+    repoSlug: repo.slug,
+    repoLessonSeq: lessonSeq,
+  };
+  if (existing) {
+    await db.update(slideTools).set(fields).where(eq(slideTools.id, existing.id));
+  } else {
+    await db.insert(slideTools).values({ slug, instructions: "", source: "ai", ...fields });
+  }
+}
+
 export async function resolveStudyTool(
   repo: Repo,
   fallbackOwnerId: number | null,
@@ -840,6 +882,7 @@ export const reposRouter = createRouter({
         .update(lessons)
         .set({ presetDeckJson: lean, presetAt: new Date() })
         .where(eq(lessons.id, lesson.id));
+      await mirrorPresetTool(repo, lesson.globalSeq, lesson.title, lesson.objective, lean);
       return { ok: true };
     }),
 
@@ -859,6 +902,7 @@ export const reposRouter = createRouter({
           .update(lessons)
           .set({ presetDeckJson: null, presetAt: null })
           .where(eq(lessons.id, lesson.id));
+        await mirrorPresetTool(repo, lesson.globalSeq, lesson.title, lesson.objective, null);
       }
       return { ok: true };
     }),

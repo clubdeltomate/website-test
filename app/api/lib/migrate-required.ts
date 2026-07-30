@@ -94,6 +94,36 @@ export async function ensureRequiredSchema(): Promise<void> {
     await client.query(
       `ALTER TABLE sketchlearn.users ADD COLUMN IF NOT EXISTS "avatarImageId" integer`,
     );
+    // A repo lesson's preset mirrored onto the Slides page; list queries
+    // select both columns.
+    await client.query(
+      `ALTER TABLE sketchlearn."slideTools" ADD COLUMN IF NOT EXISTS "repoSlug" varchar(191)`,
+    );
+    await client.query(
+      `ALTER TABLE sketchlearn."slideTools" ADD COLUMN IF NOT EXISTS "repoLessonSeq" integer`,
+    );
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS "slideTools_repo_idx" ON sketchlearn."slideTools" ("repoSlug")`,
+    );
+    // One-time mirror of presets saved BEFORE mirroring existed, so they show
+    // on the Slides page like new ones. An exception to the no-backfill rule
+    // above, accepted because it is a bounded INSERT..SELECT over lessons
+    // that already hold a preset, and ON CONFLICT makes reruns free.
+    await client.query(
+      `INSERT INTO sketchlearn."slideTools"
+         (slug, name, description, "ownerId", topic, instructions, "defaultLevel",
+          template, source, "deckJson", "isPublic", "repoSlug", "repoLessonSeq")
+       SELECT left('preset-' || r.slug || '-l' || l."globalSeq", 191),
+              left(l.title, 255), left(l.objective, 4000), r."ownerId",
+              left(l.title, 2000), '',
+              COALESCE(NULLIF(l."presetDeckJson"->>'level', ''), 'A1')::sketchlearn.level,
+              r.template, 'ai', l."presetDeckJson", r."isPublic", r.slug, l."globalSeq"
+       FROM sketchlearn.lessons l
+       JOIN sketchlearn.units u ON u.id = l."unitId"
+       JOIN sketchlearn.repos r ON r.id = u."repoId"
+       WHERE l."presetDeckJson" IS NOT NULL
+       ON CONFLICT (slug) DO NOTHING`,
+    );
     // Items handed to a user by a moderator; shelf queries read it.
     await client.query(
       `CREATE TABLE IF NOT EXISTS sketchlearn.assignments (

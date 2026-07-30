@@ -586,6 +586,9 @@ export interface SlideToolSummary {
   ownerVerified: boolean;
   /** The owner's profile picture, drawn in the card's leading circle. */
   ownerAvatarUrl: string | null;
+  /** The ref code of the repo this presentation came from (its card wears an
+      R-ref sticker), or null for standalone tools. */
+  repoRef: string | null;
   createdAt: Date;
   /** True when this is quiz material — a saved deck with questions, or an
       education tool that will generate them. Quiz cards offer Customize +
