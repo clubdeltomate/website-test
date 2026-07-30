@@ -300,6 +300,17 @@ export type SlideComponent =
  *  fillblank = type the missing word(s), typed = free typed answer. */
 export type QuizKind = "mcq" | "mcq2" | "fillblank" | "typed" | "solve";
 
+/**
+ * What one AI answer-check costs the player, in coins. Multiple-choice and
+ * fill-blank questions are checked locally and stay free; only typed/solve
+ * answers go to the AI. Shared so the card's cost sticker, the play-gate
+ * dialog and the server's charge always quote the same number.
+ */
+export const TEXT_GRADE_COST = 1;
+
+/** Quiz kinds whose answers are graded by the AI (and therefore cost coins). */
+export const AI_CHECKED_KINDS: readonly QuizKind[] = ["typed", "solve"];
+
 export interface SlideQuiz {
   /** defaults to "mcq" for decks generated before typed answers existed */
   kind?: QuizKind;
@@ -566,6 +577,11 @@ export interface SlideToolSummary {
       played run, or the answer key when nobody has played yet. null until
       either exists — the eye stays disabled. */
   bestRunId: number | null;
+  /** How many questions in the playable deck are AI-checked (typed/solve).
+      0 means the whole lesson plays free — multiple-choice and fill-blank
+      are checked locally. Drives the card's Free/paid sticker and the
+      cost-confirmation dialog before playing. */
+  aiCheckCount: number;
 }
 
 /* ---------------- Runs & lesson logs -------------------------------- */
