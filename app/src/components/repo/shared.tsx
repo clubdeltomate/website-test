@@ -139,14 +139,15 @@ export function TemplateIcon({
  * "Made with AI" / "Made by hand" authorship sticker — one definition shared by
  * repo cards and slide-tool cards so they always look identical.
  */
-export function SourceBadge({ source }: { source: ContentSource }) {
+export function SourceBadge({ source, compact = false }: { source: ContentSource; compact?: boolean }) {
   if (source === 'ai') {
     return (
       <span
         title="Generated with AI"
         className="inline-flex items-center gap-1 rounded-wobble-sm border-2 border-purple bg-purple-soft px-1.5 py-0.5 font-heading text-[0.6rem] font-bold text-purple"
       >
-        <Sparkles className="h-3 w-3" strokeWidth={2.5} /> Made with AI
+        <Sparkles className="h-3 w-3" strokeWidth={2.5} />
+        {!compact && 'Made with AI'}
       </span>
     );
   }
@@ -155,7 +156,8 @@ export function SourceBadge({ source }: { source: ContentSource }) {
       title="Hand-built by a person"
       className="inline-flex items-center gap-1 rounded-wobble-sm border-2 border-green bg-green-soft px-1.5 py-0.5 font-heading text-[0.6rem] font-bold text-green"
     >
-      <Hand className="h-3 w-3" strokeWidth={2.5} /> Made by hand
+      <Hand className="h-3 w-3" strokeWidth={2.5} />
+      {!compact && 'Made by hand'}
     </span>
   );
 }

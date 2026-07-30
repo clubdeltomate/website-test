@@ -193,8 +193,7 @@ type RunLite = Pick<
   "id" | "lessonId" | "userId" | "scoreCorrect" | "scoreTotal" | "completedAt" | "level" | "elapsedSec"
 >;
 
-/** Viewer-scoped progress fields for one lesson (guests → all-zero/unplayed). */
-function lessonProgress(lessonId: number, viewerRuns: RunLite[]): Pick<
+type LessonProgressFields = Pick<
   RepoLesson,
   | "myAttempts"
   | "myBestCorrect"
@@ -207,11 +206,42 @@ function lessonProgress(lessonId: number, viewerRuns: RunLite[]): Pick<
   | "myLastLevel"
   | "myLastElapsedSec"
   | "myStatus"
-> {
+> & { fromAnswerKey: boolean };
+
+/**
+ * Viewer-scoped progress fields for one lesson (guests → all-zero/unplayed).
+ *
+ * A published answer key presents as a perfect completed run — full score, the
+ * fixed 4:42, the rebuild count as "times played" — but only while the viewer
+ * has no completed run of their own. The moment a real player finishes the
+ * lesson, their run takes the slot even against the key's perfect score: their
+ * typed answers are worth more than a listed key.
+ */
+function lessonProgress(
+  lessonId: number,
+  viewerRuns: RunLite[],
+  keyRun: RunLite | undefined,
+  keyGenerations: number,
+): LessonProgressFields {
   const mine = viewerRuns
     .filter((r) => r.lessonId === lessonId)
     .sort((a, b) => a.completedAt.getTime() - b.completedAt.getTime());
+  const asKey = (): LessonProgressFields => ({
+    myAttempts: Math.max(1, keyGenerations),
+    myBestCorrect: keyRun!.scoreCorrect,
+    myBestTotal: keyRun!.scoreTotal,
+    myBestRunId: keyRun!.id,
+    myBestLevel: (keyRun!.level as Level) ?? null,
+    myBestElapsedSec: keyRun!.elapsedSec,
+    myLastCorrect: keyRun!.scoreCorrect,
+    myLastTotal: keyRun!.scoreTotal,
+    myLastLevel: (keyRun!.level as Level) ?? null,
+    myLastElapsedSec: keyRun!.elapsedSec,
+    myStatus: "completed",
+    fromAnswerKey: true,
+  });
   if (mine.length === 0) {
+    if (keyRun) return asKey();
     return {
       myAttempts: 0,
       myBestCorrect: 0,
@@ -224,6 +254,7 @@ function lessonProgress(lessonId: number, viewerRuns: RunLite[]): Pick<
       myLastLevel: null,
       myLastElapsedSec: 0,
       myStatus: "unplayed",
+      fromAnswerKey: false,
     };
   }
   const ratio = (r: RunLite) => (r.scoreTotal === 0 ? 1 : r.scoreCorrect / r.scoreTotal);
@@ -236,6 +267,9 @@ function lessonProgress(lessonId: number, viewerRuns: RunLite[]): Pick<
   });
   const last = mine[mine.length - 1];
   const passed = mine.some((r) => isPassingScore(r.scoreCorrect, r.scoreTotal));
+  // Played but never passed: the key still stands in as the visible best run,
+  // so a stuck student can always reach the answers through the eye.
+  if (!passed && keyRun) return asKey();
   return {
     myAttempts: mine.length,
     myBestCorrect: best.scoreCorrect,
@@ -248,6 +282,7 @@ function lessonProgress(lessonId: number, viewerRuns: RunLite[]): Pick<
     myLastLevel: (last.level as Level) ?? null,
     myLastElapsedSec: last.elapsedSec,
     myStatus: passed ? "completed" : "try-again",
+    fromAnswerKey: false,
   };
 }
 
@@ -395,16 +430,18 @@ export const reposRouter = createRouter({
         .from(units)
         .where(eq(units.repoId, repo.id))
         .orderBy(units.orderIndex);
-      // Answer keys carry no userId and are filtered out anyway, but excluding
-      // them in the query keeps the per-lesson play count honest too. Guarded
-      // for the same reason as the shelf: a lesson's chips are worth losing, a
-      // whole repo page is not.
+      // One fetch, split in memory: real plays feed counts and progress, the
+      // answer keys stand in as a perfect run on lessons the viewer hasn't
+      // completed. Guarded for the same reason as the shelf: a lesson's chips
+      // are worth losing, a whole repo page is not.
       let repoRuns: (typeof runs.$inferSelect)[] = [];
+      const keyRuns = new Map<number, RunLite>();
       try {
-        repoRuns = await db
-          .select()
-          .from(runs)
-          .where(and(eq(runs.repoId, repo.id), eq(runs.isAnswerKey, false)));
+        const allRuns = await db.select().from(runs).where(eq(runs.repoId, repo.id));
+        repoRuns = allRuns.filter((r) => !r.isAnswerKey);
+        for (const r of allRuns) {
+          if (r.isAnswerKey && r.lessonId != null) keyRuns.set(r.lessonId, r);
+        }
       } catch (err) {
         console.warn("[repos] run history unavailable:", err instanceof Error ? err.message : err);
       }
@@ -439,7 +476,7 @@ export const reposRouter = createRouter({
           runCount: repoRuns.filter((r) => r.lessonId === l.id).length,
           hasPreset: l.presetDeckJson != null,
           myHasCustomization: myCustomLessonIds.has(l.id),
-          ...lessonProgress(l.id, viewerRuns),
+          ...lessonProgress(l.id, viewerRuns, keyRuns.get(l.id), l.answerKeyGenerations),
         }));
         const pics = await db
           .select()

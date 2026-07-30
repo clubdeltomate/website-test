@@ -15,18 +15,42 @@ const toneSchema = z.string().refine((t) => (TONES as string[]).includes(t), "un
 
 export async function toSummary(tool: SlideTool, userId: number | undefined): Promise<SlideToolSummary> {
   const db = getDb();
-  // Excluding answer keys: a key is written by the owner to show the answers,
-  // not played by anyone, so counting it as a play overstates the tool's use.
+  // Play counts exclude answer keys (a key is written, not played), but the
+  // card's "Best run" eye counts them: a key IS a viewable perfect run, and
+  // it stands in until a real play beats it — a played run always outranks
+  // the key, whatever its score, because typed answers are worth more.
   // Guarded — a play count must never be the reason a card fails to render.
-  let toolRuns: { id: number }[] = [];
+  let allRuns: {
+    id: number;
+    scoreCorrect: number;
+    scoreTotal: number;
+    elapsedSec: number;
+    isAnswerKey: boolean;
+  }[] = [];
   try {
-    toolRuns = await db
-      .select({ id: runs.id })
+    allRuns = await db
+      .select({
+        id: runs.id,
+        scoreCorrect: runs.scoreCorrect,
+        scoreTotal: runs.scoreTotal,
+        elapsedSec: runs.elapsedSec,
+        isAnswerKey: runs.isAnswerKey,
+      })
       .from(runs)
-      .where(and(eq(runs.slideToolId, tool.id), eq(runs.isAnswerKey, false)));
+      .where(eq(runs.slideToolId, tool.id));
   } catch (err) {
     console.warn("[slideTools] run count unavailable:", err instanceof Error ? err.message : err);
   }
+  const toolRuns = allRuns.filter((r) => !r.isAnswerKey);
+  const ratio = (r: { scoreCorrect: number; scoreTotal: number }) =>
+    r.scoreTotal === 0 ? 1 : r.scoreCorrect / r.scoreTotal;
+  const bestPlayed = toolRuns.reduce<(typeof allRuns)[number] | null>((a, b) => {
+    if (!a) return b;
+    if (ratio(b) !== ratio(a)) return ratio(b) > ratio(a) ? b : a;
+    return b.elapsedSec < a.elapsedSec ? b : a;
+  }, null);
+  const keyRun = allRuns.find((r) => r.isAnswerKey) ?? null;
+  const deck = tool.deckJson != null ? (tool.deckJson as SlideDeck) : null;
   let favorite = false;
   if (userId) {
     const fav = await db.query.favorites.findFirst({
@@ -56,16 +80,20 @@ export async function toSummary(tool: SlideTool, userId: number | undefined): Pr
     defaultTone: ((tool.defaultTone as Tone) ?? "neutral") as Tone,
     source: tool.source === "human" ? "human" : "ai",
     hasDeck: tool.deckJson != null,
-    deckSlideCount:
-      tool.deckJson != null && Array.isArray((tool.deckJson as SlideDeck).slides)
-        ? (tool.deckJson as SlideDeck).slides.length
-        : null,
+    deckSlideCount: deck != null && Array.isArray(deck.slides) ? deck.slides.length : null,
     isPublic: tool.isPublic,
     favorite,
     runCount: toolRuns.length,
     ownerId: tool.ownerId ?? null,
     ownerName,
     createdAt: tool.createdAt,
+    // A saved deck answers directly; without one, an education tool is quiz
+    // material by nature — its generations carry questions.
+    hasQuiz:
+      deck != null && Array.isArray(deck.slides)
+        ? deck.slides.some((s) => s.quiz != null)
+        : repoPurpose((tool.template ?? "course") as RepoTemplate) === "education",
+    bestRunId: bestPlayed?.id ?? keyRun?.id ?? null,
   };
 }
 

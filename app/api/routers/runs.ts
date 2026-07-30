@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { createRouter, publicQuery } from "../middleware.js";
 import { authedProcedure, moderatorProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
@@ -9,6 +9,13 @@ import { customizations, lessons, repos, runs, slideTools, units, lessonLogs } f
 import { externalizeDeckImages } from "../deck-images.js";
 import { imageStyleSchema, levelSchema } from "../ai/prompts.js";
 import type { LessonLogSlide, RunDetail, RunReplay, RunRow, RunSlideDetail, SlideDeck } from "../../contracts/types.js";
+
+/**
+ * The time stamped on every answer-key run — 4 minutes 42 seconds. Nobody
+ * timed anything: the key is written, not played, but the row presents it as
+ * a finished run and a finished run has a time.
+ */
+const ANSWER_KEY_ELAPSED_SEC = 4 * 60 + 42;
 
 const perSlideSchema = z.object({
   title: z.string(),
@@ -267,9 +274,11 @@ export const runsRouter = createRouter({
    * it reads the correct answer already stored on each slide and writes it down
    * as if it had been played.
    *
-   * The run is flagged isAnswerKey, which keeps it out of the owner's own
-   * progress and opens it to anyone who can see the lesson. That is the point:
-   * a student with no credits can read the answers without playing.
+   * The run is flagged isAnswerKey and opens to anyone who can see the lesson.
+   * That is the point: a student with no credits can read the answers without
+   * playing. On the lesson row it presents as a perfect completed run — full
+   * score, the fixed 4:42 — until a real player completes the lesson, whose
+   * own run then takes the spot (a typed answer beats a listed one).
    */
   createAnswerKey: authedProcedure
     .input(z.object({ repoSlug: z.string(), lessonSeq: z.number().int() }))
@@ -366,7 +375,7 @@ export const runsRouter = createRouter({
             slideCount: deck.slides.length,
             scoreCorrect: answered,
             scoreTotal: answered,
-            elapsedSec: 0,
+            elapsedSec: ANSWER_KEY_ELAPSED_SEC,
             deckJson: snapshot,
             isAnswerKey: true,
           })
@@ -379,17 +388,28 @@ export const runsRouter = createRouter({
           level: deck.level,
           scoreCorrect: answered,
           scoreTotal: answered,
-          elapsedSec: 0,
+          elapsedSec: ANSWER_KEY_ELAPSED_SEC,
           perSlideJson: perSlide,
         });
+        // The run is replaced on every rebuild, so the lesson row carries the
+        // "how many times" counter the meta chips show.
+        await tx
+          .update(lessons)
+          .set({ answerKeyGenerations: sql`${lessons.answerKeyGenerations} + 1` })
+          .where(eq(lessons.id, lesson!.id));
         return { runId: id, answered };
       });
     }),
 
-  /** The lesson's answer-key run, if the owner has published one. */
+  /**
+   * The lesson's answer-key run, if the owner has published one. `stale` means
+   * the preset was regenerated or edited AFTER the key was written — the one
+   * moment the key button reappears, since the stored answers may no longer
+   * match the deck.
+   */
   answerKeyFor: publicQuery
     .input(z.object({ repoSlug: z.string(), lessonSeq: z.number().int() }))
-    .query(async ({ input }): Promise<{ runId: number; scoreTotal: number } | null> => {
+    .query(async ({ input }): Promise<{ runId: number; scoreTotal: number; stale: boolean } | null> => {
       const db = getDb();
       const repo = await db.query.repos.findFirst({ where: eq(repos.slug, input.repoSlug) });
       if (!repo) return null;
@@ -402,7 +422,9 @@ export const runsRouter = createRouter({
         const key = await db.query.runs.findFirst({
           where: and(eq(runs.lessonId, lesson.id), eq(runs.isAnswerKey, true)),
         });
-        return key ? { runId: key.id, scoreTotal: key.scoreTotal } : null;
+        if (!key) return null;
+        const stale = lesson.presetAt != null && lesson.presetAt.getTime() > key.completedAt.getTime();
+        return { runId: key.id, scoreTotal: key.scoreTotal, stale };
       }
       return null;
     }),
@@ -470,8 +492,17 @@ export const runsRouter = createRouter({
       // is the whole reason it exists — a student with no credits checking their
       // answers without playing.
       const isPublishedKey = r.isAnswerKey && (repoIsPublic || repoOwnerId === ctx.user?.id);
+      // Runs on a PUBLIC slide tool are open the same way: the tool card's
+      // "Best run" eye is how a viewer with no credits browses what has
+      // already been answered, and the runs feed already lists these plays.
+      let onPublicTool = false;
+      if (r.slideToolId != null) {
+        const tool = await db.query.slideTools.findFirst({ where: eq(slideTools.id, r.slideToolId) });
+        onPublicTool = tool?.isPublic ?? false;
+      }
       const privileged =
         isPublishedKey ||
+        onPublicTool ||
         (!!ctx.user &&
           (r.userId === ctx.user.id ||
             repoOwnerId === ctx.user.id ||

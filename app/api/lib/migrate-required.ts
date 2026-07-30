@@ -69,6 +69,10 @@ export async function ensureRequiredSchema(): Promise<void> {
     await client.query(
       `ALTER TABLE sketchlearn.tickets ALTER COLUMN "repoId" DROP NOT NULL`,
     );
+    // Counts answer-key rebuilds per lesson; getBySlug selects the column.
+    await client.query(
+      `ALTER TABLE sketchlearn.lessons ADD COLUMN IF NOT EXISTS "answerKeyGenerations" integer NOT NULL DEFAULT 0`,
+    );
   } finally {
     await client.end();
   }
