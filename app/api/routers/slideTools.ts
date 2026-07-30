@@ -6,7 +6,7 @@ import { authedProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
 import { favoriteSlugs } from "./repos.js";
 import { externalizeDeckImages, IMAGE_URL_PREFIX } from "../deck-images.js";
-import { makeCardBanner } from "../card-banner.js";
+import { makeCardBanner, TOOL_BANNER_DIRECTIVE } from "../card-banner.js";
 import { assignedSlugs } from "./assignments.js";
 import { favorites, runs, slideTools, users, type SlideTool, type User } from "../../db/schema.js";
 import { imageStyleSchema, levelSchema, slugify, templateSchema } from "../ai/prompts.js";
@@ -227,7 +227,9 @@ export const slideToolsRouter = createRouter({
           `A header banner for a lesson presentation called "${tool.name}" about ${tool.topic || tool.description}.` +
           (slideTitles ? ` It covers: ${slideTitles}.` : "");
       }
-      const { imageId, cost } = await makeCardBanner(ctx.user, subject);
+      // A presentation's banner is a little watercolor painting — the repo
+      // keeps the pencil notebook look, so the two card kinds read apart.
+      const { imageId, cost } = await makeCardBanner(ctx.user, subject, TOOL_BANNER_DIRECTIVE);
       await db
         .update(slideTools)
         .set({ bannerImageId: imageId, bannerPrompt: subject })
