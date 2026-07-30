@@ -66,7 +66,6 @@ export default function UserProfile() {
    */
   const [madeBy, setMadeBy] = useState<ContentSource | 'all'>('all');
   const [page, setPage] = useState(0);
-  const [ticketOpen, setTicketOpen] = useState(false);
   const [coinOpen, setCoinOpen] = useState(false);
   const [grantOpen, setGrantOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
@@ -146,14 +145,13 @@ export default function UserProfile() {
   const sellsTickets = p.role === 'moderator' || p.role === 'admin';
   const isAdmin = p.role === 'admin';
   const viewerIsStaff = role === 'moderator' || role === 'admin';
-  const canRequestTickets = !isGuest && !isSelf && sellsTickets;
   const canRequestCoins = !isGuest && !isSelf && isAdmin && viewerIsStaff;
   /**
    * What this page offers depends on who is reading it, not only on whose it
    * is. An admin can hand tickets over and move coins; a moderator can pass
-   * tickets to another holder; everyone else can only ask. Before this the
-   * page showed one button — "Request tickets" — to all three, so an admin
-   * looking at a moderator had no way to do the thing they were there to do.
+   * tickets to another holder. Asking for tickets from a profile is not
+   * offered — the request lives where a ticket is actually needed, on the
+   * repo lesson that wants customizing.
    */
   const viewerIsAdmin = role === 'admin';
   // Only ticket holders can be handed tickets — a plain user has to be credited
@@ -303,15 +301,6 @@ export default function UserProfile() {
               <Ticket className="h-4 w-4" /> Send tickets
             </SketchButton>
           )}
-          {canRequestTickets && !canGrantTickets && (
-            <SketchButton
-              variant={canSendTickets ? 'secondary' : 'accent'}
-              size="sm"
-              onClick={() => setTicketOpen(true)}
-            >
-              <Ticket className="h-4 w-4" /> Request tickets
-            </SketchButton>
-          )}
           {canRequestCoins && !canAdjustCoins && (
             <SketchButton variant="secondary" size="sm" onClick={() => setCoinOpen(true)}>
               <Coins className="h-4 w-4" /> Request coins
@@ -433,7 +422,6 @@ export default function UserProfile() {
         </div>
       )}
 
-      {ticketOpen && <TicketRequestModal profile={p} onClose={() => setTicketOpen(false)} />}
       {coinOpen && <CoinRequestModal onClose={() => setCoinOpen(false)} />}
       {grantOpen && <GiveTicketsModal profile={p} onClose={() => setGrantOpen(false)} />}
       {sendOpen && <SendTicketsModal profile={p} onClose={() => setSendOpen(false)} />}
@@ -484,77 +472,6 @@ function ToolMini({ tool }: { tool: SlideToolSummary }) {
         <Play className="h-3.5 w-3.5" strokeWidth={2.5} /> {human ? 'Play' : 'Open'}
       </span>
     </Link>
-  );
-}
-
-function TicketRequestModal({ profile, onClose }: { profile: Profile; onClose: () => void }) {
-  const [repoSlug, setRepoSlug] = useState(profile.repos[0]?.slug ?? '');
-  const [count, setCount] = useState(1);
-  const [note, setNote] = useState('');
-  const req = trpc.tickets.request.useMutation({
-    onSuccess: () => {
-      toast.success(`Requested — ${profile.name} will follow up (usually on WhatsApp)`);
-      onClose();
-    },
-    onError: (e) => toast.error(e.message),
-  });
-  return (
-    <ModalShell title={`Request tickets from ${profile.name}`} onClose={onClose}>
-      <p className="text-sm text-ink-soft">
-        A ticket lets you generate one custom version of a repo. {profile.name} grants them from their
-        pool — you coordinate payment over WhatsApp.
-      </p>
-      {profile.repos.length === 0 ? (
-        <p className="text-sm text-red">This user has no public repos to request tickets for.</p>
-      ) : (
-        <>
-          <Field label="Repo">
-            <select
-              value={repoSlug}
-              onChange={(e) => setRepoSlug(e.target.value)}
-              className={selectCls}
-            >
-              {profile.repos.map((r) => (
-                <option key={r.slug} value={r.slug}>
-                  {r.title}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Tickets">
-            <input
-              type="number"
-              min={1}
-              max={20}
-              value={count}
-              onChange={(e) => setCount(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
-              className={cn(selectCls, 'w-24')}
-            />
-          </Field>
-          <Field label="Note (optional)">
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="What you'd like to customize…"
-              className={cn(selectCls, 'min-h-[56px] resize-y')}
-            />
-          </Field>
-          <div className="flex justify-end gap-2">
-            <SketchButton variant="ghost" size="sm" onClick={onClose}>
-              Cancel
-            </SketchButton>
-            <SketchButton
-              variant="accent"
-              size="sm"
-              loading={req.isPending}
-              onClick={() => req.mutate({ repoSlug, count, note })}
-            >
-              <Ticket className="h-4 w-4" /> Send request
-            </SketchButton>
-          </div>
-        </>
-      )}
-    </ModalShell>
   );
 }
 
