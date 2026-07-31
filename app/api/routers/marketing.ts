@@ -202,6 +202,140 @@ export const marketingRouter = createRouter({
       return { logoUrl };
     }),
 
+  /** The business card as last saved, plus what we know to fill a blank one. */
+  card: adminProcedure.query(
+    async ({
+      ctx,
+    }): Promise<{
+      saved: Record<string, unknown> | null;
+      name: string;
+      company: string;
+      details: string;
+    }> => {
+      const [row] = await getDb()
+        .select({ businessCard: marketingProfiles.businessCard, followCard: marketingProfiles.followCard })
+        .from(marketingProfiles)
+        .where(eq(marketingProfiles.ownerId, ctx.user.id));
+      const follow = (row?.followCard ?? {}) as { name?: string };
+      return {
+        saved: (row?.businessCard as Record<string, unknown> | null) ?? null,
+        name: ctx.user.name,
+        // The account name from the follow card is the trading name if there
+        // is one; otherwise this site is who you are posting as.
+        company: follow.name || SITE.name,
+        details: [ctx.user.email, SITE.contact].filter(Boolean).join("\n"),
+      };
+    },
+  ),
+
+  /** Keep this business card. Same logo handling as the follow card. */
+  saveCard: adminProcedure
+    .input(
+      z.object({
+        card: z.record(z.string(), z.unknown()),
+        logoUrl: z.string().max(8_000_000).nullable().default(null),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ logoUrl: string | null }> => {
+      let logoUrl = input.logoUrl;
+      const data = logoUrl && /^data:([^;,]+);base64,(.+)$/s.exec(logoUrl);
+      if (data) {
+        const [row] = await getDb()
+          .insert(slideImages)
+          .values({ ownerId: ctx.user.id, mime: data[1], data: data[2] })
+          .returning({ id: slideImages.id });
+        logoUrl = `${IMAGE_URL_PREFIX}${row.id}`;
+      }
+      const businessCard = { ...input.card, logoUrl };
+      await getDb()
+        .insert(marketingProfiles)
+        .values({ ownerId: ctx.user.id, businessCard })
+        .onConflictDoUpdate({
+          target: marketingProfiles.ownerId,
+          set: { businessCard, updatedAt: new Date() },
+        });
+      return { logoUrl };
+    }),
+
+  /**
+   * Write the card's words from what this account actually is.
+   *
+   * Not a blank-page prompt: the AI is given the person's name, the trading
+   * name, and — the part that makes it worth asking — the categories they
+   * have actually been posting in, so a card for someone whose feed is all
+   * restaurant posts reads like a restaurant's card rather than a generic one.
+   */
+  draftCard: adminProcedure
+    .input(
+      z.object({
+        note: z.string().max(300).default(""),
+        categories: z.array(z.enum(POST_CATEGORIES)).max(6).default([]),
+      }),
+    )
+    .mutation(
+      async ({
+        ctx,
+        input,
+      }): Promise<{ title: string; tagline: string; cost: number }> => {
+        if (ctx.user.tokenBalance < HIGHLIGHT_COST) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `INSUFFICIENT_TOKENS: drafting costs ${HIGHLIGHT_COST} 🪙, you have ${ctx.user.tokenBalance} 🪙`,
+          });
+        }
+        const doing =
+          input.categories.length > 0
+            ? input.categories.map((c) => CATEGORY_BRIEF[c]).join("; ")
+            : "not posted anything yet, so keep it broad";
+        const system =
+          "You write the two lines on a business card. Given who someone is and what they " +
+          "publish, give: title — their role, 2 to 5 words, no invented seniority; " +
+          "tagline — one short line, under 12 words, saying what they do for someone. " +
+          "Plain and specific, no slogans about passion or excellence. " +
+          'Reply STRICT JSON ONLY: {"title":"…","tagline":"…"}';
+        const who = [
+          `Name: ${ctx.user.name}`,
+          `Posts about: ${doing}`,
+          input.note.trim() ? `They add: ${input.note.trim()}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+        let parsed: unknown = null;
+        for (let attempt = 0; attempt < 2 && parsed === null; attempt++) {
+          try {
+            const result = await completeText({
+              userId: ctx.user.id,
+              messages: [
+                { role: "system", content: system },
+                {
+                  role: "user",
+                  content:
+                    attempt === 0 ? who : `${who}\n\nReminder: STRICT JSON ONLY.`,
+                },
+              ],
+              maxTokens: 300,
+            });
+            if (!result) break;
+            parsed = JSON.parse(extractJson(result.text));
+          } catch (err) {
+            console.warn(`[marketing.draftCard] attempt ${attempt + 1} failed:`, err);
+          }
+        }
+        const drafted = z
+          .object({ title: z.string().max(80), tagline: z.string().max(160) })
+          .safeParse(parsed);
+        if (!drafted.success) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "AI_UNAVAILABLE: no AI provider drafted the card — nothing was charged. Check the server AI keys and try again.",
+          });
+        }
+        await applyTokenDelta(ctx.user.id, -HIGHLIGHT_COST, "business card draft");
+        return { ...drafted.data, cost: HIGHLIGHT_COST };
+      },
+    ),
+
   /**
    * Write the whole carousel: an opening hook, the steps in between, and a
    * closing card — each with its own title, subtitle and a prompt for the

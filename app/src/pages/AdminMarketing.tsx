@@ -42,6 +42,7 @@ import SketchToaster from '@/components/admin/SketchToaster';
 import SketchButton from '@/components/sketch/SketchButton';
 import SketchCard from '@/components/sketch/SketchCard';
 import { HubHeader } from '@/components/admin/PanelTiles';
+import MarketingTabs from '@/components/marketing/MarketingTabs';
 
 /* Marketing: a small Canva for Instagram carousels.
  *
@@ -770,8 +771,9 @@ function MarketingBody() {
         backTo="/admin/projects"
         backLabel="Projects"
         title="Marketing"
-        blurb="Write a carousel, draw its pictures, set the words — then download the post."
+        blurb="Write a carousel, draw its pictures, set the words — then post it."
       />
+      <MarketingTabs />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
         {/* ---------------- preview + carousel strip ---------------- */}
