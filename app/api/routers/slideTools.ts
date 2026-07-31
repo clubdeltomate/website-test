@@ -148,6 +148,7 @@ export async function toSummary(tool: SlideTool, userId: number | undefined): Pr
     defaultImageStyle: tool.defaultImageStyle,
     template: (tool.template ?? "course") as RepoTemplate,
     defaultTone: ((tool.defaultTone as Tone) ?? "neutral") as Tone,
+    contentLanguage: tool.contentLanguage ?? "en",
     source: tool.source === "human" ? "human" : "ai",
     hasDeck: tool.deckJson != null,
     deckSlideCount: deck != null && Array.isArray(deck.slides) ? deck.slides.length : null,
@@ -192,6 +193,10 @@ export const slideToolsRouter = createRouter({
           excludeMine: z.boolean().default(false),
           /** only work owned by people the viewer follows */
           followingOnly: z.boolean().default(false),
+          /* Narrow to one language. Absent means every language, which is
+             what an English reader gets — see src/lib/content-language.ts
+             for why Spanish is the exclusive shelf and English the catch-all. */
+          language: z.string().max(5).optional(),
         })
         .optional(),
     )
@@ -209,6 +214,7 @@ export const slideToolsRouter = createRouter({
         conds.push(inArray(slideTools.ownerId, ids));
       }
       if (!ctx.user || ctx.user.role === "user") conds.push(eq(slideTools.isPublic, true));
+      if (input?.language) conds.push(eq(slideTools.contentLanguage, input.language));
       if (input?.q) {
         const q = `%${input.q}%`;
         conds.push(or(like(slideTools.name, q), like(slideTools.description, q), like(slideTools.topic, q))!);
@@ -303,6 +309,11 @@ export const slideToolsRouter = createRouter({
     .input(
       z.object({
         name: z.string().min(3).max(255),
+        /* The language the work is written in, sent by the page from the
+           reader's own setting. A Spanish author's repo has to land on the
+           Spanish shelf or it disappears from the shelf they are looking at. */
+        contentLanguage: z.string().max(5).default("en"),
+
         description: z.string().max(4000).default(""),
         topic: z.string().max(2000).default(""),
         instructions: z.string().max(4000).default(""),
@@ -333,6 +344,7 @@ export const slideToolsRouter = createRouter({
       z.object({
         name: z.string().min(3).max(255),
         description: z.string().max(4000).default(""),
+        contentLanguage: z.string().max(5).default("en"),
         deck: z.unknown(),
       }),
     )
@@ -353,6 +365,7 @@ export const slideToolsRouter = createRouter({
         ownerId: ctx.user.id,
         isPublic: true,
         source: "human",
+        contentLanguage: input.contentLanguage,
         deckJson: (await externalizeDeckImages(deck, ctx.user.id)).deck,
         defaultLevel: deck?.level ?? "B1",
         defaultImageStyle: deck?.imageStyle ?? "none",

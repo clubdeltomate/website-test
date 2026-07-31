@@ -9,6 +9,7 @@ import { trpc } from '@/providers/trpc';
 import type { RepoSummary } from '@contracts/types';
 import { CardBanner, OwnerAvatar, ProgressStrip, SourceBadge, TemplateIcon, VerifiedBadge, relTime } from './shared';
 import { say } from '@/lib/i18n';
+import LanguageTag from '@/components/LanguageTag';
 
 export interface RepoCardProps {
   repo: RepoSummary;
@@ -140,6 +141,7 @@ function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete, onA
         {/* ref chip */}
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <Chip kind="repo-ref">#{repo.ref}</Chip>
+          <LanguageTag code={repo.contentLanguage} />
           {/* icons say it: the category doodle and the AI sparkle carry
               their words in the hover title instead of on the card */}
           <Chip kind="neutral" title={repo.template} aria-label={repo.template}>

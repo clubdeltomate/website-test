@@ -44,7 +44,7 @@ import { useLessonGeneration } from '@/providers/lesson-generation';
 import { TemplateBadges } from '@/components/templates/TemplatePicker';
 import SketchButton from '../sketch/SketchButton';
 import WashiTape from '../sketch/WashiTape';
-import { say } from '@/lib/i18n';
+import { getLang, say } from '@/lib/i18n';
 
 export interface CreateToolModalProps {
   open: boolean;
@@ -433,6 +433,7 @@ export default function CreateToolModal({
       defaultSlideCount: slideCount,
       defaultImageStyle: imageStyle,
       defaultLevel: level,
+      contentLanguage: getLang(),
     });
   };
 

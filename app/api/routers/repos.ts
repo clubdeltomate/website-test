@@ -394,6 +394,7 @@ export async function repoSummaries(repoRows: Repo[], userId: number | undefined
       description: repo.description,
       template: repo.template,
       source: repo.source === "human" ? "human" : "ai",
+      contentLanguage: repo.contentLanguage ?? "en",
       unitCount: repoUnits.length,
       lessonCount,
       runCount: repoRuns.length,
@@ -433,6 +434,10 @@ export const reposRouter = createRouter({
           excludeMine: z.boolean().default(false),
           /** only work owned by people the viewer follows */
           followingOnly: z.boolean().default(false),
+          /* Narrow to one language. Absent means every language, which is
+             what an English reader gets — see src/lib/content-language.ts
+             for why Spanish is the exclusive shelf and English the catch-all. */
+          language: z.string().max(5).optional(),
         })
         .optional(),
     )
@@ -454,6 +459,7 @@ export const reposRouter = createRouter({
       }
       if (!ctx.user || ctx.user.role === "user") conds.push(eq(repos.isPublic, true));
       if (input?.template) conds.push(eq(repos.template, input.template));
+      if (input?.language) conds.push(eq(repos.contentLanguage, input.language));
       if (input?.q) {
         const q = `%${input.q}%`;
         conds.push(or(like(repos.title, q), like(repos.description, q), like(repos.slug, q))!);
@@ -635,6 +641,11 @@ export const reposRouter = createRouter({
     .input(
       z.object({
         title: z.string().min(3).max(255),
+        /* The language the work is written in, sent by the page from the
+           reader's own setting. A Spanish author's repo has to land on the
+           Spanish shelf or it disappears from the shelf they are looking at. */
+        contentLanguage: z.string().max(5).default("en"),
+
         description: z.string().max(4000).default(""),
         template: templateSchema.default("course"),
         studyToolSlug: z.string().max(191).optional(),
@@ -671,6 +682,7 @@ export const reposRouter = createRouter({
         // none at all, because the UI treats it as a working link.
         studyToolSlug: input.studyToolSlug ?? null,
         source: input.source,
+        contentLanguage: input.contentLanguage,
         isPublic: true,
       });
       return { slug, ref: repoRef(slug) };

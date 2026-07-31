@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import SketchButton from '@/components/sketch/SketchButton';
 import { TemplateIcon } from '@/components/repo/shared';
 import type { RepoTemplate } from '@contracts/types';
-import { say } from '@/lib/i18n';
+import { getLang, say } from '@/lib/i18n';
 
 interface DraftLesson {
   title: string;
@@ -87,6 +87,7 @@ export default function RepoBuilder() {
         description: description.trim(),
         template,
         source: 'human',
+        contentLanguage: getLang(),
       });
       for (const u of units) {
         const unitTitle = u.title.trim();

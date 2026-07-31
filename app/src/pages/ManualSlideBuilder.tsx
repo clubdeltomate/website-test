@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import SketchButton from '@/components/sketch/SketchButton';
 import DeckBuilder, { blankDeck } from '@/components/slides/DeckBuilder';
 import type { SlideDeck } from '@contracts/types';
-import { say } from '@/lib/i18n';
+import { getLang, say } from '@/lib/i18n';
 
 /**
  * Build a standalone hand-made presentation on the Slides page — start from
@@ -97,7 +97,7 @@ export default function ManualSlideBuilder() {
       toast.error(say("Give your presentation a name (at least 3 characters)"));
       return;
     }
-    create.mutate({ name: name.trim(), deck });
+    create.mutate({ name: name.trim(), deck, contentLanguage: getLang() });
   };
 
   return (
