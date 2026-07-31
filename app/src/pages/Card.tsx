@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CreditCard,
   Download,
+  FileText,
   Image as ImageIcon,
   Palette,
+  Printer,
   QrCode,
   Save,
   RotateCcw,
@@ -23,15 +25,26 @@ import CostConfirmProvider from '@/components/marketing/CostConfirmProvider';
 import { useCostConfirm } from '@/components/marketing/cost-confirm';
 import CardPreview from '@/components/marketing/CardPreview';
 import {
+  BACK_LAYOUTS,
   CARD_H,
   CARD_W,
+  type BackLayout,
   type BusinessCard,
   type CardSide,
   type PaymentMethod,
+  backLayoutOf,
   drawBusinessCard,
   emptyBusinessCard,
   layoutBusinessCard,
 } from '@/components/marketing/business-card';
+import {
+  cardProofPdf,
+  cardSheetPdf,
+  perSheet,
+  sideBySideCanvas,
+  type FlipEdge,
+} from '@/components/marketing/card-print';
+import { saveBlob } from '@/lib/pdf';
 import { PAYMENT_KINDS, kindSpec, paymentFilled, paymentUri } from '@/lib/qr';
 import type { PostCategory } from '@contracts/post';
 import { measureCtx } from '@/lib/caption-words';
@@ -60,6 +73,49 @@ const SECTIONS = [
   { id: 'colour' as const, label: 'Colour', icon: Palette },
 ];
 type SectionId = (typeof SECTIONS)[number]['id'];
+
+/** What comes down when Download is pressed. */
+const FORMATS = [
+  { id: 'png' as const, label: 'PNG', icon: ImageIcon },
+  { id: 'pdf' as const, label: 'PDF', icon: FileText },
+  { id: 'sheet' as const, label: 'Print sheet', icon: Printer },
+];
+type FormatId = (typeof FORMATS)[number]['id'];
+
+/**
+ * What the two back text boxes are called, per layout.
+ *
+ * The same two fields do different jobs on different backs — the contact
+ * back has no use for a quote and puts the note under the name — so they are
+ * labelled for the job rather than for the field, and a box a layout never
+ * reads is simply not shown.
+ */
+const BACK_FIELDS: Record<BackLayout, { quote: string | null; note: string }> = {
+  quote: {
+    quote: 'A quote, a promise, what you actually do — the big line on the back',
+    note: 'Anything under it — hours, a site, a second address',
+  },
+  contact: {
+    quote: null,
+    note: 'A line under your name — hours, a second address, anything',
+  },
+  payments: {
+    quote: 'A line above the list — optional',
+    note: 'Anything under the list — optional',
+  },
+  badge: {
+    quote: 'A line under the logo — optional',
+    note: 'Anything along the bottom — optional',
+  },
+};
+
+/** What the back is showing, said plainly, so an empty-looking face makes sense. */
+const BACK_HINTS: Record<BackLayout, string> = {
+  quote: 'Your name and contact lines are on the front.',
+  contact: 'The same name and contact lines as the front, with room to breathe.',
+  payments: 'Every way to pay you that the front had no room for.',
+  badge: 'Just the mark and the company. Everything else is on the front.',
+};
 
 const SWATCHES = [
   '#FFFDF6',
@@ -99,7 +155,10 @@ function CardBody() {
   const [card, setCard] = useState<BusinessCard>(emptyBusinessCard);
   const [section, setSection] = useState<SectionId>('who');
   const [side, setSide] = useState<CardSide>('front');
+  const [format, setFormat] = useState<FormatId>('png');
+  const [flip, setFlip] = useState<FlipEdge>('long');
   const [note, setNote] = useState('');
+  const [building, setBuilding] = useState(false);
   const [drawingLogo, setDrawingLogo] = useState(false);
   const { user } = useAuth();
   const confirm = useCostConfirm();
@@ -187,19 +246,47 @@ function CardBody() {
 
   const download = async () => {
     const stem = pay ? 'sketchlearn-payment-card' : 'sketchlearn-business-card';
+    setBuilding(true);
     try {
-      const sides: CardSide[] = card.backOn ? ['front', 'back'] : ['front'];
-      for (const which of sides) {
-        const canvas = await renderSide(which);
+      /* Both faces are drawn either way — the front alone is the odd case, not
+         the normal one, and a back nobody asked for costs one canvas. */
+      const front = await renderSide('front');
+      const back = card.backOn ? await renderSide('back') : null;
+      if (format === 'png') {
         const a = document.createElement('a');
-        a.href = canvas.toDataURL('image/png');
-        a.download = card.backOn ? `${stem}-${which}.png` : `${stem}.png`;
+        a.href = sideBySideCanvas(front, back).toDataURL('image/png');
+        a.download = `${stem}.png`;
         a.click();
+        toast.success(back ? 'PNG downloaded — front and back side by side ✓' : 'PNG downloaded ✓');
+      } else if (format === 'pdf') {
+        saveBlob(await cardProofPdf(front, back), `${stem}.pdf`);
+        toast.success(back ? 'PDF downloaded — front and back side by side ✓' : 'PDF downloaded ✓');
+      } else {
+        saveBlob(await cardSheetPdf(front, back, flip), `${stem}-sheet.pdf`);
+        toast.success(
+          back
+            ? `Sheet downloaded — ${perSheet()} per page, two pages to print double-sided ✓`
+            : `Sheet downloaded — ${perSheet()} on one page ✓`,
+        );
       }
-      toast.success(card.backOn ? 'Both sides downloaded ✓' : 'Card downloaded ✓');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't build the card");
+    } finally {
+      setBuilding(false);
     }
+  };
+
+  /**
+   * Move to a section, and show the face that section is about.
+   *
+   * Editing the name while the preview shows a back that has no name on it
+   * looks exactly like a name that did not save. The preview follows the
+   * work; the switch under it is still there to override.
+   */
+  const goTo = (id: SectionId) => {
+    setSection(id);
+    if (id === 'back' && card.backOn) setSide('back');
+    else if (id === 'who' || id === 'pay') setSide('front');
   };
 
   const addMethod = () =>
@@ -240,7 +327,7 @@ function CardBody() {
               type="button"
               onClick={() => {
                 set({ kind: k.id });
-                setSection(k.id === 'payment' ? 'pay' : 'who');
+                goTo(k.id === 'payment' ? 'pay' : 'who');
               }}
               aria-pressed={card.kind === k.id}
               className={cn(
@@ -276,11 +363,54 @@ function CardBody() {
               ))}
             </div>
           )}
+          {card.backOn && side === 'back' && (
+            <span className="micro text-[0.58rem] text-ink-faint">
+              Showing the back — {BACK_LAYOUTS.find((l) => l.id === backLayoutOf(card))?.label}.{' '}
+              {BACK_HINTS[backLayoutOf(card)]}
+            </span>
+          )}
+          <div className="flex w-fit overflow-hidden rounded-wobble-sm border-2 border-ink shadow-offset">
+            {FORMATS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setFormat(f.id)}
+                aria-pressed={format === f.id}
+                className={cn(
+                  'micro flex items-center gap-1.5 px-2.5 py-1 text-[0.6rem] font-bold transition-colors',
+                  format === f.id ? 'bg-yellow text-ink' : 'bg-paper-3 text-ink-soft hover:text-ink',
+                )}
+              >
+                <f.icon className="h-3 w-3" strokeWidth={2} />
+                {f.label}
+              </button>
+            ))}
+          </div>
           <span className="micro text-[0.58rem] text-ink-faint">
-            PNG · {CARD_W} × {CARD_H} — 3.5 × 2in at 300dpi, the size a printer expects
+            {format === 'png'
+              ? `${CARD_W} × ${CARD_H} at 300dpi${card.backOn ? ' — both faces in one picture, side by side' : ''}`
+              : format === 'pdf'
+                ? `One page trimmed to the card${card.backOn ? ', front and back side by side' : ''}`
+                : `${perSheet()} cards on a US Letter page with crop marks${
+                    card.backOn ? ' — two pages, the backs mirrored to line up' : ''
+                  }`}
           </span>
+          {format === 'sheet' && card.backOn && (
+            <label className="micro flex flex-wrap items-center gap-2 text-[0.58rem] text-ink-soft">
+              Your printer turns the paper over on its
+              <select
+                value={flip}
+                onChange={(e) => setFlip(e.target.value as FlipEdge)}
+                aria-label="Duplex flip edge"
+                className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-2 py-1 text-[0.62rem] text-ink shadow-offset outline-none focus:border-blue"
+              >
+                <option value="long">long edge (the usual)</option>
+                <option value="short">short edge</option>
+              </select>
+            </label>
+          )}
           <div className="flex flex-wrap items-center gap-2">
-            <SketchButton variant="accent" onClick={() => void download()}>
+            <SketchButton variant="accent" loading={building} onClick={() => void download()}>
               <Download className="h-4 w-4" strokeWidth={2.5} /> Download
             </SketchButton>
             <SketchButton
@@ -295,12 +425,18 @@ function CardBody() {
 
         <div className="flex flex-col gap-3 lg:min-h-0">
           <div className="flex flex-wrap items-center gap-1.5">
-            {SECTIONS.filter((s) => (s.id === 'pay' ? pay : true)).map(
+            {/* Payments is a payment card's whole point, but a business card
+                whose back lists ways to pay needs somewhere to enter them
+                too — otherwise that layout has nothing to show and no way to
+                give it anything. */}
+            {SECTIONS.filter((s) =>
+              s.id === 'pay' ? pay || backLayoutOf(card) === 'payments' : true,
+            ).map(
               (sec) => (
                 <button
                   key={sec.id}
                   type="button"
-                  onClick={() => setSection(sec.id)}
+                  onClick={() => goTo(sec.id)}
                   aria-pressed={section === sec.id}
                   className={cn(
                     'micro flex items-center gap-1.5 rounded-wobble-sm border-2 px-2.5 py-1.5 text-[0.6rem] font-bold transition-colors',
@@ -394,7 +530,7 @@ function CardBody() {
               </SketchCard>
             )}
 
-            {section === 'pay' && pay && (
+            {section === 'pay' && (pay || backLayoutOf(card) === 'payments') && (
               <SketchCard className="flex flex-col gap-3 p-5">
                 <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
                   <QrCode className="h-3.5 w-3.5" strokeWidth={2} /> How you get paid
@@ -504,15 +640,20 @@ function CardBody() {
                   + Add a way to pay
                 </button>
 
-                <label className="flex items-center gap-2 border-t-2 border-dashed border-pencil pt-3">
-                  <input
-                    type="checkbox"
-                    checked={card.shared}
-                    onChange={(e) => set({ shared: e.target.checked })}
-                    className="h-4 w-4 accent-yellow"
-                  />
-                  <span className="text-sm font-bold text-ink">Show it on my profile</span>
-                </label>
+                {/* The profile popover is a payment card's feature — a
+                    business card that happens to list a wallet is not one. */}
+                {pay && (
+                  <label className="flex items-center gap-2 border-t-2 border-dashed border-pencil pt-3">
+                    <input
+                      type="checkbox"
+                      checked={card.shared}
+                      onChange={(e) => set({ shared: e.target.checked })}
+                      className="h-4 w-4 accent-yellow"
+                    />
+                    <span className="text-sm font-bold text-ink">Show it on my profile</span>
+                  </label>
+                )}
+                {pay && (
                 <p className="micro text-[0.58rem] text-ink-faint">
                   A "How to pay me" button appears on your profile; anyone who presses it sees
                   these details and your contact lines. Save to apply it. The QR encodes{' '}
@@ -526,6 +667,7 @@ function CardBody() {
                   })()}
                   .
                 </p>
+                )}
               </SketchCard>
             )}
 
@@ -536,35 +678,83 @@ function CardBody() {
                     type="checkbox"
                     checked={card.backOn}
                     onChange={(e) => {
-                      set({ backOn: e.target.checked });
-                      setSide(e.target.checked ? 'back' : 'front');
+                      const on = e.target.checked;
+                      /* A payment card with rails on it almost certainly wants
+                         them listed; anything else starts on the quote, which
+                         is what the only back used to be. */
+                      const wantsList = pay && card.payments.some((m) => paymentFilled(m.values));
+                      set({
+                        backOn: on,
+                        ...(on && wantsList && !card.backLayout
+                          ? { backLayout: 'payments' as BackLayout }
+                          : {}),
+                      });
+                      setSide(on ? 'back' : 'front');
                     }}
                     className="h-4 w-4 accent-yellow"
                   />
                   <span className="text-sm font-bold text-ink">Give it a back</span>
                 </label>
-                <textarea
-                  value={card.quote}
-                  onChange={(e) => set({ quote: e.target.value })}
-                  rows={3}
-                  disabled={!card.backOn}
-                  aria-label="The back's big line"
-                  placeholder="A quote, a promise, what you actually do — the big line on the back"
-                  className={cn(field, 'resize-y disabled:opacity-50')}
-                />
+
+                <span className="micro text-[0.6rem] font-semibold text-ink-soft">
+                  What the back is for
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {BACK_LAYOUTS.map((l) => (
+                    <button
+                      key={l.id}
+                      type="button"
+                      disabled={!card.backOn}
+                      onClick={() => {
+                        set({ backLayout: l.id });
+                        setSide('back');
+                      }}
+                      aria-pressed={backLayoutOf(card) === l.id}
+                      className={cn(
+                        'micro rounded-wobble-sm border-2 px-2.5 py-1.5 text-[0.6rem] font-bold transition-colors disabled:opacity-40',
+                        backLayoutOf(card) === l.id
+                          ? 'border-ink bg-yellow text-ink shadow-offset'
+                          : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                      )}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="micro text-[0.58rem] text-ink-faint">
+                  {BACK_LAYOUTS.find((l) => l.id === backLayoutOf(card))?.blurb}
+                </p>
+
+                {BACK_FIELDS[backLayoutOf(card)].quote !== null && (
+                  <textarea
+                    value={card.quote}
+                    onChange={(e) => set({ quote: e.target.value })}
+                    rows={3}
+                    disabled={!card.backOn}
+                    aria-label="The back's big line"
+                    placeholder={BACK_FIELDS[backLayoutOf(card)].quote ?? ''}
+                    className={cn(field, 'resize-y disabled:opacity-50')}
+                  />
+                )}
                 <textarea
                   value={card.backNote}
                   onChange={(e) => set({ backNote: e.target.value })}
                   rows={2}
                   disabled={!card.backOn}
                   aria-label="The back's small lines"
-                  placeholder={'Anything under it — hours, a site, a second address'}
+                  placeholder={BACK_FIELDS[backLayoutOf(card)].note}
                   className={cn(field, 'resize-y disabled:opacity-50')}
                 />
+                {backLayoutOf(card) === 'payments' &&
+                  !card.payments.some((m) => paymentFilled(m.values)) && (
+                    <p className="micro text-[0.58rem] font-bold text-red">
+                      Nothing to list yet — add a way to pay under Payments and it lands here.
+                    </p>
+                  )}
                 <p className="micro text-[0.58rem] text-ink-faint">
-                  {pay
-                    ? 'On a payment card the back also carries every method the front had no room for, so the code gets a face of its own.'
-                    : 'The back keeps the same colours and logo. Download gives you both sides as two files.'}
+                  {backLayoutOf(card) === 'payments'
+                    ? 'Every method with something in it goes on the back — the one the QR is for stays on the front. Past nine lines the list runs in two columns, so you can keep adding ways to pay.'
+                    : 'The back keeps the same colours, stripe and logo as the front. Download gives you both faces side by side.'}
                 </p>
               </SketchCard>
             )}

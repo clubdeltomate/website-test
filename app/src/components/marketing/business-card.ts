@@ -40,11 +40,31 @@ export interface PaymentMethod {
 /** Which face is being laid out. */
 export type CardSide = 'front' | 'back';
 
+/**
+ * What the back is FOR.
+ *
+ * A back is a whole second face and there is no one right thing to put on
+ * it, so it is a choice rather than a fixed slot: a line worth quoting, the
+ * ways to reach you, every way to pay you, or just the mark. Each is the
+ * same card — same colours, same stripe, same fonts — arranged for a
+ * different job.
+ */
+export type BackLayout = 'quote' | 'contact' | 'payments' | 'badge';
+
+export const BACK_LAYOUTS: { id: BackLayout; label: string; blurb: string }[] = [
+  { id: 'quote', label: 'Quote', blurb: 'One line worth reading, big.' },
+  { id: 'contact', label: 'Contact', blurb: 'Name, role and every way to reach you.' },
+  { id: 'payments', label: 'Ways to pay', blurb: 'Every way to pay you, in two columns.' },
+  { id: 'badge', label: 'Big logo', blurb: 'The mark, centred, with the company under it.' },
+];
+
 export interface BusinessCard {
   /** which card this is: the one you hand over, or the one you get paid by */
   kind: 'business' | 'payment';
   /** the back is optional — a one-sided card is a perfectly good card */
   backOn: boolean;
+  /** what the back is arranged for */
+  backLayout: BackLayout;
   /** the back's big line: a quote, a promise, a menu, whatever it is for */
   quote: string;
   /** the small line under it */
@@ -70,6 +90,7 @@ export interface BusinessCard {
 export const emptyBusinessCard = (): BusinessCard => ({
   kind: 'business',
   backOn: false,
+  backLayout: 'quote',
   quote: '',
   backNote: '',
   payments: [],
@@ -90,6 +111,9 @@ export interface CardText {
   lines: string[];
   x: number;
   y: number;
+  /** the box the lines sit in — what centring is measured against */
+  w: number;
+  align: 'left' | 'center';
   size: number;
   lead: number;
   weight: number;
@@ -125,7 +149,8 @@ export interface CardLayout {
   details: CardText;
   /** payment card only: the code and the lines beside it */
   qr: QrBlock | null;
-  methods: CardText;
+  /** the written payment list — one run per column, so a long list can split */
+  methods: CardText[];
 }
 
 const PAD = 74;
@@ -158,6 +183,21 @@ function chosenId(card: BusinessCard): string {
   return qrMethod(card)?.id ?? '';
 }
 
+/** The lines one method contributes to the written list. */
+function methodBlock(m: PaymentMethod): string[] {
+  return [paymentLabel(m.kind), ...paymentLines(m.kind, m.values).map(shortLine), ''];
+}
+
+/**
+ * The back's layout, defaulted for cards saved before there was a choice.
+ *
+ * A payment card with methods on it wants the list; everything else wants
+ * the quote, which is what the only back used to be.
+ */
+export function backLayoutOf(card: BusinessCard): BackLayout {
+  return card.backLayout ?? 'quote';
+}
+
 /**
  * Place the card. Text shrinks together — never past 60% — when someone types
  * more contact lines than the height allows, so a long card stays a card
@@ -173,69 +213,51 @@ export function layoutBusinessCard(
   const left = STRIPE + PAD;
   const back = side === 'back';
   const pay = card.kind === 'payment';
-  /* The back is the same frame with different words in it: the quote takes
-     the big line, the note takes the contact block, and everything that is
-     the front's job — the role, the tagline — is simply absent. */
-  const text = back
-    ? { company: card.company, name: '', title: '', tagline: card.quote, details: card.backNote }
-    : {
+  const plan = back ? backLayoutOf(card) : 'quote';
+
+  /* The badge back is not the same frame rearranged — it is centred, and
+     centred geometry has nothing in common with a left-aligned one. It gets
+     its own function rather than a thicket of conditionals in this one. */
+  if (back && plan === 'badge') return badgeBack(card, measure, ink, inkSoft);
+
+  /* Every other face is the same frame with different words in it. Which
+     words is the whole of the layout choice: the quote back gives the big
+     line to the quote, the contact back repeats who you are and how to
+     reach you, the payments back keeps its middle clear for the list. */
+  const text = !back
+    ? {
         company: card.company,
         name: card.name,
         title: card.title,
         tagline: card.tagline,
         details: card.details,
-      };
-  const hasTitleOut = !pay && !back && card.title.trim().length > 0;
+      }
+    : plan === 'contact'
+      ? {
+          company: card.company,
+          name: card.name,
+          title: card.title,
+          tagline: card.backNote,
+          details: card.details,
+        }
+      : {
+          company: card.company,
+          name: '',
+          title: '',
+          tagline: card.quote,
+          details: card.backNote,
+        };
+  const hasTitleOut = !pay && text.title.trim().length > 0;
   /* The front's top-right corner belongs to the code on a payment card and
      to the logo on a business one. The back has room for both. */
   const hasLogo = card.logoUrl !== null && (back || !pay);
   const logoR = 64;
   /* A payment card gives its right-hand third to the QR; the words get what
      is left. On a business card that space is the logo's, or nobody's. */
-  const qrSize = pay ? 250 : 0;
+  const qrSize = pay && !back ? 250 : 0;
   const textRight =
-    CARD_W - PAD - (pay ? qrSize + 40 : hasLogo ? logoR * 2 + 34 : 0);
+    CARD_W - PAD - (qrSize ? qrSize + 40 : hasLogo ? logoR * 2 + 34 : 0);
   const textW = textRight - left;
-
-  const build = (s: number) => {
-    const companySize = 30 * s;
-    const nameSize = 62 * s;
-    const titleSize = 30 * s;
-    const taglineSize = 26 * s;
-    const detailSize = 26 * s;
-    const detailLead = detailSize * 1.5;
-
-    const taglineLines = (back || !pay) && text.tagline.trim()
-      ? wrapText(text.tagline, `400 ${taglineSize}px ${FONT_BODY}`, textW, measure)
-      : [];
-    const detailLines = text.details.trim()
-      ? wrapText(text.details, `400 ${detailSize}px ${FONT_BODY}`, textW, measure)
-      : [];
-
-    // Top block grows down from the padding; contact details hang off the
-    // bottom edge, which is where a reader's eye goes for them.
-    const detailsH = detailLines.length * detailLead;
-    let y = PAD;
-    const hasTitle = hasTitleOut;
-    const companyY = text.company.trim() ? y : y - companySize * 1.3;
-    if (text.company.trim()) y += companySize * 1.35;
-    const nameY = y;
-    y += nameSize * 1.12;
-    const titleY = y;
-    if (hasTitle) y += titleSize * 1.5;
-    const taglineY = y;
-    y += taglineLines.length * taglineSize * 1.4;
-
-    const detailsY = CARD_H - PAD - detailsH;
-    return { companySize, nameSize, titleSize, taglineSize, detailSize, detailLead, taglineLines, detailLines, companyY, nameY, titleY, taglineY, detailsY, bottom: y };
-  };
-
-  let s = 1;
-  let b = build(s);
-  while (s > 0.6 && b.bottom > b.detailsY - 12) {
-    s -= 0.05;
-    b = build(s);
-  }
 
   /* The code and the written list are the payment card's whole point, so
      they are built from the same methods — what a phone scans and what a
@@ -256,18 +278,111 @@ export function layoutBusinessCard(
         caption: chosen ? paymentLabel(chosen.kind) : '',
       }
     : null;
-  /* The front carries the one method the code is for; the back carries the
-     rest, which is what a back is for. */
-  const shown = pay
-    ? back
-      ? card.payments.filter((m) => paymentFilled(m.values) && m.id !== chosenId(card))
+
+  /* The front carries the one method the code is for. The list of the rest
+     is the payments back's job and nobody else's — a quote back that also
+     dumped four wallet addresses under the quote would be neither. */
+  const shown = !pay
+    ? back && plan === 'payments'
+      ? card.payments.filter((m) => paymentFilled(m.values))
+      : []
+    : back
+      ? plan === 'payments'
+        ? card.payments.filter((m) => paymentFilled(m.values) && m.id !== chosenId(card))
+        : []
       : chosen
         ? [chosen]
-        : card.payments.filter((m) => paymentFilled(m.values)).slice(0, 1)
-    : [];
-  const methodLines = shown
-    .flatMap((m) => [paymentLabel(m.kind), ...paymentLines(m.kind, m.values).map(shortLine), ''])
-    .slice(0, back ? 14 : 5);
+        : card.payments.filter((m) => paymentFilled(m.values)).slice(0, 1);
+
+  /* Two columns once the list outgrows one, because "add another way to pay"
+     should keep working past the fourth one instead of running off the card.
+     The count is taken before wrapping — how many columns there are decides
+     how wide they are, which decides where the lines wrap, so it cannot be
+     the wrapped count without going round in a circle. */
+  const raw = shown.map(methodBlock);
+  const columns =
+    back && (shown.length > 2 || raw.reduce((n, b2) => n + b2.length, 0) > 9) ? 2 : 1;
+  const colGap = 30;
+  const colW = (textW - colGap * (columns - 1)) / columns;
+  /* Wrapped at full size even when the card later shrinks to fit: a line
+     that fits at 24px fits at 21px too, and a name that runs off the right
+     edge is worse than one that breaks a word early. */
+  const methodFont = `700 24px ${FONT_BODY}`;
+  const blocks = raw.map((lines) =>
+    lines.flatMap((line) => (line ? wrapText(line, methodFont, colW, measure) : [''])),
+  );
+  const totalLines = blocks.reduce((n, b2) => n + b2.length, 0);
+  const perCol = Math.ceil(totalLines / columns);
+  const methodCols: string[][] = Array.from({ length: columns }, () => []);
+  {
+    let col = 0;
+    for (const blk of blocks) {
+      // Keep a method's own lines together: a label in one column with its
+      // address in the next is worse than a slightly uneven split.
+      if (col < columns - 1 && methodCols[col].length + blk.length > perCol + 1) col++;
+      methodCols[col].push(...blk);
+    }
+  }
+  const methodCap = back ? 15 : 5;
+
+  const build = (s: number) => {
+    const companySize = 30 * s;
+    const nameSize = 62 * s;
+    const titleSize = 30 * s;
+    const taglineSize = 26 * s;
+    const detailSize = 26 * s;
+    const detailLead = detailSize * 1.5;
+    const methodSize = 24 * s;
+    const methodLead = methodSize * 1.5;
+
+    const taglineLines = (back || !pay) && text.tagline.trim()
+      ? wrapText(text.tagline, `400 ${taglineSize}px ${FONT_BODY}`, textW, measure)
+      : [];
+    const detailLines = text.details.trim()
+      ? wrapText(text.details, `400 ${detailSize}px ${FONT_BODY}`, textW, measure)
+      : [];
+
+    // Top block grows down from the padding; contact details hang off the
+    // bottom edge, which is where a reader's eye goes for them.
+    const detailsH = detailLines.length * detailLead;
+    let y = PAD;
+    const companyY = text.company.trim() ? y : y - companySize * 1.3;
+    if (text.company.trim()) y += companySize * 1.35;
+    const nameY = y;
+    // An empty name takes no room. The back leaves it out on purpose and
+    // sixty-nine points of nothing at the top is how a back ends up looking
+    // like a mistake.
+    if (text.name.trim()) y += nameSize * 1.12;
+    const titleY = y;
+    if (hasTitleOut) y += titleSize * 1.5;
+    const taglineY = y;
+    y += taglineLines.length * taglineSize * 1.4;
+    const methodsY = y + (taglineLines.length ? 8 : 0);
+    y = methodsY + Math.min(methodCap, Math.max(...methodCols.map((c) => c.length), 0)) * methodLead;
+
+    const detailsY = CARD_H - PAD - detailsH;
+    return { companySize, nameSize, titleSize, taglineSize, detailSize, detailLead, methodSize, methodLead, taglineLines, detailLines, companyY, nameY, titleY, taglineY, methodsY, detailsY, bottom: y };
+  };
+
+  let s = 1;
+  let b = build(s);
+  while (s > 0.6 && b.bottom > b.detailsY - 12) {
+    s -= 0.05;
+    b = build(s);
+  }
+
+  const run = (over: Partial<CardText> & { lines: string[] }): CardText => ({
+    x: left,
+    y: 0,
+    w: textW,
+    align: 'left',
+    size: 26,
+    lead: 26,
+    weight: 400,
+    family: FONT_BODY,
+    colour: ink,
+    ...over,
+  });
 
   return {
     bg: card.bg,
@@ -277,67 +392,158 @@ export function layoutBusinessCard(
     stripe: { x: 0, y: 0, w: STRIPE, h: CARD_H },
     rule: { x: left, y: b.detailsY - 26, w: Math.min(120, textW), h: Math.max(3, 4 * s) },
     logo: hasLogo ? { cx: CARD_W - PAD - logoR, cy: PAD + logoR, r: logoR } : null,
-    company: {
+    company: run({
       lines: text.company.trim() ? [text.company.toUpperCase()] : [],
-      x: left,
       y: b.companyY,
       size: b.companySize,
       lead: b.companySize * 1.35,
       weight: 900,
       family: FONT,
       colour: card.accent,
-    },
-    name: {
+    }),
+    name: run({
       lines: text.name.trim() ? [text.name] : [],
-      x: left,
       y: b.nameY,
       size: b.nameSize,
       lead: b.nameSize * 1.12,
       weight: 900,
       family: FONT,
       colour: ink,
-    },
-    title: {
+    }),
+    title: run({
       lines: hasTitleOut ? [text.title] : [],
-      x: left,
       y: b.titleY,
       size: b.titleSize,
       lead: b.titleSize * 1.5,
       weight: 700,
       family: FONT_BODY,
       colour: inkSoft,
-    },
-    tagline: {
+    }),
+    tagline: run({
       lines: b.taglineLines,
-      x: left,
       y: b.taglineY,
       size: b.taglineSize,
       lead: b.taglineSize * 1.4,
-      weight: 400,
-      family: FONT_BODY,
       colour: inkSoft,
-    },
-    details: {
+    }),
+    details: run({
       lines: b.detailLines,
-      x: left,
       y: b.detailsY,
       size: b.detailSize,
       lead: b.detailLead,
-      weight: 400,
-      family: FONT_BODY,
-      colour: ink,
-    },
+    }),
     qr,
-    methods: {
-      lines: methodLines,
-      x: left,
-      y: b.taglineY + b.taglineLines.length * b.taglineSize * 1.4 + 8,
-      size: 24 * s,
-      lead: 24 * s * 1.5,
-      weight: 700,
-      family: FONT_BODY,
-      colour: ink,
-    },
+    methods: methodCols
+      .filter((c) => c.length > 0)
+      .map((c, i) =>
+        run({
+          lines: c.slice(0, methodCap),
+          x: left + i * (colW + colGap),
+          w: colW,
+          y: b.methodsY,
+          size: b.methodSize,
+          lead: b.methodLead,
+          weight: 700,
+        }),
+      ),
+  };
+}
+
+/**
+ * The badge back: the mark in the middle, the company under it.
+ *
+ * Everything is centred on the card's own axis rather than on the text
+ * column, so the stripe does not pull the eye off-centre — the stripe is a
+ * margin, not part of the composition.
+ */
+function badgeBack(
+  card: BusinessCard,
+  measure: CanvasRenderingContext2D | null,
+  ink: string,
+  inkSoft: string,
+): CardLayout {
+  const x = STRIPE + PAD;
+  const w = CARD_W - PAD - x;
+  const hasLogo = card.logoUrl !== null;
+  const r = 118;
+  const companySize = 46;
+  const quoteSize = 27;
+  const noteSize = 24;
+  const quoteLines = card.quote.trim()
+    ? wrapText(card.quote, `400 ${quoteSize}px ${FONT_BODY}`, w, measure)
+    : [];
+  const noteLines = card.backNote.trim()
+    ? wrapText(card.backNote, `400 ${noteSize}px ${FONT_BODY}`, w, measure)
+    : [];
+  const notesH = noteLines.length * noteSize * 1.5;
+  const hasNote = noteLines.length > 0;
+  /* Everything is stacked and the stack is centred, rather than pinning the
+     note to the bottom edge: a centred composition with one element nailed
+     to the floor leaves the rule stranded against whatever is above it. */
+  const RULE_GAP = 22;
+  const RULE_H = 4;
+  const total =
+    (hasLogo ? r * 2 + 26 : 0) +
+    (card.company.trim() ? companySize * 1.3 : 0) +
+    quoteLines.length * quoteSize * 1.4 +
+    (hasNote ? RULE_GAP * 2 + RULE_H + notesH : 0);
+  let y = Math.max(PAD * 0.5, (CARD_H - total) / 2);
+  const cy = y + r;
+  if (hasLogo) y += r * 2 + 26;
+  const companyY = y;
+  if (card.company.trim()) y += companySize * 1.3;
+  const quoteY = y;
+  y += quoteLines.length * quoteSize * 1.4;
+  const ruleY = y + RULE_GAP;
+  const notesY = ruleY + RULE_H + RULE_GAP;
+
+  const run = (over: Partial<CardText> & { lines: string[] }): CardText => ({
+    x,
+    y: 0,
+    w,
+    align: 'center',
+    size: 26,
+    lead: 26,
+    weight: 400,
+    family: FONT_BODY,
+    colour: ink,
+    ...over,
+  });
+
+  return {
+    bg: card.bg,
+    ink,
+    inkSoft,
+    accent: card.accent,
+    stripe: { x: 0, y: 0, w: STRIPE, h: CARD_H },
+    rule: { x: x + (w - 120) / 2, y: ruleY, w: hasNote ? 120 : 0, h: RULE_H },
+    logo: hasLogo ? { cx: STRIPE / 2 + CARD_W / 2, cy, r } : null,
+    company: run({
+      lines: card.company.trim() ? [card.company.toUpperCase()] : [],
+      y: companyY,
+      size: companySize,
+      lead: companySize * 1.3,
+      weight: 900,
+      family: FONT,
+      colour: card.accent,
+    }),
+    name: run({ lines: [] }),
+    title: run({ lines: [] }),
+    tagline: run({
+      lines: quoteLines,
+      y: quoteY,
+      size: quoteSize,
+      lead: quoteSize * 1.4,
+      colour: inkSoft,
+    }),
+    details: run({
+      lines: noteLines,
+      y: notesY,
+      size: noteSize,
+      lead: noteSize * 1.5,
+    }),
+    qr: null,
+    methods: [],
   };
 }
 
@@ -363,7 +569,10 @@ export async function drawBusinessCard(
     if (t.lines.length === 0) return;
     ctx.font = `${t.weight} ${t.size}px ${t.family}`;
     ctx.fillStyle = t.colour;
-    t.lines.forEach((line, i) => ctx.fillText(line, t.x, t.y + i * t.lead + t.lead / 2));
+    t.lines.forEach((line, i) => {
+      const x = t.align === 'center' ? t.x + (t.w - ctx.measureText(line).width) / 2 : t.x;
+      ctx.fillText(line, x, t.y + i * t.lead + t.lead / 2);
+    });
   };
 
   run(L.company);
@@ -374,7 +583,7 @@ export async function drawBusinessCard(
   ctx.fillStyle = L.accent;
   ctx.fillRect(L.rule.x, L.rule.y, L.rule.w, L.rule.h);
   run(L.details);
-  run(L.methods);
+  L.methods.forEach(run);
 
   if (L.qr?.image) {
     // A code the user brought with them: drawn as the picture it is.
