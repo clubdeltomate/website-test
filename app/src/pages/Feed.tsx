@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import {
   ChevronDown,
   ChevronLeft,
@@ -287,9 +287,17 @@ export default function Feed() {
         ) : (
           <div className="grid grid-cols-3 gap-1 sm:gap-2">
             {tiles.map((t) => (
-              <Link
+              /* A thumbnail opens its post in the feed here, rather than on a
+                 page of its own — the feed is where a post is read. */
+              <button
                 key={t.key}
-                to={`/feed/${t.slug}`}
+                type="button"
+                onClick={() => {
+                  const i = feed.findIndex((p) => p.slug === t.slug);
+                  if (i >= 0) setAtPost(i);
+                  setView('feed');
+                }}
+                aria-label={`Open ${t.slug}`}
                 className="group relative aspect-square overflow-hidden rounded-wobble-sm border-2 border-ink bg-paper-2"
               >
                 <img
@@ -297,7 +305,7 @@ export default function Feed() {
                   alt=""
                   className="h-full w-full object-cover transition-transform group-hover:scale-105"
                 />
-              </Link>
+              </button>
             ))}
           </div>
         )}
@@ -320,14 +328,19 @@ export default function Feed() {
           <div className="flex min-w-0 shrink-0 justify-center lg:h-full lg:items-center">
             {/* Keyed by slug so stepping to another post mounts a fresh
                 carousel, rather than opening it on whatever slide the last one
-                was left showing. */}
-            <Link
+                was left showing.
+
+                Not a link. Everything a post has to offer is already on this
+                page — the slides swipe here, the caption is in the column
+                beside it, and the steppers move through the feed — so clicking
+                the picture leads nowhere, and the chevrons on it do what they
+                say instead of navigating away mid-carousel. */}
+            <div
               key={feed[shown].slug}
-              to={`/feed/${feed[shown].slug}`}
               className="flex overflow-hidden rounded-wobble-2 border-2 border-ink bg-paper-3 shadow-offset"
             >
               <Carousel post={feed[shown]} height={isMobile ? undefined : FEED_PANE_H} />
-            </Link>
+            </div>
           </div>
 
           {/* Stepping between posts: the post stays put and the next one takes
