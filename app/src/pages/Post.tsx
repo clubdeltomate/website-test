@@ -41,16 +41,16 @@ export default function Post() {
   const Icon = meta.icon;
 
   return (
-    <div className="mx-auto flex w-full max-w-[620px] flex-col gap-4 px-4 py-8">
+    <div className="mx-auto flex w-full max-w-content flex-col items-center gap-4 px-4 py-8">
       <button
         type="button"
         onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/feed'))}
-        className="micro flex w-fit items-center gap-1 text-[0.62rem] font-bold text-blue hover:underline"
+        className="micro flex w-full items-center gap-1 text-[0.62rem] font-bold text-blue hover:underline"
       >
         <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.5} /> Back
       </button>
 
-      <article className="overflow-hidden rounded-wobble-2 border-2 border-ink bg-paper-3 shadow-offset">
+      <article className="flex w-fit max-w-full flex-col overflow-hidden rounded-wobble-2 border-2 border-ink bg-paper-3 shadow-offset">
         <header className="flex items-center gap-2 px-3 py-2">
           <Link
             to={`/users/${p.ownerId}`}
@@ -71,11 +71,13 @@ export default function Post() {
             {meta.label}
           </span>
         </header>
-        <div className="border-y-2 border-ink">
-          <Carousel post={p} />
+        <div className="flex border-y-2 border-ink">
+          {/* A page with only one post on it can give the picture more room
+              than the feed, which also has to fit filters and its neighbours. */}
+          <Carousel post={p} maxHeight="clamp(280px, calc(100dvh - 340px), 1000px)" />
         </div>
         {p.caption && (
-          <p className="whitespace-pre-wrap px-4 py-3 text-[0.95rem] leading-relaxed text-ink">
+          <p className="max-w-full whitespace-pre-wrap break-words px-4 py-3 text-[0.95rem] leading-relaxed text-ink">
             {p.caption}
           </p>
         )}
@@ -87,7 +89,7 @@ export default function Post() {
 
       {/* Where the conversation will go. Marked out rather than hidden, so the
           page does not need rearranging when it arrives. */}
-      <div className="flex items-center gap-2 rounded-wobble-sm border-2 border-dashed border-pencil px-4 py-3 text-ink-faint">
+      <div className="flex w-fit max-w-full items-center gap-2 rounded-wobble-sm border-2 border-dashed border-pencil px-4 py-3 text-ink-faint">
         <MessageCircle className="h-4 w-4" strokeWidth={2} />
         <span className="micro text-[0.6rem]">Comments are coming here.</span>
       </div>

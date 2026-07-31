@@ -20,22 +20,42 @@ import EmptyState from '@/components/sketch/EmptyState';
 
 type View = 'feed' | 'grid';
 
+/**
+ * How tall a post's picture may get.
+ *
+ * Sized against the screen rather than the column, because a 9:16 carousel at
+ * a fixed column width is about a thousand pixels tall — you saw a slice of it
+ * and scrolled the rest, while the desktop's width went spare. Fitting the
+ * viewport instead means the whole post is on screen at once and the width
+ * follows from the shape, so a square or 4:5 post comes out wider than a story
+ * does.
+ *
+ * The subtraction is everything else on screen, measured rather than guessed:
+ * the app bar, the page padding, the heading and filter rows, the card's own
+ * header and its caption. A caption of more than a couple of lines will still
+ * push a little below the fold, which is what Instagram does too.
+ *
+ * The floor matters as much as the ceiling: on a short laptop, fitting a 9:16
+ * post exactly would shrink it to a postage stamp, and a readable post you
+ * scroll a little is worth more than a tiny one that fits.
+ */
+export const MEDIA_MAX_H = 'clamp(420px, calc(100dvh - 330px), 900px)';
+
 /** Swipe through one post's slides in place. */
-function Carousel({ post, className }: { post: PostSummary; className?: string }) {
+function Carousel({ post, maxHeight = MEDIA_MAX_H }: { post: PostSummary; maxHeight?: string }) {
   const [at, setAt] = useState(0);
   const many = post.imageUrls.length > 1;
   return (
-    <div
-      className={cn('relative overflow-hidden bg-ink/5', className)}
-      style={{ aspectRatio: `${post.width} / ${post.height}` }}
-    >
-      {post.imageUrls[at] && (
-        <img
-          src={post.imageUrls[at]}
-          alt={`Slide ${at + 1} of ${post.imageUrls.length}`}
-          className="h-full w-full object-cover"
-        />
-      )}
+    <div className="relative flex max-w-full overflow-hidden bg-ink/5">
+      {/* The picture sizes the frame. An <img> with an aspect ratio and both
+          caps scales itself down preserving shape, which no amount of
+          height-on-a-div does without either cropping or letterboxing. */}
+      <img
+        src={post.imageUrls[at]}
+        alt={`Slide ${at + 1} of ${post.imageUrls.length}`}
+        className="block h-auto w-auto max-w-full object-cover"
+        style={{ aspectRatio: `${post.width} / ${post.height}`, maxHeight }}
+      />
       {many && (
         <>
           <button
@@ -82,7 +102,9 @@ function PostCard({ post, onRemove }: { post: PostSummary; onRemove: (slug: stri
   const { user } = useAuth();
   const canRemove = post.mine || user?.role === 'admin';
   return (
-    <article className="overflow-hidden rounded-wobble-2 border-2 border-ink bg-paper-3 shadow-offset">
+    // w-fit so the header and caption line up with the picture's edges,
+    // whatever width fitting the screen gave it.
+    <article className="flex w-fit max-w-full flex-col overflow-hidden rounded-wobble-2 border-2 border-ink bg-paper-3 shadow-offset">
       <header className="flex items-center gap-2 px-3 py-2">
         <Link
           to={`/users/${post.ownerId}`}
@@ -116,11 +138,11 @@ function PostCard({ post, onRemove }: { post: PostSummary; onRemove: (slug: stri
           </button>
         )}
       </header>
-      <Link to={`/feed/${post.slug}`} className="block border-y-2 border-ink">
+      <Link to={`/feed/${post.slug}`} className="flex border-y-2 border-ink">
         <Carousel post={post} />
       </Link>
       {post.caption && (
-        <p className="whitespace-pre-wrap px-3 py-2 text-[0.92rem] leading-relaxed text-ink">
+        <p className="max-w-full whitespace-pre-wrap break-words px-3 py-2 text-[0.92rem] leading-relaxed text-ink">
           {post.caption}
         </p>
       )}
@@ -153,7 +175,7 @@ export default function Feed() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-content flex-col gap-5 px-4 py-8 lg:px-8">
+    <div className="mx-auto flex w-full max-w-content flex-col gap-4 px-4 py-5 lg:px-8">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="font-display text-3xl text-ink">The feed</h1>
         {feed.length > 0 && (
@@ -262,7 +284,7 @@ export default function Feed() {
           ))}
         </div>
       ) : (
-        <div className="mx-auto flex w-full max-w-[560px] flex-col gap-6">
+        <div className="flex w-full flex-col items-center gap-8">
           {feed.map((p) => (
             <PostCard key={p.slug} post={p} onRemove={(s) => void remove(s)} />
           ))}
