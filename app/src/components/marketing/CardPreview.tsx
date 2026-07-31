@@ -26,6 +26,8 @@ function Text({ t }: { t: CardText }) {
           style={{
             left: cq(t.x),
             top: cq(t.y + i * t.lead),
+            width: cq(t.w),
+            textAlign: t.align,
             height: cq(t.lead),
             lineHeight: cq(t.lead),
             fontSize: cq(t.size),
@@ -63,7 +65,9 @@ export default function CardPreview({
       <Text t={L.name} />
       <Text t={L.title} />
       <Text t={L.tagline} />
-      <Text t={L.methods} />
+      {L.methods.map((m, i) => (
+        <Text key={i} t={m} />
+      ))}
       <div
         className="absolute"
         style={{
