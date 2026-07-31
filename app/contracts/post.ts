@@ -55,6 +55,18 @@ export const VISIBILITY_BRIEF: Record<PostVisibility, string> = {
 };
 
 /**
+ * Which shelf of posts is being asked for.
+ *
+ * "feed" is the front door, and it is deliberately narrow: the site's own
+ * posts and whatever was sent to you. A feed that filled up with every
+ * account's advertising would stop being worth opening, so everybody else's
+ * work lives in the gallery — the same split the notebooks and slide decks
+ * already have between your shelf and everyone's.
+ */
+export const POST_SCOPES = ["feed", "all"] as const;
+export type PostScope = (typeof POST_SCOPES)[number];
+
+/**
  * A published post as the feed reads it. Declared here rather than beside the
  * router so the page and the endpoint agree on one shape.
  */

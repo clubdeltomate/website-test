@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Presentation, LibraryBig } from 'lucide-react';
+import { Images, Presentation, LibraryBig } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import PostShelf from '@/components/feed/PostShelf';
 import Slides from './Slides';
 import Repos from './Repos';
 
@@ -12,7 +13,7 @@ import Repos from './Repos';
  * created.
  */
 export default function Gallery() {
-  const [tab, setTab] = useState<'slides' | 'repos'>('slides');
+  const [tab, setTab] = useState<'slides' | 'repos' | 'posts'>('slides');
 
   return (
     <div>
@@ -22,6 +23,7 @@ export default function Gallery() {
             [
               { id: 'slides', label: 'Slides', icon: Presentation },
               { id: 'repos', label: 'Repos', icon: LibraryBig },
+              { id: 'posts', label: 'Feed', icon: Images },
             ] as const
           ).map((t) => (
             <button
@@ -45,7 +47,16 @@ export default function Gallery() {
           </p>
         </div>
       </div>
-      {tab === 'slides' ? <Slides mine={false} /> : <Repos mine={false} />}
+      {tab === 'slides' && <Slides mine={false} />}
+      {tab === 'repos' && <Repos mine={false} />}
+      {/* Everybody's posts. The feed itself is deliberately narrow — the
+          site's own posts and whatever was sent to you — so this is where the
+          rest of the platform's work is read. */}
+      {tab === 'posts' && (
+        <div className="mx-auto w-full max-w-content px-4 py-6 lg:px-8">
+          <PostShelf scope="all" emptyLine="Nobody has posted anything public yet." />
+        </div>
+      )}
     </div>
   );
 }

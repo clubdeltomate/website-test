@@ -9,6 +9,7 @@ import { favoriteSlugs } from "./repos.js";
 import { IMAGE_URL_PREFIX } from "../deck-images.js";
 import {
   POST_CATEGORIES,
+  POST_SCOPES,
   POST_VISIBILITY,
   type PostSummary,
   type PostVisibility,
@@ -57,6 +58,22 @@ export function canSee(
   return given.has(post.slug);
 }
 
+/**
+ * May this person put a post on someone else's feed?
+ *
+ * The same rule assigned notebooks and slide decks already use: admins
+ * anywhere, and VERIFIED moderators on their own work only. Verification is
+ * the credential and ownership is the scope — an unverified moderator, or a
+ * verified one holding somebody else's post, cannot push it onto a feed.
+ */
+export function canSend(
+  user: { id: number; role: string; verified: boolean },
+  ownerId: number,
+): boolean {
+  if (user.role === "admin") return true;
+  return user.role === "moderator" && user.verified && ownerId === user.id;
+}
+
 const slugify = (s: string) =>
   s
     .toLowerCase()
@@ -74,9 +91,13 @@ export const postsRouter = createRouter({
           category: z.enum(POST_CATEGORIES).optional(),
           /** only the ones this viewer saved */
           saved: z.boolean().default(false),
+          /** "feed" is the narrow front door; "all" is the gallery */
+          scope: z.enum(POST_SCOPES).default("feed"),
+          /** one author's shelf, for a profile page */
+          ownerId: z.number().int().positive().optional(),
           limit: z.number().int().min(1).max(60).default(30),
         })
-        .default({ limit: 30, saved: false }),
+        .default({ limit: 30, saved: false, scope: "feed" }),
     )
     .query(async ({ ctx, input }): Promise<PostSummary[]> => {
       const saved = await favoriteSlugs(ctx.user?.id, "post");
@@ -84,11 +105,22 @@ export const postsRouter = createRouter({
       // rather than "everything".
       if (input.saved && saved.size === 0) return [];
       const given = await assignedToViewer(ctx.user?.id);
-      /* Everything public, everything of yours whatever it is set to, and
-         anything made out to you by name. Narrowed in SQL rather than after
-         the fact so the limit counts posts you can actually see. */
+      /* Who this shelf is for.
+       *
+       * On the feed, "public" is not enough on its own: it is the site's own
+       * front page, so it carries the site's posts — the admins' — plus your
+       * own, plus anything sent to you by name. Everyone else's public work
+       * is in the gallery, which asks for scope "all" and gets exactly that.
+       *
+       * Narrowed in SQL rather than after the fact, so the limit counts posts
+       * you can actually see.
+       */
+      const openToAll =
+        input.scope === "all"
+          ? eq(posts.visibility, "public")
+          : and(eq(posts.visibility, "public"), eq(users.role, "admin"));
       const audience = or(
-        eq(posts.visibility, "public"),
+        openToAll,
         ctx.user ? eq(posts.ownerId, ctx.user.id) : undefined,
         given.size > 0 ? inArray(posts.slug, [...given]) : undefined,
       );
@@ -106,6 +138,7 @@ export const postsRouter = createRouter({
             audience,
             input.category ? eq(posts.category, input.category) : undefined,
             input.saved ? inArray(posts.slug, [...saved]) : undefined,
+            input.ownerId ? eq(posts.ownerId, input.ownerId) : undefined,
           ),
         )
         .orderBy(desc(posts.id))
@@ -247,6 +280,90 @@ export const postsRouter = createRouter({
           );
       }
       return { slug };
+    }),
+
+  /**
+   * Who a post is for, changed after the fact.
+   *
+   * A post's audience is not a decision you only get to make once: something
+   * published to the feed turns out to be for one customer, or a draft turns
+   * out to be worth showing everyone. Yours, or anyone's if you are an admin
+   * — the same reach as taking one down.
+   */
+  setVisibility: authedProcedure
+    .input(z.object({ slug: z.string().max(191), visibility: z.enum(POST_VISIBILITY) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const [row] = await getDb().select().from(posts).where(eq(posts.slug, input.slug));
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "That post isn't here" });
+      if (row.ownerId !== ctx.user.id && ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "That post isn't yours" });
+      }
+      await getDb()
+        .update(posts)
+        // The older flag is kept in step, as everywhere else.
+        .set({ visibility: input.visibility, isPublic: input.visibility === "public" })
+        .where(eq(posts.id, row.id));
+      return { ok: true };
+    }),
+
+  /** Who a post was sent to. Only for the people who may change it. */
+  recipients: authedProcedure
+    .input(z.object({ slug: z.string().max(191) }))
+    .query(async ({ ctx, input }): Promise<number[]> => {
+      const [row] = await getDb().select().from(posts).where(eq(posts.slug, input.slug));
+      if (!row || !canSend(ctx.user, row.ownerId)) return [];
+      const rows = await getDb()
+        .select({ userId: assignments.userId })
+        .from(assignments)
+        .where(and(eq(assignments.targetType, "post"), eq(assignments.targetSlug, input.slug)));
+      return rows.map((r) => r.userId);
+    }),
+
+  /**
+   * Replace the list of people a post was sent to.
+   *
+   * Sent as the whole list rather than one add at a time: the editor shows
+   * the audience as a set of chips, and "these people" is what the person
+   * using it means when they press save.
+   */
+  setRecipients: authedProcedure
+    .input(
+      z.object({
+        slug: z.string().max(191),
+        userIds: z.array(z.number().int().positive()).max(200),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ sent: number }> => {
+      const db = getDb();
+      const [row] = await db.select().from(posts).where(eq(posts.slug, input.slug));
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "That post isn't here" });
+      if (!canSend(ctx.user, row.ownerId)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Sending a post is for admins and verified moderators, on their own posts",
+        });
+      }
+      const named = [...new Set(input.userIds)].filter((id) => id !== row.ownerId);
+      const real =
+        named.length > 0
+          ? (await db.select({ id: users.id }).from(users).where(inArray(users.id, named))).map(
+              (u) => u.id,
+            )
+          : [];
+      await db
+        .delete(assignments)
+        .where(and(eq(assignments.targetType, "post"), eq(assignments.targetSlug, input.slug)));
+      if (real.length > 0) {
+        await db.insert(assignments).values(
+          real.map((id) => ({
+            targetType: "post",
+            targetSlug: input.slug,
+            userId: id,
+            assignedBy: ctx.user.id,
+          })),
+        );
+      }
+      return { sent: real.length };
     }),
 
   /**

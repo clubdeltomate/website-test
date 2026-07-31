@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canSee } from "./routers/posts.js";
+import { canSee, canSend } from "./routers/posts.js";
 import { POST_VISIBILITY } from "../contracts/post.js";
 
 /* The whole point of a private post is that the rule is boring and holds
@@ -48,6 +48,40 @@ describe("canSee", () => {
   });
 
   it("covers every visibility the contract offers", () => {
+    for (const v of POST_VISIBILITY) {
+      expect(canSee(post(v), OWNER, nothing), v).toBe(true);
+    }
+  });
+});
+
+/* Putting something on someone else's feed is a privilege, and the rule is
+ * the one assigned notebooks already use: admins anywhere, verified
+ * moderators on their own work. The interesting cases are the near-misses. */
+describe("canSend", () => {
+  const admin = { id: 1, role: "admin", verified: false };
+  const modOk = { id: OWNER, role: "moderator", verified: true };
+  const modUnverified = { id: OWNER, role: "moderator", verified: false };
+  const modElsewhere = { id: 99, role: "moderator", verified: true };
+  const plain = { id: OWNER, role: "user", verified: true };
+
+  it("lets an admin send anyone's post", () => {
+    expect(canSend(admin, OWNER)).toBe(true);
+    expect(canSend(admin, 12345)).toBe(true);
+  });
+
+  it("lets a verified moderator send their own", () => {
+    expect(canSend(modOk, OWNER)).toBe(true);
+  });
+
+  it("refuses an unverified moderator, a verified one on someone else's, and a plain user", () => {
+    expect(canSend(modUnverified, OWNER)).toBe(false);
+    expect(canSend(modElsewhere, OWNER)).toBe(false);
+    expect(canSend(plain, OWNER)).toBe(false);
+  });
+});
+
+describe("visibility values", () => {
+  it("still covers every one the contract offers", () => {
     for (const v of POST_VISIBILITY) {
       expect(canSee(post(v), OWNER, nothing), v).toBe(true);
     }

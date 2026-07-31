@@ -7,6 +7,7 @@ import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 import { type ZipEntry, makeZip } from '@/lib/zip';
 import { TEMPLATE_META, VerifiedBadge } from '@/components/repo/shared';
+import PostAudience from '@/components/feed/PostAudience';
 import type { PostCategory, PostSummary } from '@contracts/post';
 
 /* Everything about a post that is not the picture: who posted it, what they
@@ -156,6 +157,9 @@ export default function PostDetails({
             />
           </button>
         )}
+        {/* Who sees it, changed here rather than back in the tool that made
+            it. Only shown to someone who may change it. */}
+        <PostAudience post={post} />
         {onRemove && (
           <button
             type="button"
