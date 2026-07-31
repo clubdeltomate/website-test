@@ -20,6 +20,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import PostShelf from '@/components/feed/PostShelf';
+import PayMeButton from '@/components/marketing/PayMeButton';
 import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 import Chip from '@/components/sketch/Chip';
@@ -247,6 +248,8 @@ export default function UserProfile() {
             >
               <Instagram className="h-4 w-4" /> Instagram
             </button>
+            {/* Only there when they made a payment card and chose to show it. */}
+            <PayMeButton userId={p.id} name={p.name} />
           </div>
         </div>
 

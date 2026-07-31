@@ -11,6 +11,7 @@ import {
   lessonLogs,
   lessons,
   orders,
+  marketingProfiles,
   payments,
   repos,
   runs,
@@ -135,6 +136,26 @@ export const usersRouter = createRouter({
             b.repoCount - a.repoCount ||
             a.name.localeCompare(b.name),
         );
+    }),
+
+  /**
+   * Somebody's payment card, if they chose to show it.
+   *
+   * Public, because the whole point is that a customer who is not signed in
+   * can still find out how to pay. Only ever the payment half, and only when
+   * the owner ticked "show it on my profile" — a saved-but-unshared card is
+   * as private as the rest of the marketing desk.
+   */
+  paymentCard: publicQuery
+    .input(z.object({ userId: z.number().int() }))
+    .query(async ({ input }): Promise<Record<string, unknown> | null> => {
+      const [row] = await getDb()
+        .select({ businessCard: marketingProfiles.businessCard })
+        .from(marketingProfiles)
+        .where(eq(marketingProfiles.ownerId, input.userId));
+      const card = (row?.businessCard ?? null) as Record<string, unknown> | null;
+      if (!card || card.shared !== true || card.kind !== "payment") return null;
+      return card;
     }),
 
   /** A user's public profile: the public repos + slide tools they own + contact. */
