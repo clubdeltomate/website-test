@@ -102,16 +102,22 @@ export const postsRouter = createRouter({
         imageIds: z.array(z.number().int().positive()).min(1).max(20),
         width: z.number().int().min(1).max(4000).default(1080),
         height: z.number().int().min(1).max(8000).default(1350),
+        /** the music bed, already generated and stored */
+        audioId: z.number().int().positive().nullable().default(null),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ slug: string }> => {
       // Only images this account actually uploaded — otherwise a post could
-      // be stitched together from anyone's pictures by id.
+      // be stitched together from anyone's pictures by id. The music bed goes
+      // through the same check, for the same reason.
+      const wanted =
+        input.audioId == null ? input.imageIds : [...input.imageIds, input.audioId];
       const owned = await getDb()
         .select({ id: slideImages.id })
         .from(slideImages)
-        .where(and(inArray(slideImages.id, input.imageIds), eq(slideImages.ownerId, ctx.user.id)));
+        .where(and(inArray(slideImages.id, wanted), eq(slideImages.ownerId, ctx.user.id)));
       const mine = new Set(owned.map((o) => o.id));
+      const audioId = input.audioId != null && mine.has(input.audioId) ? input.audioId : null;
       const imageIds = input.imageIds.filter((id) => mine.has(id));
       if (imageIds.length === 0) {
         throw new TRPCError({
@@ -139,6 +145,7 @@ export const postsRouter = createRouter({
           imageIds,
           width: input.width,
           height: input.height,
+          audioId,
         });
       return { slug };
     }),
@@ -171,6 +178,7 @@ function toSummary(
     caption: r.post.caption,
     category: r.post.category,
     imageUrls: (r.post.imageIds ?? []).map((id) => `${IMAGE_URL_PREFIX}${id}`),
+    audioUrl: r.post.audioId == null ? null : `${IMAGE_URL_PREFIX}${r.post.audioId}`,
     width: r.post.width,
     height: r.post.height,
     ownerId: r.post.ownerId,

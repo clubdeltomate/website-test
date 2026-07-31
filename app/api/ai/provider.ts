@@ -1098,6 +1098,100 @@ export async function ttsSpeak(opts: {
 }
 
 /* ------------------------------------------------------------------ */
+/* Music. ElevenLabs writes a short instrumental bed from a written     */
+/* brief — the soundtrack under a marketing carousel.                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Where a music request goes. The endpoint moved once already, so both are
+ * tried in turn rather than pinning the one that happens to be current — a
+ * 404 on the first is a reason to try the second, not to fail the request.
+ */
+const ELEVENLABS_MUSIC_PATHS = ["/music", "/music/compose"];
+
+/** The longest bed we will ask for. A carousel is looked at, not listened to;
+ *  past a minute the cost climbs and nobody hears the end of it. */
+export const MUSIC_MAX_SECONDS = 60;
+export const MUSIC_MIN_SECONDS = 10;
+
+/**
+ * Compose a music bed and return it as an audio data URI, or null when there
+ * is no ElevenLabs key or the call fails. Never throws: a failed soundtrack
+ * must not cost the carousel it was going under, and the caller only charges
+ * when something actually came back.
+ */
+export async function generateMusic(opts: {
+  userId?: number;
+  prompt: string;
+  seconds: number;
+}): Promise<{ audio: string; mime: string; provider: string } | null> {
+  const seconds = Math.min(
+    MUSIC_MAX_SECONDS,
+    Math.max(MUSIC_MIN_SECONDS, Math.round(opts.seconds)),
+  );
+  const prompt = opts.prompt.trim().slice(0, 900);
+  if (!prompt) return null;
+
+  if (process.env.SKETCHLEARN_ALLOW_MOCK_AI === "1") {
+    return { audio: mockMusicDataUri(seconds), mime: "audio/mpeg", provider: "mock" };
+  }
+
+  const key = await resolveKey(opts.userId, "tts").catch(() => null);
+  if (!key || key.provider !== "elevenlabs" || !key.apiKey.trim()) return null;
+  const base = (key.baseUrl || ELEVENLABS_BASE_URL).replace(/\/$/, "");
+
+  for (const path of ELEVENLABS_MUSIC_PATHS) {
+    try {
+      const res = await fetch(`${base}${path}`, {
+        method: "POST",
+        headers: {
+          "xi-api-key": key.apiKey.trim(),
+          "content-type": "application/json",
+          accept: "audio/mpeg",
+        },
+        body: JSON.stringify({ prompt, music_length_ms: seconds * 1000 }),
+        signal: AbortSignal.timeout(180_000),
+      });
+      if (!res.ok) {
+        console.warn(
+          `[ai/music] ElevenLabs ${res.status} on ${path}: ${(await res.text()).slice(0, 200)}`,
+        );
+        continue;
+      }
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length < 1000) continue; // an error page, not a song
+      return {
+        audio: `data:audio/mpeg;base64,${buf.toString("base64")}`,
+        mime: "audio/mpeg",
+        provider: "elevenlabs",
+      };
+    } catch (err) {
+      console.warn("[ai/music] request failed:", err instanceof Error ? err.message : err);
+    }
+  }
+  return null;
+}
+
+/**
+ * A silent MP3 for SKETCHLEARN_ALLOW_MOCK_AI — long enough to be a real file
+ * a player will load and loop, so the interface can be exercised without a
+ * key. One valid frame of silence, repeated.
+ */
+function mockMusicDataUri(seconds: number): string {
+  // A 26-byte MPEG-1 Layer III frame: 8 kHz would need a different header, so
+  // this is the standard 32 kbps / 24 kHz frame, 72 bytes, all zeroes after
+  // the header — silence.
+  const frame = Buffer.alloc(72);
+  frame[0] = 0xff;
+  frame[1] = 0xf3; // MPEG-2, Layer III, no CRC
+  frame[2] = 0x48; // 32 kbps, 24 kHz
+  frame[3] = 0xc4; // mono
+  const framesPerSecond = 24000 / 576; // ~41.7
+  const frames = Math.max(1, Math.round(framesPerSecond * seconds));
+  return `data:audio/mpeg;base64,${Buffer.concat(Array.from({ length: frames }, () => frame)).toString("base64")}`;
+}
+
+/* ------------------------------------------------------------------ */
 /* Image generation. Returns a base64 data URI, or null on ANY failure  */
 /* (no key configured, provider error, unsupported provider) — callers  */
 /* always keep the style-thumbnail fallback. Keys never leave the server */

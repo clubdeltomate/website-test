@@ -5,7 +5,14 @@ import { createRouter } from "../middleware.js";
 import { adminProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
 import { marketingProfiles, slideImages } from "../../db/schema.js";
-import { type AspectRatio, completeText, generateImage } from "../ai/provider.js";
+import {
+  type AspectRatio,
+  MUSIC_MAX_SECONDS,
+  MUSIC_MIN_SECONDS,
+  completeText,
+  generateImage,
+  generateMusic,
+} from "../ai/provider.js";
 import { extractJson } from "../ai/prompts.js";
 import { applyTokenDelta } from "../tokens.js";
 import { getSettings } from "../settings.js";
@@ -22,6 +29,19 @@ const STORYBOARD_COST = 2;
 /** Picking out the words worth colouring is a much smaller read than writing
  *  the whole carousel, so it is priced below one. */
 const HIGHLIGHT_COST = 1;
+
+/**
+ * What a music bed costs, in coins.
+ *
+ * Priced by the second off the settings figure for thirty of them, because
+ * that is how ElevenLabs bills it — a minute of music is twice the work of
+ * half a minute, and a flat fee would either overcharge the short ones or
+ * lose money on the long ones. Everyone pays it: an admin generating a
+ * soundtrack is spending the same API call as anybody else.
+ */
+export function musicCost(perMusic: number, seconds: number): number {
+  return Math.max(1, Math.ceil((perMusic * seconds) / 30));
+}
 
 /** Aspect the backdrop is composed for — the post formats the editor offers. */
 const FORMAT_SHAPE: Record<string, string> = {
@@ -126,10 +146,23 @@ const KEYWORD_RULE =
 export const marketingRouter = createRouter({
   /** What a backdrop and a storyboard cost — quoted on their buttons. */
   quote: adminProcedure.query(
-    async (): Promise<{ image: number; storyboard: number; highlight: number; logo: number }> => {
+    async (): Promise<{
+      image: number;
+      storyboard: number;
+      highlight: number;
+      logo: number;
+      /** coins for thirty seconds of music; the editor scales it by length */
+      music: number;
+    }> => {
       const { prices } = await getSettings();
       const image = Math.max(1, Math.ceil(prices.perImageSlide));
-      return { image, storyboard: STORYBOARD_COST, highlight: HIGHLIGHT_COST, logo: image };
+      return {
+        image,
+        storyboard: STORYBOARD_COST,
+        highlight: HIGHLIGHT_COST,
+        logo: image,
+        music: musicCost(prices.perMusic ?? 20, 30),
+      };
     },
   ),
 
@@ -559,6 +592,68 @@ export const marketingRouter = createRouter({
         // to fill it instead of letterboxing a tall scene inside a square.
         aspect: input.format,
       }),
+    ),
+
+  /**
+   * Compose the music that plays under a carousel.
+   *
+   * ElevenLabs writes it from the same kind of brief the pictures get. The
+   * clip is parked with the images rather than in a table of its own — it is
+   * bytes with a mime type, which is exactly what that table holds — and the
+   * post keeps its id.
+   */
+  music: adminProcedure
+    .input(
+      z.object({
+        prompt: z.string().min(3).max(600),
+        seconds: z
+          .number()
+          .int()
+          .min(MUSIC_MIN_SECONDS)
+          .max(MUSIC_MAX_SECONDS)
+          .default(30),
+      }),
+    )
+    .mutation(
+      async ({ ctx, input }): Promise<{ url: string; seconds: number; cost: number }> => {
+        const { prices } = await getSettings();
+        const cost = musicCost(prices.perMusic ?? 20, input.seconds);
+        if (ctx.user.tokenBalance < cost) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `INSUFFICIENT_TOKENS: ${input.seconds}s of music costs ${cost} 🪙, you have ${ctx.user.tokenBalance} 🪙`,
+          });
+        }
+        const made = await generateMusic({
+          userId: ctx.user.id,
+          prompt: `${input.prompt.trim()}\n\nAn instrumental background bed for a short social media carousel: no vocals, no lyrics, no sudden silences, even loudness throughout so it can be looped.`,
+          seconds: input.seconds,
+        });
+        if (!made) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "AI_UNAVAILABLE: no ElevenLabs key answered — nothing was charged. Add an ElevenLabs key under Settings → AI keys and try again.",
+          });
+        }
+        const m = /^data:([^;,]+);base64,(.+)$/s.exec(made.audio);
+        if (!m) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "The music came back in a form we can't store",
+          });
+        }
+        await applyTokenDelta(
+          ctx.user.id,
+          -cost,
+          `post music: ${input.seconds}s — ${input.prompt.slice(0, 45)}`,
+        );
+        const [row] = await getDb()
+          .insert(slideImages)
+          .values({ ownerId: ctx.user.id, mime: m[1], data: m[2] })
+          .returning({ id: slideImages.id });
+        return { url: `${IMAGE_URL_PREFIX}${row.id}`, seconds: input.seconds, cost };
+      },
     ),
 
   /**

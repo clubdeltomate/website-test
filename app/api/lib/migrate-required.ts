@@ -171,6 +171,10 @@ export async function ensureRequiredSchema(): Promise<void> {
          "createdAt" timestamp NOT NULL DEFAULT now()
        )`,
     );
+    // A post's music bed, added after the table shipped.
+    await client.query(
+      `ALTER TABLE sketchlearn.posts ADD COLUMN IF NOT EXISTS "audioId" integer`,
+    );
     await client.query(
       `CREATE INDEX IF NOT EXISTS "posts_owner_idx" ON sketchlearn.posts ("ownerId")`,
     );
