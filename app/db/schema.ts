@@ -497,6 +497,28 @@ export const castModels = appSchema.table(
   (t) => [index("castModels_owner_idx").on(t.ownerId)],
 );
 
+/**
+ * One account's standing marketing identity.
+ *
+ * The follow card that closes a carousel — logo, name, counts, bio — should
+ * not be retyped for every post: it is the same account every time. Saving it
+ * here with an explicit Update makes the next carousel start where the last
+ * one finished, and gives the business card somewhere to live too.
+ */
+export const marketingProfiles = appSchema.table(
+  "marketingProfiles",
+  {
+    id: serial("id").primaryKey(),
+    ownerId: fk("ownerId").notNull(),
+    /** the follow card's fields, minus anything transient */
+    followCard: json("followCard"),
+    /** the business card built on the Card tab */
+    businessCard: json("businessCard"),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("marketingProfiles_owner_key").on(t.ownerId)],
+);
+
 /* Inferred types */
 export type User = typeof users.$inferSelect;
 export type ApiKey = typeof apiKeys.$inferSelect;

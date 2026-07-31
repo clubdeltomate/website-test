@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { eq } from "drizzle-orm";
 import { createRouter } from "../middleware.js";
 import { adminProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
-import { slideImages } from "../../db/schema.js";
+import { marketingProfiles, slideImages } from "../../db/schema.js";
 import { completeText, generateImage } from "../ai/provider.js";
 import { extractJson } from "../ai/prompts.js";
 import { applyTokenDelta } from "../tokens.js";
@@ -11,6 +12,7 @@ import { getSettings } from "../settings.js";
 import { IMAGE_URL_PREFIX } from "../deck-images.js";
 import { SITE, siteBrief } from "../../contracts/site.js";
 import { castDirective, castRoster } from "../../contracts/cast.js";
+import { CATEGORY_BRIEF, POST_CATEGORIES } from "../../contracts/post.js";
 
 /** What one storyboard costs. Text-only, so a flat small fee like the other
  *  short AI writes (grading, recalibration) rather than an image price. */
@@ -28,12 +30,6 @@ const FORMAT_SHAPE: Record<string, string> = {
 };
 
 /**
- * The backdrop of one carousel slide. The generator is told the frame AND
- * that a caption band may cover the lower part, so it puts the subject where
- * the band won't eat it — the same "compose for the real frame" rule the
- * banners follow.
- */
-/**
  * A logo mark, not a photograph — the one image here that is deliberately flat
  * and graphic, because it ends up inside a small circle on the follow card and
  * a photo would turn to mud at that size.
@@ -46,6 +42,12 @@ const LOGO_DIRECTIVE =
   "mockup, no business card, and absolutely no lettering or words unless the " +
   "brief asks for a specific letter.";
 
+/**
+ * The backdrop of one carousel slide. The generator is told the frame AND
+ * that a caption band may cover the lower part, so it puts the subject where
+ * the band won't eat it — the same "compose for the real frame" rule the
+ * banners follow.
+ */
 function postDirective(format: string): string {
   const shape = FORMAT_SHAPE[format] ?? FORMAT_SHAPE["9:16"];
   return (
@@ -90,8 +92,6 @@ const endCardSchema = z.object({
   bio: z.string().max(200).default(""),
 });
 
-/** How the keyword half of a reply is asked for, shared by both endpoints so
- *  a story write and a later re-highlight pick words the same way. */
 /**
  * How the storyboard is told about the cast.
  *
@@ -113,6 +113,8 @@ function castRule(cast: { name: string; headline: string }[]): string {
   );
 }
 
+/** How the keyword half of a reply is asked for, shared by both endpoints so
+ *  a story write and a later re-highlight pick words the same way. */
 const KEYWORD_RULE =
   "Also pick out the words worth colouring — the ones that carry the meaning and " +
   "should catch the eye when someone scrolls past. titleKeywords: 1 to 2 words from " +
@@ -131,19 +133,74 @@ export const marketingRouter = createRouter({
   ),
 
   /**
-   * How the closing follow card starts out: this site's own name, handle and
-   * bio, so the card is already correct before anyone types. Free and
-   * AI-free — it reads the same description the About page renders, which is
-   * what makes it right rather than guessed.
+   * How the closing follow card starts out.
+   *
+   * Whatever was last saved with Update, if anything — an account's counts and
+   * logo do not change post to post, so retyping them every time was the
+   * wrong default. Failing that, this site's own name and bio, read from the
+   * same description the About page renders, which makes it right rather than
+   * guessed. Free and AI-free either way.
    */
   brand: adminProcedure.query(
-    (): { name: string; handle: string; headline: string; bio: string } => ({
-      name: SITE.name,
-      handle: SITE.handle,
-      headline: `You will never see this page again unless you follow us right now 👇`,
-      bio: SITE.bio.join("\n"),
-    }),
+    async ({
+      ctx,
+    }): Promise<{
+      name: string;
+      handle: string;
+      headline: string;
+      bio: string;
+      saved: Record<string, unknown> | null;
+    }> => {
+      const [row] = await getDb()
+        .select({ followCard: marketingProfiles.followCard })
+        .from(marketingProfiles)
+        .where(eq(marketingProfiles.ownerId, ctx.user.id));
+      return {
+        name: SITE.name,
+        handle: SITE.handle,
+        headline: `You will never see this page again unless you follow us right now 👇`,
+        bio: SITE.bio.join("\n"),
+        saved: (row?.followCard as Record<string, unknown> | null) ?? null,
+      };
+    },
   ),
+
+  /**
+   * Remember this follow card for next time.
+   *
+   * An uploaded logo arrives as a data URL, which must not go into the row —
+   * it would be megabytes of base64 read back on every page load. It is
+   * parked in slideImages like every other picture and the card keeps the
+   * short URL instead.
+   */
+  saveBrand: adminProcedure
+    .input(
+      z.object({
+        card: z.record(z.string(), z.unknown()),
+        /** a data: URL to store, or an /api/img URL to keep as-is, or null */
+        logoUrl: z.string().max(8_000_000).nullable().default(null),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ logoUrl: string | null }> => {
+      let logoUrl = input.logoUrl;
+      const data = logoUrl && /^data:([^;,]+);base64,(.+)$/s.exec(logoUrl);
+      if (data) {
+        const [row] = await getDb()
+          .insert(slideImages)
+          .values({ ownerId: ctx.user.id, mime: data[1], data: data[2] })
+          .returning({ id: slideImages.id });
+        logoUrl = `${IMAGE_URL_PREFIX}${row.id}`;
+      }
+      const followCard = { ...input.card, logoUrl };
+      await getDb()
+        .insert(marketingProfiles)
+        .values({ ownerId: ctx.user.id, followCard })
+        .onConflictDoUpdate({
+          target: marketingProfiles.ownerId,
+          set: { followCard, updatedAt: new Date() },
+        });
+      return { logoUrl };
+    }),
 
   /**
    * Write the whole carousel: an opening hook, the steps in between, and a
@@ -159,6 +216,8 @@ export const marketingRouter = createRouter({
         format: z.enum(["9:16", "4:5", "1:1"]).default("9:16"),
         /** the models available to cast from; may be empty */
         cast: z.array(castMemberSchema).max(12).default([]),
+        /** what kind of thing is being sold, in the shelf's own vocabulary */
+        category: z.enum(POST_CATEGORIES).default("course"),
       }),
     )
     .mutation(
@@ -177,7 +236,8 @@ export const marketingRouter = createRouter({
           });
         }
         const system =
-          "You write Instagram carousels for a marketing team. Given a subject, plan a " +
+          "You write Instagram carousels for a marketing team. The subject is " +
+          `${CATEGORY_BRIEF[input.category]}. Given it, plan a ` +
           `carousel of exactly ${input.slideCount} slides that tells one small, complete story: ` +
           "slide 1 hooks the reader, the middle slides walk through the steps or ideas one at a " +
           "time in order, and the last slide closes with a takeaway or invitation. " +
