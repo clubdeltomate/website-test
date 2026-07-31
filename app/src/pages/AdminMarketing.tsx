@@ -10,6 +10,7 @@ import {
   Layers,
   Palette,
   Plus,
+  Save,
   Sparkles,
   Trash2,
   Type,
@@ -22,6 +23,8 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { FONT, OUT_W, bandRgb, inkFor, tintsFrom, wordsOf } from '@/lib/caption-words';
 import { type ZipEntry, canvasBytes, makeZip } from '@/lib/zip';
+import { POST_CATEGORIES, type PostCategory } from '@contracts/post';
+import { TEMPLATE_META } from '@/components/repo/shared';
 import { trpc } from '@/providers/trpc';
 import FollowPreview from '@/components/marketing/FollowPreview';
 import {
@@ -30,6 +33,8 @@ import {
   emptyFollowCard,
   layoutFollow,
 } from '@/components/marketing/follow-card';
+import CostConfirmProvider from '@/components/marketing/CostConfirmProvider';
+import { useCostConfirm } from '@/components/marketing/cost-confirm';
 import AdminGate from '@/components/admin/AdminGate';
 import SketchToaster from '@/components/admin/SketchToaster';
 import SketchButton from '@/components/sketch/SketchButton';
@@ -297,8 +302,10 @@ function MarketingBody() {
   /** ids of the models this carousel may draw from */
   const [picked, setPicked] = useState<string[]>([]);
   const [castOpen, setCastOpen] = useState(false);
+  const [category, setCategory] = useState<PostCategory>('course');
   const [modelNote, setModelNote] = useState('');
   const [reading, setReading] = useState(false);
+  const confirm = useCostConfirm();
 
   const measureRef = useRef<CanvasRenderingContext2D | null>(null);
   if (measureRef.current === null && typeof document !== 'undefined') {
@@ -331,13 +338,26 @@ function MarketingBody() {
     if (seeded.current || !brand.data) return;
     seeded.current = true;
     const b = brand.data;
-    setFollow((f) => ({
-      ...f,
-      name: f.name || b.name,
-      headline: f.headline || b.headline,
-      bio: f.bio || b.bio,
-    }));
+    // A card saved with Update wins outright — it IS the account. Only when
+    // nothing has been saved yet do we fall back to describing this site.
+    setFollow((f) =>
+      b.saved
+        ? { ...f, ...(b.saved as Partial<FollowCard>), on: f.on }
+        : { ...f, name: f.name || b.name, headline: f.headline || b.headline, bio: f.bio || b.bio },
+    );
   }, [brand.data]);
+
+  /** Make this card the starting point for every future carousel. */
+  const saveBrand = trpc.marketing.saveBrand.useMutation({
+    onSuccess: (r) => {
+      // The upload became a stored image on the way in; hold the short URL so
+      // the megabyte of base64 does not sit in memory for the rest of the session.
+      if (r.logoUrl !== follow.logoUrl) setFollow((f) => ({ ...f, logoUrl: r.logoUrl }));
+      void brand.refetch();
+      toast.success('Saved — every new carousel starts from this card');
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const outH = FORMATS.find((f) => f.id === design.format)!.h;
   /** The follow card, when it is on, is the slide after the last picture. */
@@ -418,11 +438,13 @@ function MarketingBody() {
     onError: (e) => toast.error(e.message),
   });
 
-  const runHighlight = (scope: 'title' | 'subtitle' | 'both') =>
+  const runHighlight = async (scope: 'title' | 'subtitle' | 'both') => {
+    if (!(await confirm.ask('Picking the keywords', quote.data?.highlight))) return;
     highlight.mutate({
       scope,
       slides: slides.slice(0, 20).map((s) => ({ title: s.title, subtitle: s.subtitle })),
     });
+  };
 
   /** Draw one slide's backdrop. The index is captured here rather than
    *  recovered from the response, so the picture always lands on the slide
@@ -430,6 +452,7 @@ function MarketingBody() {
   const drawOne = async (i: number) => {
     const prompt = slides[i].imagePrompt.trim();
     if (prompt.length < 3) return;
+    if (!(await confirm.ask('Drawing this backdrop', imgCost))) return;
     setDrawing(i);
     try {
       const r = await utils.client.marketing.generate.mutate({
@@ -451,6 +474,13 @@ function MarketingBody() {
   const drawAllMissing = async () => {
     const todo = slides.map((s, i) => ({ s, i })).filter(({ s }) => !s.imageUrl && s.imagePrompt.trim().length > 2);
     if (todo.length === 0) return toast.error('Every slide with a prompt already has a picture');
+    if (
+      !(await confirm.ask(
+        `Drawing ${todo.length} backdrop${todo.length === 1 ? '' : 's'}`,
+        imgCost == null ? undefined : imgCost * todo.length,
+      ))
+    )
+      return;
     setBusy(true);
     let made = 0;
     for (const { s, i } of todo) {
@@ -609,6 +639,7 @@ function MarketingBody() {
   const drawLogo = async () => {
     const prompt = follow.logoPrompt.trim();
     if (prompt.length < 3) return;
+    if (!(await confirm.ask('Drawing the logo', quote.data?.logo))) return;
     setDrawingLogo(true);
     try {
       const r = await utils.client.marketing.logo.mutate({ prompt });
@@ -627,6 +658,7 @@ function MarketingBody() {
     if (file.size > 6_000_000) return toast.error('That photo is over 6 MB — try a smaller one');
     const reader = new FileReader();
     reader.onload = async () => {
+      if (!(await confirm.ask('Reading that photo into a model', 1))) return;
       setReading(true);
       try {
         const r = await utils.client.cast.fromPhoto.mutate({
@@ -1033,6 +1065,32 @@ function MarketingBody() {
               placeholder="What should the carousel explain? e.g. how to brew great coffee at home"
               className="w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
             />
+            {/* Which shelf this post belongs on — the same six the notebooks
+                and slide tools use, so the feed filters read the same way. */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="micro w-full text-[0.6rem] text-ink-soft">This post is about…</span>
+              {POST_CATEGORIES.map((c) => {
+                const meta = TEMPLATE_META[c];
+                const Icon = meta.icon;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCategory(c)}
+                    aria-pressed={category === c}
+                    className={cn(
+                      'micro flex items-center gap-1 rounded-wobble-sm border-2 px-2 py-1 text-[0.6rem] font-bold transition-colors',
+                      category === c
+                        ? 'border-ink bg-yellow text-ink shadow-offset'
+                        : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                    )}
+                  >
+                    <Icon className="h-3 w-3" strokeWidth={2} />
+                    {meta.label}
+                  </button>
+                );
+              })}
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <label className="micro flex items-center gap-1.5 text-[0.6rem] text-ink-soft">
                 Slides
@@ -1050,18 +1108,20 @@ function MarketingBody() {
                 variant="accent"
                 loading={storyboard.isPending}
                 disabled={topic.trim().length < 3}
-                onClick={() =>
+                onClick={async () => {
+                  if (!(await confirm.ask('Writing the carousel', quote.data?.storyboard))) return;
                   storyboard.mutate({
                     topic: topic.trim(),
                     slideCount,
                     format: design.format,
+                    category,
                     cast: pickedModels.map((m) => ({
                       name: m.name,
                       headline: m.headline,
                       sheet: m.sheet,
                     })),
-                  })
-                }
+                  });
+                }}
               >
                 <Sparkles className="h-4 w-4" strokeWidth={2.5} /> Write the carousel
                 {quote.data ? ` — ${quote.data.storyboard} 🪙` : ''}
@@ -1317,9 +1377,39 @@ function MarketingBody() {
                   value={follow.bg}
                   onPick={(fill) => setFollow((f) => ({ ...f, bg: fill }))}
                 />
+                <div className="flex flex-wrap items-center gap-2 border-t-2 border-dashed border-pencil pt-3">
+                  <SketchButton
+                    variant="secondary"
+                    loading={saveBrand.isPending}
+                    onClick={() =>
+                      // Everything except the two that belong to this session:
+                      // whether the slide is switched on, and the brief that
+                      // drew the logo.
+                      saveBrand.mutate({
+                        logoUrl: follow.logoUrl,
+                        card: {
+                          headline: follow.headline,
+                          name: follow.name,
+                          verified: follow.verified,
+                          posts: follow.posts,
+                          followers: follow.followers,
+                          following: follow.following,
+                          bio: follow.bio,
+                          bg: follow.bg,
+                        },
+                      })
+                    }
+                  >
+                    <Save className="h-4 w-4" strokeWidth={2} /> Update
+                  </SketchButton>
+                  <span className="micro text-[0.58rem] text-ink-faint">
+                    Keeps this card — logo, name, counts, bio — as the starting point for every
+                    carousel from now on.
+                  </span>
+                </div>
                 <p className="micro text-[0.58rem] text-ink-faint">
-                  Starts out as this site — its name, its bio — and the AI rewrites the headline for
-                  whatever the carousel is about. Everything here is yours to overwrite.
+                  Until you Update it, the card describes this site and the AI rewrites the headline
+                  for whatever the carousel is about. Everything here is yours to overwrite.
                 </p>
               </>
             )}
@@ -1483,7 +1573,7 @@ function MarketingBody() {
                     highlight.isPending ||
                     slides.every((s) => !s.title.trim() && !s.subtitle.trim())
                   }
-                  onClick={() => runHighlight(b.scope)}
+                  onClick={() => void runHighlight(b.scope)}
                 >
                   <Sparkles className="h-4 w-4" strokeWidth={2.5} /> {b.label}
                   {quote.data ? ` — ${quote.data.highlight} 🪙` : ''}
@@ -1514,6 +1604,15 @@ function MarketingBody() {
               <span className="micro text-[0.58rem] text-ink-faint">
                 PNG · {OUT_W} × {outH}
               </span>
+              {confirm.muted && (
+                <button
+                  type="button"
+                  onClick={() => confirm.setMuted(false)}
+                  className="micro ml-auto rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.58rem] font-bold text-ink-soft hover:border-ink hover:text-ink"
+                >
+                  Cost reminders are off — turn them back on
+                </button>
+              )}
             </div>
           </SketchCard>
         </div>
@@ -1662,7 +1761,9 @@ function Slider({
 export default function AdminMarketing() {
   return (
     <AdminGate minRole="admin">
-      <MarketingBody />
+      <CostConfirmProvider>
+        <MarketingBody />
+      </CostConfirmProvider>
     </AdminGate>
   );
 }

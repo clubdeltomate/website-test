@@ -143,6 +143,19 @@ export async function ensureRequiredSchema(): Promise<void> {
     await client.query(
       `CREATE INDEX IF NOT EXISTS "castModels_owner_idx" ON sketchlearn."castModels" ("ownerId")`,
     );
+    // The saved follow card / business card the marketing tool starts from.
+    await client.query(
+      `CREATE TABLE IF NOT EXISTS sketchlearn."marketingProfiles" (
+         id serial PRIMARY KEY,
+         "ownerId" integer NOT NULL,
+         "followCard" json,
+         "businessCard" json,
+         "updatedAt" timestamp NOT NULL DEFAULT now()
+       )`,
+    );
+    await client.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "marketingProfiles_owner_key" ON sketchlearn."marketingProfiles" ("ownerId")`,
+    );
     // Items handed to a user by a moderator; shelf queries read it.
     await client.query(
       `CREATE TABLE IF NOT EXISTS sketchlearn.assignments (
