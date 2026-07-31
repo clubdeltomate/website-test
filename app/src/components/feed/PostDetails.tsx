@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { Download, MessageCircle, Trash2 } from 'lucide-react';
+import { Download, Lock, MessageCircle, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { type ZipEntry, makeZip } from '@/lib/zip';
@@ -82,9 +82,38 @@ export default function PostDetails({
           {post.ownerName}
         </Link>
         {post.ownerVerified && <VerifiedBadge />}
+        {/* Only ever on a post that is not public, and only for someone who
+            can already see it — so it tells you why this is on your feed
+            rather than leaking that anything else exists. */}
+        {post.who !== 'public' && (
+          <span
+            title={
+              post.mine
+                ? post.who === 'private'
+                  ? 'Only you can see this'
+                  : `Sent to ${post.assignedCount} ${post.assignedCount === 1 ? 'person' : 'people'}`
+                : 'Sent to you'
+            }
+            className="micro ml-auto flex items-center gap-1 rounded-wobble-sm border-2 border-ink bg-yellow-soft px-1.5 py-0.5 text-[0.55rem] font-bold text-ink"
+          >
+            {post.who === 'private' ? (
+              <Lock className="h-3 w-3" strokeWidth={2} />
+            ) : (
+              <Users className="h-3 w-3" strokeWidth={2} />
+            )}
+            {post.who === 'private'
+              ? 'Private'
+              : post.mine
+                ? `${post.assignedCount} sent`
+                : 'For you'}
+          </span>
+        )}
         <span
           title={meta.label}
-          className="micro ml-auto flex items-center gap-1 rounded-wobble-sm border-2 border-dashed border-pencil px-1.5 py-0.5 text-[0.55rem] font-bold text-ink-soft"
+          className={cn(
+            'micro flex items-center gap-1 rounded-wobble-sm border-2 border-dashed border-pencil px-1.5 py-0.5 text-[0.55rem] font-bold text-ink-soft',
+            post.who === 'public' && 'ml-auto',
+          )}
         >
           <Icon className="h-3 w-3" strokeWidth={2} />
           {meta.label}

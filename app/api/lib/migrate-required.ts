@@ -175,6 +175,15 @@ export async function ensureRequiredSchema(): Promise<void> {
     await client.query(
       `ALTER TABLE sketchlearn.posts ADD COLUMN IF NOT EXISTS "audioId" integer`,
     );
+    // Who a post is for. The boolean it replaces is kept in step with it, so
+    // this backfill only ever finds rows written before the column existed —
+    // an "assigned" post is isPublic=false but must not become private.
+    await client.query(
+      `ALTER TABLE sketchlearn.posts ADD COLUMN IF NOT EXISTS visibility varchar(10) NOT NULL DEFAULT 'public'`,
+    );
+    await client.query(
+      `UPDATE sketchlearn.posts SET visibility = 'private' WHERE "isPublic" = false AND visibility = 'public'`,
+    );
     await client.query(
       `CREATE INDEX IF NOT EXISTS "posts_owner_idx" ON sketchlearn.posts ("ownerId")`,
     );

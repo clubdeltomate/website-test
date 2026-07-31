@@ -1,12 +1,17 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { createRouter, publicQuery } from "../middleware.js";
 import { adminProcedure, authedProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
-import { posts, slideImages, users } from "../../db/schema.js";
+import { assignments, posts, slideImages, users } from "../../db/schema.js";
 import { IMAGE_URL_PREFIX } from "../deck-images.js";
-import { POST_CATEGORIES, type PostSummary } from "../../contracts/post.js";
+import {
+  POST_CATEGORIES,
+  POST_VISIBILITY,
+  type PostSummary,
+  type PostVisibility,
+} from "../../contracts/post.js";
 
 /* Published carousels — the feed.
  *
@@ -14,6 +19,42 @@ import { POST_CATEGORIES, type PostSummary } from "../../contracts/post.js";
  * is admin-only, which is not a separate policy so much as the same one: the
  * marketing tool that produces a post is behind the same gate, so this just
  * agrees with it rather than leaving a back way in. */
+
+/** Which posts this viewer was given by name. Empty for a guest. */
+async function assignedToViewer(viewerId: number | undefined): Promise<Set<string>> {
+  if (viewerId == null) return new Set();
+  try {
+    const rows = await getDb()
+      .select({ slug: assignments.targetSlug })
+      .from(assignments)
+      .where(and(eq(assignments.userId, viewerId), eq(assignments.targetType, "post")));
+    return new Set(rows.map((r) => r.slug));
+  } catch (err) {
+    // A missing assignments table must hide assigned posts, never break the
+    // feed — the public half of it has nothing to do with this.
+    console.warn("[posts] assignments unavailable:", err instanceof Error ? err.message : err);
+    return new Set();
+  }
+}
+
+/**
+ * May this viewer see this post?
+ *
+ * Public is public. Everything else is yours or given to you — and that is
+ * true of admins too: "private" would not mean much if it meant "private
+ * unless someone has the admin flag". Taking a post down is a separate power
+ * and lives on `remove`.
+ */
+export function canSee(
+  post: { visibility: string; ownerId: number; slug: string },
+  viewerId: number | undefined,
+  given: Set<string>,
+): boolean {
+  if (post.visibility === "public") return true;
+  if (viewerId == null) return false; // a guest sees only the public feed
+  if (post.ownerId === viewerId) return true;
+  return post.visibility === "assigned" && given.has(post.slug);
+}
 
 const slugify = (s: string) =>
   s
@@ -35,6 +76,17 @@ export const postsRouter = createRouter({
         .default({ limit: 30 }),
     )
     .query(async ({ ctx, input }): Promise<PostSummary[]> => {
+      const given = await assignedToViewer(ctx.user?.id);
+      /* Everything public, everything of yours whatever it is set to, and
+         anything made out to you by name. Narrowed in SQL rather than after
+         the fact so the limit counts posts you can actually see. */
+      const audience = or(
+        eq(posts.visibility, "public"),
+        ctx.user ? eq(posts.ownerId, ctx.user.id) : undefined,
+        given.size > 0
+          ? and(eq(posts.visibility, "assigned"), inArray(posts.slug, [...given]))
+          : undefined,
+      );
       const rows = await getDb()
         .select({
           post: posts,
@@ -44,14 +96,11 @@ export const postsRouter = createRouter({
         })
         .from(posts)
         .leftJoin(users, eq(users.id, posts.ownerId))
-        .where(
-          input.category
-            ? and(eq(posts.isPublic, true), eq(posts.category, input.category))
-            : eq(posts.isPublic, true),
-        )
+        .where(input.category ? and(audience, eq(posts.category, input.category)) : audience)
         .orderBy(desc(posts.id))
         .limit(input.limit);
-      return rows.map((r) => toSummary(r, ctx.user?.id));
+      const counts = await assignedCounts(rows.map((r) => r.post));
+      return rows.map((r) => toSummary(r, ctx.user?.id, counts));
     }),
 
   /** One post, for its own page. */
@@ -68,10 +117,12 @@ export const postsRouter = createRouter({
         .from(posts)
         .leftJoin(users, eq(users.id, posts.ownerId))
         .where(eq(posts.slug, input.slug));
-      if (!row || (!row.post.isPublic && row.post.ownerId !== ctx.user?.id)) {
+      // "Not here" rather than "not allowed": a private post should not
+      // confirm its own existence to someone guessing at addresses.
+      if (!row || !canSee(row.post, ctx.user?.id, await assignedToViewer(ctx.user?.id))) {
         throw new TRPCError({ code: "NOT_FOUND", message: "That post isn't here" });
       }
-      return toSummary(row, ctx.user?.id);
+      return toSummary(row, ctx.user?.id, await assignedCounts([row.post]));
     }),
 
   /**
@@ -104,6 +155,9 @@ export const postsRouter = createRouter({
         height: z.number().int().min(1).max(8000).default(1350),
         /** the music bed, already generated and stored */
         audioId: z.number().int().positive().nullable().default(null),
+        visibility: z.enum(POST_VISIBILITY).default("public"),
+        /** who it is made out to; only read when visibility is "assigned" */
+        assignedUserIds: z.array(z.number().int().positive()).max(200).default([]),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ slug: string }> => {
@@ -135,6 +189,21 @@ export const postsRouter = createRouter({
         if (!clash) break;
         slug = `${base}-${n}`;
       }
+      /* Who it is made out to — real accounts only, so an id typed by hand
+         never becomes a row that quietly matches nobody. An assigned post
+         with none of them left is a private post with a misleading label, so
+         it is stored as what it actually is. */
+      const named = [...new Set(input.assignedUserIds)].filter((id) => id !== ctx.user.id);
+      const recipients =
+        input.visibility === "assigned" && named.length > 0
+          ? (
+              await getDb().select({ id: users.id }).from(users).where(inArray(users.id, named))
+            ).map((u) => u.id)
+          : [];
+      const visibility: PostVisibility =
+        input.visibility === "assigned" && recipients.length === 0
+          ? "private"
+          : input.visibility;
       await getDb()
         .insert(posts)
         .values({
@@ -146,7 +215,23 @@ export const postsRouter = createRouter({
           width: input.width,
           height: input.height,
           audioId,
+          visibility,
+          // Kept in step with visibility so anything still reading the older
+          // flag is never wrong, only less specific.
+          isPublic: visibility === "public",
         });
+      if (recipients.length > 0) {
+        await getDb()
+          .insert(assignments)
+          .values(
+            recipients.map((id) => ({
+              targetType: "post",
+              targetSlug: slug,
+              userId: id,
+              assignedBy: ctx.user.id,
+            })),
+          );
+      }
       return { slug };
     }),
 
@@ -160,9 +245,32 @@ export const postsRouter = createRouter({
         throw new TRPCError({ code: "FORBIDDEN", message: "That post isn't yours" });
       }
       await getDb().delete(posts).where(eq(posts.id, row.id));
+      // The slug is free to be reused, so its old audience must not linger.
+      await getDb()
+        .delete(assignments)
+        .where(and(eq(assignments.targetType, "post"), eq(assignments.targetSlug, row.slug)));
       return { ok: true };
     }),
 });
+
+/** How many people each of these posts was made out to. */
+async function assignedCounts(
+  rows: { slug: string; visibility: string }[],
+): Promise<Map<string, number>> {
+  const slugs = rows.filter((r) => r.visibility === "assigned").map((r) => r.slug);
+  const counts = new Map<string, number>();
+  if (slugs.length === 0) return counts;
+  try {
+    const held = await getDb()
+      .select({ slug: assignments.targetSlug })
+      .from(assignments)
+      .where(and(eq(assignments.targetType, "post"), inArray(assignments.targetSlug, slugs)));
+    for (const h of held) counts.set(h.slug, (counts.get(h.slug) ?? 0) + 1);
+  } catch (err) {
+    console.warn("[posts] assignment counts unavailable:", err instanceof Error ? err.message : err);
+  }
+  return counts;
+}
 
 function toSummary(
   r: {
@@ -172,8 +280,14 @@ function toSummary(
     ownerVerified: boolean | null;
   },
   viewerId: number | undefined,
+  counts: Map<string, number>,
 ): PostSummary {
+  const who = (POST_VISIBILITY as readonly string[]).includes(r.post.visibility)
+    ? (r.post.visibility as PostVisibility)
+    : "public";
   return {
+    who,
+    assignedCount: counts.get(r.post.slug) ?? 0,
     slug: r.post.slug,
     caption: r.post.caption,
     category: r.post.category,

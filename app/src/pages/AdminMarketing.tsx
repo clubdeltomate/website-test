@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Download,
   Eraser,
+  Eye,
   Image as ImageIcon,
   Layers,
   Music,
@@ -27,7 +28,14 @@ import { cn } from '@/lib/utils';
 import { FONT, OUT_W, bandRgb, inkFor, tintsFrom, wordsOf } from '@/lib/caption-words';
 import { type ZipEntry, canvasBytes, makeZip } from '@/lib/zip';
 import { trimBars } from '@/lib/trim-bars';
-import { POST_CATEGORIES, type PostCategory } from '@contracts/post';
+import {
+  POST_CATEGORIES,
+  POST_VISIBILITY,
+  VISIBILITY_BRIEF,
+  VISIBILITY_LABEL,
+  type PostCategory,
+  type PostVisibility,
+} from '@contracts/post';
 import { LANGUAGES } from '@contracts/languages';
 import { useNavigate } from 'react-router';
 import { TEMPLATE_META } from '@/components/repo/shared';
@@ -356,6 +364,10 @@ function MarketingBody() {
   const [category, setCategory] = useState<PostCategory>('course');
   const [caption, setCaption] = useState('');
   const [posting, setPosting] = useState(false);
+  /** Who the post is for, and — when that is "assigned" — exactly whom. */
+  const [who, setWho] = useState<PostVisibility>('public');
+  const [sendTo, setSendTo] = useState<number[]>([]);
+  const [userQuery, setUserQuery] = useState('');
   const [modelNote, setModelNote] = useState('');
   const [reading, setReading] = useState(false);
   /* The soundtrack. Held as an id as well as a URL because publishing hands
@@ -398,6 +410,13 @@ function MarketingBody() {
       .filter((m) => want.includes(m.name.trim().toLowerCase()))
       .map((m) => ({ name: m.name, headline: m.headline, sheet: m.sheet }));
   };
+
+  /* Everyone who could be sent a post. Only fetched once the audience is
+     actually "assigned" — the feed does not need a user list to publish. */
+  const directory = trpc.users.directory.useQuery(
+    { q: userQuery.trim() || undefined },
+    { enabled: who === 'assigned' },
+  );
 
   const brand = trpc.marketing.brand.useQuery();
   const seeded = useRef(false);
@@ -752,8 +771,16 @@ function MarketingBody() {
         width: OUT_W,
         height: outH,
         audioId: music?.id ?? null,
+        visibility: who,
+        assignedUserIds: who === 'assigned' ? sendTo : [],
       });
-      toast.success('Posted to the feed ✓');
+      toast.success(
+        who === 'public'
+          ? 'Posted to the feed ✓'
+          : who === 'private'
+            ? 'Posted — only you can see it ✓'
+            : `Posted to ${sendTo.length} ${sendTo.length === 1 ? 'feed' : 'feeds'} ✓`,
+      );
       navigate(`/feed/${r.slug}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "That post couldn't be published");
@@ -2007,6 +2034,92 @@ function MarketingBody() {
                 placeholder="The caption under the post — the first line becomes its address"
                 className="w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
               />
+              {/* Who it is for. Three states rather than a public switch,
+                  because "not public" means two different things: a draft
+                  only you see, and something made for particular people. */}
+              <div className="flex flex-col gap-2 rounded-wobble-sm border-2 border-dashed border-pencil p-2.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="micro flex items-center gap-1 text-[0.58rem] font-semibold text-ink-soft">
+                    <Eye className="h-3 w-3" strokeWidth={2} /> Who sees it
+                  </span>
+                  {POST_VISIBILITY.map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setWho(v)}
+                      aria-pressed={who === v}
+                      // Named in full: on its own, "Private" is also what a
+                      // word in the caption might say.
+                      aria-label={`Who sees it: ${VISIBILITY_LABEL[v]}`}
+                      title={VISIBILITY_BRIEF[v]}
+                      className={cn(
+                        'micro rounded-wobble-sm border-2 px-2.5 py-1 text-[0.6rem] font-bold transition-colors',
+                        who === v
+                          ? 'border-ink bg-yellow text-ink shadow-offset'
+                          : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                      )}
+                    >
+                      {VISIBILITY_LABEL[v]}
+                    </button>
+                  ))}
+                  <span className="micro text-[0.55rem] text-ink-faint">
+                    {VISIBILITY_BRIEF[who]}
+                  </span>
+                </div>
+                {who === 'assigned' && (
+                  <div className="flex flex-col gap-1.5 border-t-2 border-dashed border-pencil pt-2">
+                    <input
+                      value={userQuery}
+                      onChange={(e) => setUserQuery(e.target.value)}
+                      aria-label="Find a user"
+                      placeholder="Find someone by name"
+                      className="w-full rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-1.5 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
+                    />
+                    <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto">
+                      {(directory.data ?? []).map((u) => {
+                        const on = sendTo.includes(u.id);
+                        return (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() =>
+                              setSendTo((s) =>
+                                on ? s.filter((x) => x !== u.id) : [...s, u.id],
+                              )
+                            }
+                            aria-pressed={on}
+                            className={cn(
+                              'flex items-center gap-1.5 rounded-wobble-sm border-2 py-0.5 pl-0.5 pr-2 transition-colors',
+                              on
+                                ? 'border-ink bg-yellow text-ink shadow-offset'
+                                : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                            )}
+                          >
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-ink bg-paper-2 font-heading text-[0.5rem] font-bold text-ink">
+                              {u.avatarUrl ? (
+                                <img src={u.avatarUrl} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                u.name.slice(0, 1).toUpperCase()
+                              )}
+                            </span>
+                            <span className="micro text-[0.58rem] font-bold">{u.name}</span>
+                          </button>
+                        );
+                      })}
+                      {directory.data?.length === 0 && (
+                        <span className="micro text-[0.58rem] text-ink-faint">
+                          Nobody by that name.
+                        </span>
+                      )}
+                    </div>
+                    <p className="micro text-[0.55rem] text-ink-faint">
+                      {sendTo.length === 0
+                        ? 'Pick at least one person — an assigned post with nobody on it is filed as private.'
+                        : `${sendTo.length} ${sendTo.length === 1 ? 'person' : 'people'} — it shows on their feed and nowhere else.`}
+                    </p>
+                  </div>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 <SketchButton
                   variant="accent"
@@ -2019,8 +2132,11 @@ function MarketingBody() {
                 </SketchButton>
                 <span className="micro text-[0.58rem] text-ink-faint">
                   Filed under {TEMPLATE_META[category].label}
-                  {music ? `, with ${music.seconds}s of music` : ''}. Publishing is free — the
-                  pictures are already paid for.
+                  {music ? `, with ${music.seconds}s of music` : ''},{' '}
+                  {who === 'assigned' && sendTo.length > 0
+                    ? `for ${sendTo.length} ${sendTo.length === 1 ? 'person' : 'people'}`
+                    : VISIBILITY_LABEL[who].toLowerCase()}
+                  . Publishing is free — the pictures are already paid for.
                 </span>
               </div>
             </div>
