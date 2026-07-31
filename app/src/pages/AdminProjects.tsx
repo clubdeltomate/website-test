@@ -1,6 +1,7 @@
 import { Landmark, Megaphone, Sparkles } from 'lucide-react';
 import AdminGate from '@/components/admin/AdminGate';
 import { HubHeader, PanelTileCard, type PanelTile } from '@/components/admin/PanelTiles';
+import { say } from '@/lib/i18n';
 
 /* Projects: the shelf where new tools for the site get built. Each
  * project gets a tile; Finance is the first. */
@@ -28,7 +29,7 @@ function ProjectsBody() {
       <HubHeader
         backTo="/admin"
         backLabel="Home"
-        title="Projects"
+        title={say("Projects")}
         blurb="Tools we build for the site, one tile per project."
       />
 
@@ -39,7 +40,8 @@ function ProjectsBody() {
         <div className="flex h-full min-h-[92px] items-center justify-center gap-2 rounded-wobble-2 border-2 border-dashed border-pencil p-4 text-center">
           <Sparkles className="h-4 w-4 text-ink-faint" strokeWidth={2} />
           <p className="font-heading text-sm text-ink-faint">
-            The next project sketches itself here soon.
+            
+            {say("The next project sketches itself here soon.")}
           </p>
         </div>
       </div>

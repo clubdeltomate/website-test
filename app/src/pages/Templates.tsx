@@ -35,6 +35,7 @@ import {
   type SlideTemplate,
 } from '@contracts/slide-templates';
 import { TemplateBadges, FlavorBadge } from '@/components/templates/TemplatePicker';
+import { say } from '@/lib/i18n';
 
 const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 const PAGE_SIZE = 6;
@@ -65,10 +66,10 @@ export default function Templates() {
 
   const del = trpc.templates.delete.useMutation({
     onSuccess: () => {
-      toast.success('Template removed');
+      toast.success(say("Template removed"));
       void utils.templates.list.invalidate();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   const canDelete = (t: SlideTemplate) =>
@@ -93,28 +94,26 @@ export default function Templates() {
       <Toaster position="bottom-right" />
 
       <header className="relative mb-6">
-        <h1 className="font-display text-5xl font-bold text-ink">Slide templates</h1>
+        <h1 className="font-display text-5xl font-bold text-ink">{say("Slide templates")}</h1>
         <p className="mt-2 max-w-2xl text-ink-soft">
-          These are the slide layouts the AI chooses from when it generates a deck. Each bar is a
-          recipe of components in order — <em>Text → Graph → Multiple choice</em> — tagged by subject
-          and by CEFR <strong>level</strong>. Lower levels (A0–A2) get lighter layouts; higher
-          levels (C1–C2) get denser, multi-paragraph ones. Every layout ends with a gradable step.
+          
+          {say("These are the slide layouts the AI chooses from when it generates a deck. Each bar is a recipe of components in order —")} <em>{say("Text → Graph → Multiple choice")}</em>  {say("— tagged by subject and by CEFR")} <strong>{say("level")}</strong>{say(". Lower levels (A0–A2) get lighter layouts; higher levels (C1–C2) get denser, multi-paragraph ones. Every layout ends with a gradable step.")}
         </p>
       </header>
 
       <StickyNote rotate={-1.5} className="mb-6 max-w-xl">
         <p className="flex items-center gap-1.5 text-[0.95rem]">
           <Sparkles className="h-4 w-4 text-purple" />
-          The generator is handed only the layouts that match the lesson's subject <em>and</em> its
-          level. Tag a template with <code>#math</code> or <code>#history</code> and set its level so
-          it is suggested for the right courses.
+          
+          {say("The generator is handed only the layouts that match the lesson's subject")} <em>{say("and")}</em>  {say("its level. Tag a template with")} <code>{say("#math")}</code>  {say("or")} <code>{say("#history")}</code>  {say("and set its level so it is suggested for the right courses.")}
         </p>
       </StickyNote>
 
       {/* subject-badge legend */}
       <div className="mb-6 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-3/60 p-4">
         <p className="micro mb-2 font-semibold text-ink-soft">
-          Subject badges — a template can carry more than one
+          
+          {say("Subject badges — a template can carry more than one")}
         </p>
         <div className="flex flex-wrap gap-x-6 gap-y-2">
           {TEMPLATE_FLAVORS.map((f) => (
@@ -163,12 +162,12 @@ export default function Templates() {
         )}
       </AnimatePresence>
 
-      {list.isLoading && <p className="text-ink-faint">Loading templates…</p>}
+      {list.isLoading && <p className="text-ink-faint">{say("Loading templates…")}</p>}
 
       {SECTIONS.map((s) => (
         <TemplateSection
           key={s.key}
-          title={s.title}
+          title={say(s.title)}
           subtitle={s.subtitle}
           items={bySection[s.key]}
           onDelete={(id) => del.mutate({ id })}
@@ -237,7 +236,7 @@ function TemplateSection({
         <div>
           <h2 className="font-heading text-2xl font-bold text-ink">{title}</h2>
           <p className="micro text-ink-faint">
-            {subtitle} · {items.length} layouts
+            {subtitle} · {items.length}  {say("layouts")}
           </p>
         </div>
       </div>
@@ -272,7 +271,8 @@ function TemplateSection({
 
       {filtered.length === 0 ? (
         <p className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-2/50 px-4 py-6 text-center text-sm text-ink-faint">
-          No templates match — try another search or level.
+          
+          {say("No templates match — try another search or level.")}
         </p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -301,7 +301,7 @@ function TemplateSection({
                 <div className="flex shrink-0 items-center gap-1.5">
                   {t.builtin ? (
                     <Chip kind="neutral" className="text-[0.6rem]">
-                      <LayoutTemplate className="h-3 w-3" /> built-in
+                      <LayoutTemplate className="h-3 w-3" />  {say("built-in")}
                     </Chip>
                   ) : (
                     <Chip kind="slide-tool" className="text-[0.6rem]">
@@ -313,8 +313,8 @@ function TemplateSection({
                         <button
                           type="button"
                           onClick={() => onEdit(t)}
-                          aria-label="Copy & edit as a custom template"
-                          title="Copy & edit — built-ins can't change, so this opens an editable copy"
+                          aria-label={say("Copy & edit as a custom template")}
+                          title={say("Copy & edit — built-ins can't change, so this opens an editable copy")}
                           className="rounded-wobble-sm p-1 text-ink-faint transition-colors hover:bg-paper-2 hover:text-ink"
                         >
                           <Copy className="h-4 w-4" strokeWidth={2} />
@@ -324,8 +324,8 @@ function TemplateSection({
                         <button
                           type="button"
                           onClick={() => onEdit(t)}
-                          aria-label="Edit template"
-                          title="Edit template"
+                          aria-label={say("Edit template")}
+                          title={say("Edit template")}
                           className="rounded-wobble-sm p-1 text-ink-faint transition-colors hover:bg-paper-2 hover:text-ink"
                         >
                           <Pencil className="h-4 w-4" strokeWidth={2} />
@@ -335,8 +335,8 @@ function TemplateSection({
                     <button
                       type="button"
                       onClick={() => onDelete(t.id as number)}
-                      aria-label="Delete template"
-                      title="Delete template"
+                      aria-label={say("Delete template")}
+                      title={say("Delete template")}
                       className="rounded-wobble-sm p-1 text-ink-faint transition-colors hover:bg-red-soft hover:text-red"
                     >
                       <Trash2 className="h-4 w-4" strokeWidth={2} />
@@ -366,7 +366,7 @@ function TemplateSection({
             type="button"
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={safePage === 0}
-            aria-label="Previous page"
+            aria-label={say("Previous page")}
             className="rounded-wobble-sm border-2 border-ink bg-paper-3 p-1.5 text-ink shadow-offset transition-transform hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -378,7 +378,7 @@ function TemplateSection({
             type="button"
             onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
             disabled={safePage >= pageCount - 1}
-            aria-label="Next page"
+            aria-label={say("Next page")}
             className="rounded-wobble-sm border-2 border-ink bg-paper-3 p-1.5 text-ink shadow-offset transition-transform hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0"
           >
             <ChevronRight className="h-4 w-4" />
@@ -408,19 +408,19 @@ function TemplateBuilder({ onDone, initial }: { onDone: () => void; initial?: Bu
 
   const create = trpc.templates.create.useMutation({
     onSuccess: () => {
-      toast.success('Template added — the generator can use it now ✦');
+      toast.success(say("Template added — the generator can use it now ✦"));
       void utils.templates.list.invalidate();
       onDone();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const update = trpc.templates.update.useMutation({
     onSuccess: () => {
-      toast.success('Template updated ✦');
+      toast.success(say("Template updated ✦"));
       void utils.templates.list.invalidate();
       onDone();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   const addComponent = (c: TemplateComponentType) => setComponents((cur) => [...cur, c]);
@@ -429,12 +429,12 @@ function TemplateBuilder({ onDone, initial }: { onDone: () => void; initial?: Bu
 
   const submit = () => {
     if (name.trim().length < 3) {
-      toast.error('Give the template a name (3+ characters)');
+      toast.error(say("Give the template a name (3+ characters)"));
       return;
     }
     const readThrough = components.includes('prose') || components.includes('wolfram');
     if (!hasGradable && !readThrough) {
-      toast.error('Add a gradable step — or at least a Text/Wolfram step for a read-through');
+      toast.error(say("Add a gradable step — or at least a Text/Wolfram step for a read-through"));
       return;
     }
     const tags = tagsRaw
@@ -454,22 +454,22 @@ function TemplateBuilder({ onDone, initial }: { onDone: () => void; initial?: Bu
         {initial?.id != null ? 'Edit template' : initial ? 'Customize a copy' : 'New slide template'}
       </h2>
       <p className="micro mb-4 text-ink-faint">
-        Order matters — the generator lays out the slide in exactly this sequence. It must end with a
-        gradable step.
+        
+        {say("Order matters — the generator lays out the slide in exactly this sequence. It must end with a gradable step.")}
       </p>
 
       <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
         <div>
-          <label className="micro mb-1 block text-ink-soft">Template name</label>
+          <label className="micro mb-1 block text-ink-soft">{say("Template name")}</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Read the graph"
+            placeholder={say("e.g. Read the graph")}
             className="w-full rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 font-heading text-ink shadow-offset outline-none focus:border-blue"
           />
         </div>
         <div>
-          <label className="micro mb-1 block text-ink-soft">Level</label>
+          <label className="micro mb-1 block text-ink-soft">{say("Level")}</label>
           <div className="flex items-center gap-1 rounded-wobble-sm border-2 border-pencil bg-paper-2 p-0.5">
             {TEMPLATE_LEVELS.map((l) => (
               <button
@@ -488,12 +488,12 @@ function TemplateBuilder({ onDone, initial }: { onDone: () => void; initial?: Bu
         </div>
       </div>
 
-      <label className="micro mb-1 mt-4 block text-ink-soft">Layout preview</label>
+      <label className="micro mb-1 mt-4 block text-ink-soft">{say("Layout preview")}</label>
       <div className="mb-2 min-h-[44px] rounded-wobble-sm border-2 border-pencil bg-paper-2 p-2.5">
         {components.length > 0 ? (
           <TemplateBar components={components} />
         ) : (
-          <span className="text-sm text-ink-faint">Add components below…</span>
+          <span className="text-sm text-ink-faint">{say("Add components below…")}</span>
         )}
       </div>
       <div className="mb-1 flex flex-wrap gap-1.5">
@@ -502,7 +502,7 @@ function TemplateBuilder({ onDone, initial }: { onDone: () => void; initial?: Bu
             key={i}
             type="button"
             onClick={() => removeAt(i)}
-            title="Remove"
+            title={say("Remove")}
             className="inline-flex items-center gap-1 rounded-wobble-sm border-2 border-ink bg-yellow-soft px-2 py-1 text-[0.72rem] font-semibold text-ink hover:bg-red-soft"
           >
             {TEMPLATE_COMPONENT_LABELS[c]} <X className="h-3 w-3" />
@@ -510,10 +510,10 @@ function TemplateBuilder({ onDone, initial }: { onDone: () => void; initial?: Bu
         ))}
       </div>
       {!hasGradable && (
-        <p className="mb-3 text-xs font-semibold text-red">Add a gradable step so the slide can be scored.</p>
+        <p className="mb-3 text-xs font-semibold text-red">{say("Add a gradable step so the slide can be scored.")}</p>
       )}
 
-      <label className="micro mb-1 mt-3 block text-ink-soft">Add component</label>
+      <label className="micro mb-1 mt-3 block text-ink-soft">{say("Add component")}</label>
       <div className="mb-4 flex flex-wrap gap-1.5">
         {TEMPLATE_COMPONENT_TYPES.map((c) => (
           <button
@@ -530,17 +530,18 @@ function TemplateBuilder({ onDone, initial }: { onDone: () => void; initial?: Bu
         ))}
       </div>
 
-      <label className="micro mb-1 block text-ink-soft">Subject tags (space or comma separated)</label>
+      <label className="micro mb-1 block text-ink-soft">{say("Subject tags (space or comma separated)")}</label>
       <input
         value={tagsRaw}
         onChange={(e) => setTagsRaw(e.target.value)}
-        placeholder="#math #statistics  (leave empty for a general layout)"
+        placeholder={say("#math #statistics (leave empty for a general layout)")}
         className="mb-4 w-full rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 font-mono text-sm text-ink shadow-offset outline-none focus:border-blue"
       />
 
       <div className="flex items-center justify-end gap-2">
         <SketchButton variant="ghost" onClick={onDone}>
-          Cancel
+          
+          {say("Cancel")}
         </SketchButton>
         <SketchButton variant="accent" loading={create.isPending || update.isPending} onClick={submit}>
           <Plus className="h-4 w-4" />

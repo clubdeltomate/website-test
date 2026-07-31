@@ -4,6 +4,7 @@ import { trpc } from '@/providers/trpc';
 import { useIsMobile } from '@/hooks/use-mobile';
 import PostDetails from '@/components/feed/PostDetails';
 import { Carousel, POST_W } from './Feed';
+import { say } from '@/lib/i18n';
 
 /* One post on its own page, laid out the way Instagram lays one out when you
  * open it.
@@ -31,20 +32,21 @@ export default function Post() {
   if (post.isLoading) {
     return (
       <div className="mx-auto max-w-content px-4 py-8 lg:px-8">
-        <p className="micro text-[0.62rem] text-ink-faint">Loading…</p>
+        <p className="micro text-[0.62rem] text-ink-faint">{say("Loading…")}</p>
       </div>
     );
   }
   if (post.error || !post.data) {
     return (
       <div className="mx-auto max-w-content px-4 py-8 lg:px-8">
-        <h1 className="font-display text-2xl text-ink">That post isn&apos;t here</h1>
+        <h1 className="font-display text-2xl text-ink">{say("That post isn't here")}</h1>
         <button
           type="button"
           onClick={() => navigate('/feed')}
           className="squiggle mt-3 text-sm font-bold text-blue"
         >
-          Back to the feed
+          
+          {say("Back to the feed")}
         </button>
       </div>
     );
@@ -59,7 +61,7 @@ export default function Post() {
         onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/feed'))}
         className="micro flex items-center gap-1 self-start text-[0.62rem] font-bold text-blue hover:underline"
       >
-        <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.5} /> Back
+        <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.5} />  {say("Back")}
       </button>
 
       {isMobile ? (

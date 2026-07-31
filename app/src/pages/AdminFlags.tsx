@@ -11,6 +11,7 @@ import AdminGate from '@/components/admin/AdminGate';
 import SketchToaster from '@/components/admin/SketchToaster';
 import { SkeletonBlock } from '@/components/admin/controls';
 import { errMsg, formatRelative } from '@/components/admin/utils';
+import { say } from '@/lib/i18n';
 
 function FlagsBody() {
   const utils = trpc.useUtils();
@@ -18,7 +19,7 @@ function FlagsBody() {
 
   const unflag = trpc.runs.setFlagged.useMutation({
     onSuccess: () => {
-      toast.success('Flag dismissed ✓');
+      toast.success(say("Flag dismissed ✓"));
       void utils.admin.dashboard.invalidate();
     },
     onError: (e) => toast.error(errMsg(e)),
@@ -41,10 +42,11 @@ function FlagsBody() {
   if (dashboard.isError || !data) {
     return (
       <div className="mx-auto w-full max-w-content px-4 py-16 text-center lg:px-8">
-        <p className="font-display text-3xl text-ink">The flag list smudged itself.</p>
+        <p className="font-display text-3xl text-ink">{say("The flag list smudged itself.")}</p>
         <p className="mt-1 text-sm text-ink-soft">{errMsg(dashboard.error)}</p>
         <SketchButton className="mt-4" onClick={() => dashboard.refetch()}>
-          Try again
+          
+          {say("Try again")}
         </SketchButton>
       </div>
     );
@@ -57,15 +59,17 @@ function FlagsBody() {
           to="/admin/controls"
           className="inline-flex items-center gap-1.5 font-heading text-sm font-semibold text-blue no-underline hover:underline"
         >
-          <ArrowLeft className="h-4 w-4" strokeWidth={2.5} /> Controls
+          <ArrowLeft className="h-4 w-4" strokeWidth={2.5} />  {say("Controls")}
         </Link>
         <h2 className="mt-1 flex items-center gap-3 font-display text-4xl font-bold text-ink">
           <ShieldAlert className="h-8 w-8 text-red" strokeWidth={2} />
-          Flagged runs
+          
+          {say("Flagged runs")}
           <Chip kind="neutral">{data.totals.flaggedRuns}</Chip>
         </h2>
         <p className="text-sm text-ink-soft">
-          Runs the graders marked for a second look. Review, then dismiss.
+          
+          {say("Runs the graders marked for a second look. Review, then dismiss.")}
         </p>
       </div>
 
@@ -74,7 +78,7 @@ function FlagsBody() {
           <span className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-ink bg-green-soft">
             <Check className="h-4 w-4 text-green" strokeWidth={2.5} />
           </span>
-          <p className="font-heading text-ink">Nothing flagged. Nice.</p>
+          <p className="font-heading text-ink">{say("Nothing flagged. Nice.")}</p>
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -90,14 +94,15 @@ function FlagsBody() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-heading font-semibold text-ink">{r.toolName}</p>
                   <p className="text-xs text-ink-soft">
-                    {r.playerName} · score {r.scoreCorrect}/{r.scoreTotal} ·{' '}
+                    {r.playerName}  {say("· score")} {r.scoreCorrect}/{r.scoreTotal} ·{' '}
                     <span className="font-mono">{formatRelative(r.completedAt)}</span>
                   </p>
                 </div>
                 <div className="flex gap-2">
                   <Link to="/runs" className="no-underline">
                     <SketchButton variant="secondary" size="sm">
-                      View
+                      
+                      {say("View")}
                     </SketchButton>
                   </Link>
                   <SketchButton
@@ -106,7 +111,8 @@ function FlagsBody() {
                     loading={unflag.isPending && unflag.variables?.runId === r.id}
                     onClick={() => unflag.mutate({ runId: r.id, flagged: false })}
                   >
-                    Dismiss
+                    
+                    {say("Dismiss")}
                   </SketchButton>
                 </div>
               </SketchCard>

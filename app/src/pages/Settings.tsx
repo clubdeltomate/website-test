@@ -54,6 +54,7 @@ import type {
 } from '@contracts/types';
 import { IMAGE_STYLES, LEVELS, normalizeUsername, USERNAME_MAX_LENGTH } from '@contracts/types';
 import { TTS_VOICE_STORAGE_KEY } from '@/components/player/TtsReader';
+import { say } from '@/lib/i18n';
 
 const TABS = [
   { id: 'profile', label: 'Profile', icon: UserIcon },
@@ -110,7 +111,7 @@ function ProfileTab() {
   const onPickAvatar = (file: File | undefined) => {
     if (!file) return;
     const fr = new FileReader();
-    fr.onerror = () => toast.error("That file couldn't be read");
+    fr.onerror = () => toast.error(say("That file couldn't be read"));
     fr.onload = () => {
       const out = String(fr.result);
       const comma = out.indexOf(',');
@@ -125,7 +126,7 @@ function ProfileTab() {
 
   const update = trpc.auth.updateProfile.useMutation({
     onSuccess: () => {
-      toast.success('Profile saved ✓');
+      toast.success(say("Profile saved ✓"));
       setSaved(true);
       window.setTimeout(() => setSaved(false), 1500);
       setCurrentPassword('');
@@ -197,17 +198,18 @@ function ProfileTab() {
           <div className="flex flex-col items-center gap-2">
             <span className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-ink bg-purple-soft font-display text-4xl text-ink shadow-offset">
               {user.avatarUrl ? (
-                <img src={user.avatarUrl} alt="Your profile picture" className="h-full w-full object-cover" />
+                <img src={user.avatarUrl} alt={say("Your profile picture")} className="h-full w-full object-cover" />
               ) : (
                 user.name.charAt(0).toUpperCase()
               )}
             </span>
             <div className="flex items-center gap-1.5">
               <label
-                title="Upload your own picture — free"
+                title={say("Upload your own picture — free")}
                 className="micro cursor-pointer rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft transition-colors hover:border-ink hover:text-ink"
               >
-                Upload
+                
+                {say("Upload")}
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp,image/gif"
@@ -219,7 +221,7 @@ function ProfileTab() {
                 type="button"
                 onClick={() => setPortraitAsk(true)}
                 disabled={setAvatar.isPending}
-                title="Have the AI paint you an animal portrait themed on what you've published (costs credits — you'll be asked first)"
+                title={say("Have the AI paint you an animal portrait themed on what you've published (costs credits — you'll be asked first)")}
                 className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft transition-colors hover:border-ink hover:text-ink disabled:cursor-wait"
               >
                 {setAvatar.isPending ? 'Working…' : '✨ AI portrait'}
@@ -259,9 +261,10 @@ function ProfileTab() {
         </div>
 
         <div className="mt-6 border-t-2 border-dashed border-pencil pt-5">
-          <p className="micro mb-1 text-ink-soft">Contact details (shown on your menu / service / shop presentations)</p>
+          <p className="micro mb-1 text-ink-soft">{say("Contact details (shown on your menu / service / shop presentations)")}</p>
           <p className="micro mb-3 text-[0.68rem] text-ink-faint">
-            These appear at the end of a commercial presentation so viewers can reach you. Leave blank to hide.
+            
+            {say("These appear at the end of a commercial presentation so viewers can reach you. Leave blank to hide.")}
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <LabeledField label="WhatsApp number" helper="With country code, e.g. +1 555 123 4567">
@@ -275,7 +278,7 @@ function ProfileTab() {
               <SketchInput
                 value={contactNote}
                 onChange={(e) => setContactNote(e.target.value)}
-                placeholder="DM to order…"
+                placeholder={say("DM to order…")}
               />
             </LabeledField>
           </div>
@@ -293,11 +296,11 @@ function ProfileTab() {
         </div>
 
         <div className="mt-6 border-t-2 border-dashed border-pencil pt-5">
-          <p className="micro mb-3 text-ink-soft">Change password (optional)</p>
+          <p className="micro mb-3 text-ink-soft">{say("Change password (optional)")}</p>
           <div className="grid gap-4 sm:grid-cols-3">
             <SketchInput
               type="password"
-              placeholder="Current password"
+              placeholder={say("Current password")}
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               autoComplete="current-password"
@@ -305,7 +308,7 @@ function ProfileTab() {
             <div>
               <SketchInput
                 type="password"
-                placeholder="New password"
+                placeholder={say("New password")}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 autoComplete="new-password"
@@ -328,7 +331,7 @@ function ProfileTab() {
             </div>
             <SketchInput
               type="password"
-              placeholder="Confirm new password"
+              placeholder={say("Confirm new password")}
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               autoComplete="new-password"
@@ -341,7 +344,8 @@ function ProfileTab() {
 
         <div className="mt-6 flex items-center gap-3">
           <SketchButton onClick={save} loading={update.isPending}>
-            Save profile
+            
+            {say("Save profile")}
           </SketchButton>
           <AnimatePresence>
             {saved && (
@@ -352,7 +356,7 @@ function ProfileTab() {
                 transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                 className="inline-flex items-center gap-1 font-heading font-semibold text-green"
               >
-                <Check className="h-5 w-5" strokeWidth={2.5} /> Saved
+                <Check className="h-5 w-5" strokeWidth={2.5} />  {say("Saved")}
               </motion.span>
             )}
           </AnimatePresence>
@@ -363,7 +367,7 @@ function ProfileTab() {
       <SketchModal
         open={portraitAsk}
         onClose={() => setPortraitAsk(false)}
-        title="Paint your portrait with AI?"
+        title={say("Paint your portrait with AI?")}
         maxWidth="max-w-[440px]"
       >
         <PortraitConfirm
@@ -391,18 +395,18 @@ function PortraitConfirm({
   return (
     <div className="space-y-4">
       <p className="text-sm text-ink-soft">
-        The AI paints you an <strong className="text-ink">animal character</strong> — never a
-        human — themed on what you've published here. Nothing published yet? You'll get a
-        fresh-notebook portrait instead. This costs{' '}
-        <strong className="text-ink">{cost != null ? `${cost} 🪙` : '…'}</strong>, charged only
-        if the picture actually arrives.
+        
+        {say("The AI paints you an")} <strong className="text-ink">{say("animal character")}</strong>  {say("— never a human — themed on what you've published here. Nothing published yet? You'll get a fresh-notebook portrait instead. This costs")}{' '}
+        <strong className="text-ink">{cost != null ? `${cost} 🪙` : '…'}</strong>{say(", charged only if the picture actually arrives.")}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <SketchButton variant="accent" loading={pending} disabled={cost == null} onClick={onConfirm}>
-          Paint it — {cost != null ? `${cost} 🪙` : '…'}
+          
+          {say("Paint it —")} {cost != null ? `${cost} 🪙` : '…'}
         </SketchButton>
         <SketchButton variant="ghost" onClick={onCancel}>
-          Cancel
+          
+          {say("Cancel")}
         </SketchButton>
       </div>
     </div>
@@ -423,8 +427,8 @@ function KeyRow({ row, index }: { row: ApiKeyRow; index: number }) {
     onSettled: () => setTesting(false),
     onSuccess: (r) => {
       setResult(r);
-      if (r.ok) toast.success(r.message);
-      else toast.error(r.message);
+      if (r.ok) toast.success(say(r.message));
+      else toast.error(say(r.message));
     },
     onError: (e) => {
       setResult({ ok: false, message: errMsg(e) });
@@ -434,7 +438,7 @@ function KeyRow({ row, index }: { row: ApiKeyRow; index: number }) {
 
   const remove = trpc.keys.remove.useMutation({
     onSuccess: () => {
-      toast.success('Key removed');
+      toast.success(say("Key removed"));
       void utils.keys.list.invalidate();
     },
     onError: (e) => toast.error(errMsg(e)),
@@ -492,7 +496,7 @@ function KeyRow({ row, index }: { row: ApiKeyRow; index: number }) {
               test.mutate({ id: row.id });
             }}
           >
-            <PlugZap className="h-4 w-4" strokeWidth={2} /> Test
+            <PlugZap className="h-4 w-4" strokeWidth={2} />  {say("Test")}
           </SketchButton>
           {confirmDelete ? (
             <>
@@ -502,15 +506,17 @@ function KeyRow({ row, index }: { row: ApiKeyRow; index: number }) {
                 loading={remove.isPending}
                 onClick={() => remove.mutate({ id: row.id })}
               >
-                Really remove
+                
+                {say("Really remove")}
               </SketchButton>
               <SketchButton variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>
-                Keep
+                
+                {say("Keep")}
               </SketchButton>
             </>
           ) : (
             <SketchButton variant="ghost" size="sm" onClick={() => setConfirmDelete(true)}>
-              <Trash2 className="h-4 w-4" strokeWidth={2} /> Remove
+              <Trash2 className="h-4 w-4" strokeWidth={2} />  {say("Remove")}
             </SketchButton>
           )}
         </div>
@@ -537,7 +543,7 @@ function VoicePicker() {
     } catch {
       /* storage best-effort */
     }
-    toast.success('Read-aloud voice updated 🔊');
+    toast.success(say("Read-aloud voice updated 🔊"));
   };
 
   const list = voices.data ?? [];
@@ -546,22 +552,24 @@ function VoicePicker() {
     <SketchCard borderStyle="dashed" className="relative">
       <WashiTape color="blue" rotate={-2} />
       <h3 className="mb-1 flex items-center gap-2 font-heading text-lg font-semibold text-ink">
-        Read-aloud voice 🔊
+        
+        {say("Read-aloud voice 🔊")}
       </h3>
       <p className="micro mb-4 text-ink-faint">
-        The voice the speaker button uses to read a paragraph aloud in the player.
+        
+        {say("The voice the speaker button uses to read a paragraph aloud in the player.")}
       </p>
       {voices.isLoading ? (
         <SkeletonBlock lines={1} status="Fetching your voices…" />
       ) : list.length === 0 ? (
         <p className="text-sm text-ink-soft">
-          No voices found yet — save an ElevenLabs speech key above, then reopen this
-          tab.
+          
+          {say("No voices found yet — save an ElevenLabs speech key above, then reopen this tab.")}
         </p>
       ) : (
         <LabeledField label="Voice" helper="Stored on this device — applies to every read-aloud.">
           <SketchSelect value={voiceId} onChange={(e) => choose(e.target.value)}>
-            <option value="">Default (Rachel)</option>
+            <option value="">{say("Default (Rachel)")}</option>
             {list.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
@@ -590,7 +598,7 @@ function ApiKeysTab() {
 
   const upsert = trpc.keys.upsert.useMutation({
     onSuccess: () => {
-      toast.success('Key saved — stored encrypted, never shown again ✓');
+      toast.success(say("Key saved — stored encrypted, never shown again ✓"));
       setApiKey('');
       void utils.keys.list.invalidate();
     },
@@ -604,8 +612,8 @@ function ApiKeysTab() {
   return (
     <div className="flex flex-col gap-5">
       <StickyNote rotate={-1.5} className="max-w-xl text-[0.95rem]">
-        Bring your own keys and generation text costs drop to 0 🪙. Keys are stored
-        encrypted and never shown again.
+        
+        {say("Bring your own keys and generation text costs drop to 0 🪙. Keys are stored encrypted and never shown again.")}
       </StickyNote>
 
       {hasTextKey && (
@@ -615,7 +623,8 @@ function ApiKeysTab() {
           className="flex items-center gap-2 rounded-wobble-sm border-2 border-ink bg-purple-soft px-4 py-2.5 font-heading font-semibold text-ink shadow-offset"
         >
           <DoodleSparkle className="h-5 w-5 text-purple" />
-          Your key is active — cost estimates now show 0 🪙 for text.
+          
+          {say("Your key is active — cost estimates now show 0 🪙 for text.")}
         </motion.p>
       )}
 
@@ -623,14 +632,16 @@ function ApiKeysTab() {
         <SkeletonBlock lines={3} status="Peeking at your keyring…" />
       ) : keys.isError ? (
         <div className="rounded-wobble-sm border-2 border-red bg-red-soft p-4">
-          <p className="font-bold text-red">Couldn't load your keys.</p>
+          <p className="font-bold text-red">{say("Couldn't load your keys.")}</p>
           <SketchButton variant="secondary" size="sm" className="mt-2" onClick={() => keys.refetch()}>
-            Try again
+            
+            {say("Try again")}
           </SketchButton>
         </div>
       ) : rows.length === 0 ? (
         <p className="py-2 font-display text-2xl text-ink-faint">
-          No keys yet — add one below and text generation becomes free ✦
+          
+          {say("No keys yet — add one below and text generation becomes free ✦")}
         </p>
       ) : (
         <div className="flex flex-col gap-3">
@@ -642,7 +653,7 @@ function ApiKeysTab() {
 
       <SketchCard borderStyle="dashed" className="relative">
         <WashiTape color="blue" rotate={2} />
-        <h3 className="mb-4 font-heading text-lg font-semibold text-ink">Add a key</h3>
+        <h3 className="mb-4 font-heading text-lg font-semibold text-ink">{say("Add a key")}</h3>
         <div className="grid gap-4 sm:grid-cols-2">
           <LabeledField label="Provider">
             <SketchSelect
@@ -651,7 +662,7 @@ function ApiKeysTab() {
             >
               {PROVIDERS.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.label}
+                  {say(p.label)}
                 </option>
               ))}
             </SketchSelect>
@@ -666,7 +677,7 @@ function ApiKeysTab() {
                 provider === 'elevenlabs' ? c.id === 'tts' : c.id !== 'tts',
               ).map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.label}
+                  {say(c.label)}
                 </option>
               ))}
             </SketchSelect>
@@ -675,12 +686,12 @@ function ApiKeysTab() {
         <div className="mt-4">
           <LabeledField
             label="API key"
-            helper={PROVIDERS.find((p) => p.id === provider)?.hint}
+            helper={say(PROVIDERS.find((p) => p.id === provider)?.hint)}
           >
             <div className="relative">
               <SketchInput
                 type={reveal ? 'text' : 'password'}
-                placeholder="Paste your key here — it stays secret"
+                placeholder={say("Paste your key here — it stays secret")}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 className="pr-11 font-mono"
@@ -706,7 +717,7 @@ function ApiKeysTab() {
               upsert.mutate({ provider, capability, apiKey: apiKey.trim() })
             }
           >
-            <KeyRound className="h-4 w-4" strokeWidth={2} /> Save key
+            <KeyRound className="h-4 w-4" strokeWidth={2} />  {say("Save key")}
           </SketchButton>
         </div>
       </SketchCard>
@@ -743,7 +754,7 @@ function PaymentDrawer({
 
   const submit = trpc.payments.submitPaidNote.useMutation({
     onSuccess: () => {
-      toast.success("Noted! We'll credit you soon ✓");
+      toast.success(say("Noted! We'll credit you soon ✓"));
       void utils.payments.mine.invalidate();
       onClose();
     },
@@ -774,7 +785,7 @@ function PaymentDrawer({
             {formatMoney(pack.priceCents)}
           </p>
           <p className="micro mt-1 text-ink-faint">
-            ≈ {perToken.toFixed(1)}¢ per token
+            ≈ {perToken.toFixed(1)}{say("¢ per token")}
           </p>
         </SketchCard>
 
@@ -801,18 +812,19 @@ function PaymentDrawer({
             className="no-underline"
           >
             <SketchButton variant="accent" className="w-full justify-center">
-              Open payment sheet <ExternalLink className="h-4 w-4" strokeWidth={2} />
+              
+              {say("Open payment sheet")} <ExternalLink className="h-4 w-4" strokeWidth={2} />
             </SketchButton>
           </a>
         ) : (
           <p className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-2 px-4 py-3 text-sm text-ink-soft">
-            The payment sheet link isn't configured yet — ask an admin, or leave a
-            note anyway and we'll sort it out.
+            
+            {say("The payment sheet link isn't configured yet — ask an admin, or leave a note anyway and we'll sort it out.")}
           </p>
         )}
 
         <div className="border-t-2 border-dashed border-pencil pt-4">
-          <p className="mb-3 font-heading font-semibold text-ink">I've paid — leave a note</p>
+          <p className="mb-3 font-heading font-semibold text-ink">{say("I've paid — leave a note")}</p>
           <div className="flex flex-col gap-3">
             <LabeledField label="Name on the payment">
               <SketchInput value={payName} onChange={(e) => setPayName(e.target.value)} />
@@ -822,7 +834,7 @@ function PaymentDrawer({
             </LabeledField>
             <LabeledField label="Note (optional)">
               <SketchTextarea
-                placeholder="Anything that helps us spot your row in the sheet…"
+                placeholder={say("Anything that helps us spot your row in the sheet…")}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
               />
@@ -832,7 +844,8 @@ function PaymentDrawer({
               disabled={!payName.trim()}
               onClick={submitNote}
             >
-              Submit payment note
+              
+              {say("Submit payment note")}
             </SketchButton>
           </div>
         </div>
@@ -889,10 +902,11 @@ function TokensTab() {
             <p className="font-display text-6xl font-bold leading-none text-ink max-sm:text-5xl">
               <CountUp value={currentBalance} />
             </p>
-            <p className="micro mt-2 text-ink-soft">🪙 tokens available</p>
+            <p className="micro mt-2 text-ink-soft">{say("🪙 tokens available")}</p>
             {low && (
               <p className="mt-2 inline-flex animate-low-pulse items-center gap-1 rounded-wobble-sm border-2 border-ink bg-orange/20 px-2 py-0.5 text-xs font-bold text-ink">
-                Running low — top up below ↓
+                
+                {say("Running low — top up below ↓")}
               </p>
             )}
           </div>
@@ -903,8 +917,8 @@ function TokensTab() {
               className="pointer-events-none"
             />
             <p className="mt-2 text-xs text-ink-faint">
-              Tokens power deck generation, images, and read-aloud. Text is free
-              when you bring your own key (API keys tab).
+              
+              {say("Tokens power deck generation, images, and read-aloud. Text is free when you bring your own key (API keys tab).")}
             </p>
           </div>
         </SketchCard>
@@ -913,7 +927,8 @@ function TokensTab() {
       {/* 3b — token packs */}
       <section>
         <h3 className="mb-3 font-heading text-xl font-semibold text-ink">
-          Top up — manual payment
+          
+          {say("Top up — manual payment")}
         </h3>
         {packs.isLoading ? (
           <SkeletonBlock lines={1} status="Counting coins…" />
@@ -929,7 +944,8 @@ function TokensTab() {
                 <SketchCard index={i + 1} hover className="relative flex h-full flex-col items-center text-center">
                   {i === 1 && (
                     <span className="absolute -top-3 right-4 rotate-3 rounded-wobble-sm border-2 border-ink bg-purple px-2 py-0.5 text-xs font-bold text-paper-3 shadow-offset">
-                      popular
+                      
+                      {say("popular")}
                     </span>
                   )}
                   <p className="font-display text-4xl font-bold text-ink">
@@ -940,7 +956,7 @@ function TokensTab() {
                     {formatMoney(pack.priceCents)}
                   </p>
                   <p className="micro mt-1 text-ink-faint">
-                    ≈ {(pack.priceCents / pack.tokens).toFixed(1)}¢ / token
+                    ≈ {(pack.priceCents / pack.tokens).toFixed(1)}{say("¢ / token")}
                   </p>
                   <SketchButton
                     variant={i === 1 ? 'accent' : 'secondary'}
@@ -948,7 +964,8 @@ function TokensTab() {
                     className="mt-3"
                     onClick={() => setChosen(pack)}
                   >
-                    Choose
+                    
+                    {say("Choose")}
                   </SketchButton>
                 </SketchCard>
               </motion.div>
@@ -1024,7 +1041,8 @@ function TokensTab() {
             ]}
             emptyState={
               <span className="font-display text-2xl text-ink-faint">
-                No top-ups yet — pick a pack above when you're ready 🪙
+                
+                {say("No top-ups yet — pick a pack above when you're ready 🪙")}
               </span>
             }
           />
@@ -1066,7 +1084,8 @@ function TokensTab() {
             ]}
             emptyState={
               <span className="font-display text-2xl text-ink-faint">
-                Nothing spent yet — your ledger is a blank page ✏️
+                
+                {say("Nothing spent yet — your ledger is a blank page ✏️")}
               </span>
             }
           />
@@ -1138,7 +1157,7 @@ function PreferencesTab() {
     <SketchCard className="relative">
       <WashiTape rotate={2} color="blue" />
       <div className="flex items-center justify-between">
-        <h3 className="font-heading text-lg font-semibold text-ink">Defaults for new decks</h3>
+        <h3 className="font-heading text-lg font-semibold text-ink">{say("Defaults for new decks")}</h3>
         <AnimatePresence>
           {stamp > 0 && (
             <motion.span
@@ -1148,7 +1167,7 @@ function PreferencesTab() {
               transition={{ duration: 1.2 }}
               className="inline-flex items-center gap-1 text-sm font-bold text-green"
             >
-              <Check className="h-4 w-4" strokeWidth={2.5} /> Saved
+              <Check className="h-4 w-4" strokeWidth={2.5} />  {say("Saved")}
             </motion.span>
           )}
         </AnimatePresence>
@@ -1157,8 +1176,8 @@ function PreferencesTab() {
       <div className="mt-4 flex flex-col divide-y-2 divide-dashed divide-pencil">
         <div className="flex flex-wrap items-center justify-between gap-3 py-4">
           <div>
-            <p className="font-heading font-semibold text-ink">Default level</p>
-            <p className="text-xs text-ink-faint">Pre-selected whenever you generate a deck.</p>
+            <p className="font-heading font-semibold text-ink">{say("Default level")}</p>
+            <p className="text-xs text-ink-faint">{say("Pre-selected whenever you generate a deck.")}</p>
           </div>
           <div className="flex gap-2">
             {LEVELS.map((lvl) => (
@@ -1184,8 +1203,8 @@ function PreferencesTab() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 py-4">
           <div>
-            <p className="font-heading font-semibold text-ink">Default image style</p>
-            <p className="text-xs text-ink-faint">Used for generated illustrations.</p>
+            <p className="font-heading font-semibold text-ink">{say("Default image style")}</p>
+            <p className="text-xs text-ink-faint">{say("Used for generated illustrations.")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {IMAGE_STYLES.map((style) => (
@@ -1206,8 +1225,8 @@ function PreferencesTab() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 py-4">
           <div>
-            <p className="font-heading font-semibold text-ink">Default slides per deck</p>
-            <p className="text-xs text-ink-faint">Between 4 and 15 — the product promise.</p>
+            <p className="font-heading font-semibold text-ink">{say("Default slides per deck")}</p>
+            <p className="text-xs text-ink-faint">{say("Between 4 and 15 — the product promise.")}</p>
           </div>
           <div className="flex items-center gap-3">
             <input
@@ -1217,7 +1236,7 @@ function PreferencesTab() {
               value={prefs.defaultSlides}
               onChange={(e) => update({ defaultSlides: Number(e.target.value) })}
               className="h-2 w-40 cursor-pointer appearance-none rounded-full border-2 border-ink bg-paper-2 accent-[#2E2820]"
-              aria-label="Default slides per deck"
+              aria-label={say("Default slides per deck")}
             />
             <span className="w-8 text-center font-mono font-bold text-ink">
               {prefs.defaultSlides}
@@ -1227,9 +1246,10 @@ function PreferencesTab() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 py-4">
           <div>
-            <p className="font-heading font-semibold text-ink">Reduce motion</p>
+            <p className="font-heading font-semibold text-ink">{say("Reduce motion")}</p>
             <p className="text-xs text-ink-faint">
-              Calms wobbles and count-ups; your system setting still wins.
+              
+              {say("Calms wobbles and count-ups; your system setting still wins.")}
             </p>
           </div>
           <SketchToggle
@@ -1241,8 +1261,8 @@ function PreferencesTab() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 py-4">
           <div>
-            <p className="font-heading font-semibold text-ink">Email: payment credited</p>
-            <p className="text-xs text-ink-faint">Ping me when a moderator credits my top-up.</p>
+            <p className="font-heading font-semibold text-ink">{say("Email: payment credited")}</p>
+            <p className="text-xs text-ink-faint">{say("Ping me when a moderator credits my top-up.")}</p>
           </div>
           <SketchToggle
             label="Email payment credited"
@@ -1253,8 +1273,8 @@ function PreferencesTab() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 py-4">
           <div>
-            <p className="font-heading font-semibold text-ink">Email: weekly summary</p>
-            <p className="text-xs text-ink-faint">A gentle recap of your learning, once a week.</p>
+            <p className="font-heading font-semibold text-ink">{say("Email: weekly summary")}</p>
+            <p className="text-xs text-ink-faint">{say("A gentle recap of your learning, once a week.")}</p>
           </div>
           <SketchToggle
             label="Email weekly summary"
@@ -1319,9 +1339,10 @@ export default function Settings() {
   return (
     <div className="mx-auto w-full max-w-[960px] px-4 py-8 lg:px-8">
       <SketchToaster />
-      <p className="micro mb-1 text-ink-faint">Your control room</p>
+      <p className="micro mb-1 text-ink-faint">{say("Your control room")}</p>
       <h2 className="mb-5 flex items-center gap-2 font-display text-4xl font-bold text-ink">
-        Settings
+        
+        {say("Settings")}
         <Sparkles className="h-5 w-5 text-purple" strokeWidth={2} />
       </h2>
 

@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import Chip from '@/components/sketch/Chip';
 import AdminGate from '@/components/admin/AdminGate';
 import { PanelTileCard, type PanelTile } from '@/components/admin/PanelTiles';
+import { say } from '@/lib/i18n';
 
 /* The admin "Home". Statistics → the at-a-glance numbers; Controls → every
  * operational page; Projects → the shelf of built-for-the-site tools; and
@@ -58,7 +59,7 @@ function HomeBody() {
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-8 px-4 py-8 lg:px-8">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="font-display text-4xl font-bold text-ink">Home</h2>
+        <h2 className="font-display text-4xl font-bold text-ink">{say("Home")}</h2>
         <Chip kind={role === 'admin' ? 'admin' : 'moderator'}>{role}</Chip>
       </div>
 

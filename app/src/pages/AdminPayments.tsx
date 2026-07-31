@@ -13,6 +13,7 @@ import { SketchModal } from '@/components/admin/overlays';
 import { LabeledField, SketchInput, SkeletonBlock } from '@/components/admin/controls';
 import { errMsg, formatMoney, formatRelative } from '@/components/admin/utils';
 import type { PaymentRow } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 function PaymentsQueue({
   payments,
@@ -38,7 +39,7 @@ function PaymentsQueue({
 
   const reject = trpc.payments.reject.useMutation({
     onSuccess: (_r, vars) => {
-      toast.success('Payment rejected');
+      toast.success(say("Payment rejected"));
       setRejecting(null);
       setReason('');
       animateOut(vars.paymentId);
@@ -58,7 +59,8 @@ function PaymentsQueue({
       <div className="flex flex-wrap items-center gap-3 border-b-2 border-ink bg-yellow px-4 py-3">
         <HandCoins className="h-5 w-5 text-ink" strokeWidth={2} />
         <h3 className="font-heading text-lg font-semibold text-ink">
-          Pending payments — credit after checking the sheet
+          
+          {say("Pending payments — credit after checking the sheet")}
         </h3>
         <Chip kind="neutral" className="border-ink bg-paper-3">
           {visible.length}
@@ -66,7 +68,8 @@ function PaymentsQueue({
         {sheetUrl && (
           <a href={sheetUrl} target="_blank" rel="noreferrer" className="ml-auto no-underline">
             <SketchButton variant="secondary" size="sm">
-              Open payment sheet <ExternalLink className="h-3.5 w-3.5" strokeWidth={2} />
+              
+              {say("Open payment sheet")} <ExternalLink className="h-3.5 w-3.5" strokeWidth={2} />
             </SketchButton>
           </a>
         )}
@@ -83,8 +86,8 @@ function PaymentsQueue({
             />
             <path d="M34 8l1.4 3.4L39 13l-3.6 1.6L34 18l-1.4-3.4L29 13l3.6-1.6z" fill="#8566D4" />
           </svg>
-          <p className="font-display text-3xl text-ink">All caught up ✓</p>
-          <p className="text-sm text-ink-faint">The pencil is sleeping. No payments waiting.</p>
+          <p className="font-display text-3xl text-ink">{say("All caught up ✓")}</p>
+          <p className="text-sm text-ink-faint">{say("The pencil is sleeping. No payments waiting.")}</p>
         </div>
       ) : (
         <ul className="divide-y-2 divide-dashed divide-pencil">
@@ -127,7 +130,7 @@ function PaymentsQueue({
                       loading={approve.isPending && approve.variables?.paymentId === p.id}
                       onClick={() => approve.mutate({ paymentId: p.id })}
                     >
-                      <Check className="h-4 w-4" strokeWidth={2.5} /> Credit
+                      <Check className="h-4 w-4" strokeWidth={2.5} />  {say("Credit")}
                     </SketchButton>
                     <SketchButton
                       variant="ghost"
@@ -138,7 +141,7 @@ function PaymentsQueue({
                         setReason('');
                       }}
                     >
-                      <XIcon className="h-4 w-4" strokeWidth={2.5} /> Reject
+                      <XIcon className="h-4 w-4" strokeWidth={2.5} />  {say("Reject")}
                     </SketchButton>
                   </div>
                 </div>
@@ -151,18 +154,17 @@ function PaymentsQueue({
       <SketchModal
         open={!!rejecting}
         onClose={() => setRejecting(null)}
-        title="Reject this payment?"
+        title={say("Reject this payment?")}
         maxWidth="max-w-[440px]"
       >
         <p className="mb-3 text-sm text-ink-soft">
-          {rejecting?.userName}'s note for {rejecting?.packTokens} 🪙 will be marked
-          Rejected in their history.
+          {rejecting?.userName}{say("'s note for")} {rejecting?.packTokens}  {say("🪙 will be marked Rejected in their history.")}
         </p>
         <LabeledField label="Reason (one line)">
           <SketchInput
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Couldn't find this row in the sheet…"
+            placeholder={say("Couldn't find this row in the sheet…")}
           />
         </LabeledField>
         <div className="mt-4 flex gap-2">
@@ -171,10 +173,12 @@ function PaymentsQueue({
             loading={reject.isPending}
             onClick={() => rejecting && reject.mutate({ paymentId: rejecting.id })}
           >
-            Reject payment
+            
+            {say("Reject payment")}
           </SketchButton>
           <SketchButton variant="ghost" onClick={() => setRejecting(null)}>
-            Keep it pending
+            
+            {say("Keep it pending")}
           </SketchButton>
         </div>
       </SketchModal>
@@ -199,10 +203,11 @@ function PaymentsBody() {
   if (dashboard.isError || !data) {
     return (
       <div className="mx-auto w-full max-w-content px-4 py-16 text-center lg:px-8">
-        <p className="font-display text-3xl text-ink">The ledger smudged itself.</p>
+        <p className="font-display text-3xl text-ink">{say("The ledger smudged itself.")}</p>
         <p className="mt-1 text-sm text-ink-soft">{errMsg(dashboard.error)}</p>
         <SketchButton className="mt-4" onClick={() => dashboard.refetch()}>
-          Try again
+          
+          {say("Try again")}
         </SketchButton>
       </div>
     );
@@ -215,11 +220,12 @@ function PaymentsBody() {
           to="/admin/controls"
           className="inline-flex items-center gap-1.5 font-heading text-sm font-semibold text-blue no-underline hover:underline"
         >
-          <ArrowLeft className="h-4 w-4" strokeWidth={2.5} /> Controls
+          <ArrowLeft className="h-4 w-4" strokeWidth={2.5} />  {say("Controls")}
         </Link>
-        <h2 className="mt-1 font-display text-4xl font-bold text-ink">Pending payments</h2>
+        <h2 className="mt-1 font-display text-4xl font-bold text-ink">{say("Pending payments")}</h2>
         <p className="text-sm text-ink-soft">
-          Check the sheet, then credit or reject each note.
+          
+          {say("Check the sheet, then credit or reject each note.")}
         </p>
       </div>
 

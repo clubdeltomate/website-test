@@ -37,6 +37,7 @@ import type {
   SlideToolSummary,
   UserProfile as Profile,
 } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 const CATEGORIES = ['all', 'course', 'restaurant', 'service', 'shop', 'walkthrough', 'news'] as const;
 
@@ -86,7 +87,7 @@ export default function UserProfile() {
     },
     onError: (e, _v, ctx) => {
       if (ctx?.prev) utils.users.profile.setData({ userId }, ctx.prev);
-      toast.error(e.message);
+      toast.error(say(e.message));
     },
     onSettled: () => void utils.users.profile.invalidate({ userId }),
   });
@@ -95,10 +96,10 @@ export default function UserProfile() {
       toast.success(vars.verified ? 'Verified ✓ — the check now travels with their name' : 'Verification removed');
       void utils.users.profile.invalidate({ userId });
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const toggleRepoFav = trpc.repos.toggleFavorite.useMutation({
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
     onSettled: () => void utils.users.profile.invalidate({ userId }),
   });
 
@@ -128,14 +129,15 @@ export default function UserProfile() {
   useEffect(() => setPage(0), [tab, category, q, madeBy]);
 
   if (profile.isLoading) {
-    return <div className="mx-auto w-full max-w-content px-4 py-10 text-center text-ink-faint">Opening their shelf…</div>;
+    return <div className="mx-auto w-full max-w-content px-4 py-10 text-center text-ink-faint">{say("Opening their shelf…")}</div>;
   }
   if (profile.isError || !profile.data) {
     return (
       <div className="mx-auto w-full max-w-content px-4 py-10 text-center">
-        <p className="text-ink-soft">Couldn't find that user.</p>
+        <p className="text-ink-soft">{say("Couldn't find that user.")}</p>
         <Link to="/users" className="mt-3 inline-block font-heading font-bold text-blue underline">
-          Back to users
+          
+          {say("Back to users")}
         </Link>
       </div>
     );
@@ -167,11 +169,11 @@ export default function UserProfile() {
   const canRename = isSelf || viewerIsAdmin;
 
   const onFollow = () => {
-    if (isGuest) return toast.error('Sign in to follow');
+    if (isGuest) return toast.error(say("Sign in to follow"));
     toggleFollow.mutate({ userId });
   };
   const onRepoFav = (repo: RepoSummary) => {
-    if (isGuest) return toast.error('Sign in to favorite');
+    if (isGuest) return toast.error(say("Sign in to favorite"));
     toggleRepoFav.mutate({ slug: repo.slug });
   };
 
@@ -181,7 +183,7 @@ export default function UserProfile() {
         to="/users"
         className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft no-underline hover:text-ink"
       >
-        <ArrowLeft className="h-4 w-4" /> Users
+        <ArrowLeft className="h-4 w-4" />  {say("Users")}
       </Link>
 
       {/* header */}
@@ -200,7 +202,7 @@ export default function UserProfile() {
               {p.verified && <VerifiedBadge className="h-6 w-6" />}
             </h2>
             <Chip kind={p.role}>{p.role}</Chip>
-            {isSelf && <Chip kind="neutral">you</Chip>}
+            {isSelf && <Chip kind="neutral">{say("you")}</Chip>}
             {/* Rename from the page you are already looking at. An admin fixing
                 someone else's typo had to go find them in the admin table, and
                 your own name was only editable in Settings. */}
@@ -209,7 +211,7 @@ export default function UserProfile() {
                 type="button"
                 onClick={() => setRenameOpen(true)}
                 aria-label={isSelf ? 'Edit your username' : `Edit ${p.name}'s username`}
-                title="Edit username"
+                title={say("Edit username")}
                 className="rounded-wobble-sm border-2 border-dashed border-pencil p-1 text-ink-soft hover:border-ink hover:text-ink"
               >
                 <Pencil className="h-4 w-4" strokeWidth={2} />
@@ -217,7 +219,7 @@ export default function UserProfile() {
             )}
           </div>
           <p className="micro mt-1 text-ink-faint">
-            {p.repos.length} published repo{p.repos.length === 1 ? '' : 's'} · member since{' '}
+            {p.repos.length}  {say("published repo")}{p.repos.length === 1 ? '' : 's'}  {say("· member since")}{' '}
             {new Date(p.createdAt).toLocaleDateString()}
           </p>
           {p.contactNote && <p className="mt-2 text-sm text-ink-soft">{p.contactNote}</p>}
@@ -231,22 +233,22 @@ export default function UserProfile() {
                 rel="noreferrer"
                 className="flex items-center gap-1.5 rounded-wobble-sm border-2 border-green bg-green-soft px-3 py-1.5 text-sm font-bold text-ink no-underline shadow-offset hover:bg-green/20"
               >
-                <MessageCircle className="h-4 w-4" /> WhatsApp
+                <MessageCircle className="h-4 w-4" />  {say("WhatsApp")}
               </a>
             ) : (
               <span
-                title="No WhatsApp number set on this profile"
+                title={say("No WhatsApp number set on this profile")}
                 className="flex cursor-not-allowed items-center gap-1.5 rounded-wobble-sm border-2 border-dashed border-pencil px-3 py-1.5 text-sm font-bold text-ink-faint"
               >
-                <MessageCircle className="h-4 w-4" /> WhatsApp
+                <MessageCircle className="h-4 w-4" />  {say("WhatsApp")}
               </span>
             )}
             <button
               type="button"
-              title="Instagram — coming soon"
+              title={say("Instagram — coming soon")}
               className="flex cursor-default items-center gap-1.5 rounded-wobble-sm border-2 border-dashed border-pencil px-3 py-1.5 text-sm font-bold text-ink-soft"
             >
-              <Instagram className="h-4 w-4" /> Instagram
+              <Instagram className="h-4 w-4" />  {say("Instagram")}
             </button>
             {/* Only there when they made a payment card and chose to show it. */}
             <PayMeButton userId={p.id} name={p.name} />
@@ -268,11 +270,11 @@ export default function UserProfile() {
           >
             {p.following ? (
               <>
-                <UserCheck className="h-4 w-4" strokeWidth={2} /> Following
+                <UserCheck className="h-4 w-4" strokeWidth={2} />  {say("Following")}
               </>
             ) : (
               <>
-                <UserPlus className="h-4 w-4" strokeWidth={2} /> Follow
+                <UserPlus className="h-4 w-4" strokeWidth={2} />  {say("Follow")}
               </>
             )}
           </button>
@@ -293,22 +295,22 @@ export default function UserProfile() {
           )}
           {canGrantTickets && (
             <SketchButton variant="accent" size="sm" onClick={() => setGrantOpen(true)}>
-              <Ticket className="h-4 w-4" /> Give tickets
+              <Ticket className="h-4 w-4" />  {say("Give tickets")}
             </SketchButton>
           )}
           {canAdjustCoins && (
             <SketchButton variant="secondary" size="sm" onClick={() => setAdjustOpen(true)}>
-              <Coins className="h-4 w-4" /> Adjust credits
+              <Coins className="h-4 w-4" />  {say("Adjust credits")}
             </SketchButton>
           )}
           {canSendTickets && (
             <SketchButton variant="accent" size="sm" onClick={() => setSendOpen(true)}>
-              <Ticket className="h-4 w-4" /> Send tickets
+              <Ticket className="h-4 w-4" />  {say("Send tickets")}
             </SketchButton>
           )}
           {canRequestCoins && !canAdjustCoins && (
             <SketchButton variant="secondary" size="sm" onClick={() => setCoinOpen(true)}>
-              <Coins className="h-4 w-4" /> Request coins
+              <Coins className="h-4 w-4" />  {say("Request coins")}
             </SketchButton>
           )}
         </div>
@@ -395,7 +397,8 @@ export default function UserProfile() {
           {/* Authorship filter. "Made by:" in front is what turns it from a
               button you press into a property you filter on. */}
           <span className="micro ml-auto flex items-center gap-2 text-ink-faint">
-            Made by:
+            
+            {say("Made by:")}
             {MADE_BY.map((m) => (
               <button
                 key={m.id}
@@ -408,7 +411,7 @@ export default function UserProfile() {
                     : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
                 )}
               >
-                {m.label}
+                {say(m.label)}
               </button>
             ))}
           </span>
@@ -434,10 +437,11 @@ export default function UserProfile() {
       {pageCount > 1 && (
         <div className="flex items-center justify-center gap-3">
           <SketchButton variant="ghost" size="sm" disabled={safePage === 0} onClick={() => setPage(safePage - 1)}>
-            <ChevronLeft className="h-4 w-4" /> Prev
+            <ChevronLeft className="h-4 w-4" />  {say("Prev")}
           </SketchButton>
           <span className="micro text-ink-soft">
-            Page {safePage + 1} of {pageCount}
+            
+            {say("Page")} {safePage + 1}  {say("of")} {pageCount}
           </span>
           <SketchButton
             variant="ghost"
@@ -445,7 +449,8 @@ export default function UserProfile() {
             disabled={safePage >= pageCount - 1}
             onClick={() => setPage(safePage + 1)}
           >
-            Next <ChevronRight className="h-4 w-4" />
+            
+            {say("Next")} <ChevronRight className="h-4 w-4" />
           </SketchButton>
         </div>
       )}
@@ -483,11 +488,13 @@ function ToolMini({ tool }: { tool: SlideToolSummary }) {
         </span>
         {human ? (
           <span className="micro rounded-full border-2 border-ink bg-green-soft px-2 py-0.5 text-[0.58rem] font-bold text-green">
-            Human
+            
+            {say("Human")}
           </span>
         ) : (
           <span className="micro rounded-full border-2 border-ink bg-purple-soft px-2 py-0.5 text-[0.58rem] font-bold text-purple">
-            Made with AI
+            
+            {say("Made with AI")}
           </span>
         )}
       </div>
@@ -515,16 +522,16 @@ function CoinRequestModal({ onClose }: { onClose: () => void }) {
   }, [packs, packId]);
   const submit = trpc.payments.submitPaidNote.useMutation({
     onSuccess: () => {
-      toast.success('Coin request sent — the admin will credit you once settled');
+      toast.success(say("Coin request sent — the admin will credit you once settled"));
       onClose();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   return (
-    <ModalShell title="Request coins from the admin" onClose={onClose}>
+    <ModalShell title={say("Request coins from the admin")} onClose={onClose}>
       <p className="text-sm text-ink-soft">
-        Coins (credits) let you build repos and buy tickets. Pick a pack and add a note — you settle
-        payment with the admin over WhatsApp, and they credit your balance.
+        
+        {say("Coins (credits) let you build repos and buy tickets. Pick a pack and add a note — you settle payment with the admin over WhatsApp, and they credit your balance.")}
       </p>
       <Field label="Pack">
         <select value={packId} onChange={(e) => setPackId(e.target.value)} className={selectCls}>
@@ -539,13 +546,14 @@ function CoinRequestModal({ onClose }: { onClose: () => void }) {
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Payment reference, timing…"
+          placeholder={say("Payment reference, timing…")}
           className={cn(selectCls, 'min-h-[56px] resize-y')}
         />
       </Field>
       <div className="flex justify-end gap-2">
         <SketchButton variant="ghost" size="sm" onClick={onClose}>
-          Cancel
+          
+          {say("Cancel")}
         </SketchButton>
         <SketchButton
           variant="accent"
@@ -554,7 +562,7 @@ function CoinRequestModal({ onClose }: { onClose: () => void }) {
           loading={submit.isPending}
           onClick={() => submit.mutate({ packId, note })}
         >
-          <Coins className="h-4 w-4" /> Send request
+          <Coins className="h-4 w-4" />  {say("Send request")}
         </SketchButton>
       </div>
     </ModalShell>
@@ -625,17 +633,17 @@ function RenameModal({
   };
   const mine = trpc.auth.updateProfile.useMutation({
     onSuccess: (u) => done(u.name),
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const theirs = trpc.users.updateIdentity.useMutation({
     onSuccess: (r) => done(r.name),
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   const clean = normalizeUsername(name);
   const pending = mine.isPending || theirs.isPending;
   const save = () => {
-    if (!clean) return toast.error('A username needs some letters in it');
+    if (!clean) return toast.error(say("A username needs some letters in it"));
     if (isSelf) mine.mutate({ name: clean });
     else theirs.mutate({ userId: profile.id, name: clean });
   };
@@ -643,11 +651,12 @@ function RenameModal({
   return (
     <ModalShell title={isSelf ? 'Change your username' : `Rename ${profile.name}`} onClose={onClose}>
       <p className="text-sm text-ink-soft">
-        One word, up to {USERNAME_MAX_LENGTH} characters. It's how people find you and how you can
-        sign in instead of typing your email.
+        
+        {say("One word, up to")} {USERNAME_MAX_LENGTH}  {say("characters. It's how people find you and how you can sign in instead of typing your email.")}
       </p>
       <label className="micro mt-4 block text-ink-soft" htmlFor="rename-name">
-        Username · {clean.length}/{USERNAME_MAX_LENGTH}
+        
+        {say("Username ·")} {clean.length}/{USERNAME_MAX_LENGTH}
       </label>
       <SketchInput
         id="rename-name"
@@ -657,7 +666,8 @@ function RenameModal({
       />
       <div className="mt-5 flex justify-end gap-2">
         <SketchButton variant="ghost" onClick={onClose}>
-          Cancel
+          
+          {say("Cancel")}
         </SketchButton>
         <SketchButton
           variant="accent"
@@ -665,7 +675,8 @@ function RenameModal({
           disabled={!clean || clean === profile.name}
           onClick={save}
         >
-          Save
+          
+          {say("Save")}
         </SketchButton>
       </div>
     </ModalShell>
@@ -687,16 +698,17 @@ function GiveTicketsModal({ profile, onClose }: { profile: Profile; onClose: () 
       void utils.auth.me.invalidate();
       onClose();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   return (
     <ModalShell title={`Give tickets to ${profile.name}`} onClose={onClose}>
       <p className="text-sm text-ink-soft">
-        Free — no coins are taken from them and nothing is recorded as a sale. To charge for
-        tickets, use the Sales desk in Finance.
+        
+        {say("Free — no coins are taken from them and nothing is recorded as a sale. To charge for tickets, use the Sales desk in Finance.")}
       </p>
       <label className="micro mt-4 block text-ink-soft" htmlFor="give-count">
-        How many
+        
+        {say("How many")}
       </label>
       <SketchInput
         id="give-count"
@@ -708,14 +720,16 @@ function GiveTicketsModal({ profile, onClose }: { profile: Profile; onClose: () 
       />
       <div className="mt-5 flex justify-end gap-2">
         <SketchButton variant="ghost" onClick={onClose}>
-          Cancel
+          
+          {say("Cancel")}
         </SketchButton>
         <SketchButton
           variant="accent"
           loading={grant.isPending}
           onClick={() => grant.mutate({ userId: profile.id, count })}
         >
-          Give {count} ticket{count === 1 ? '' : 's'}
+          
+          {say("Give")} {count}  {say("ticket")}{count === 1 ? '' : 's'}
         </SketchButton>
       </div>
     </ModalShell>
@@ -733,16 +747,18 @@ function SendTicketsModal({ profile, onClose }: { profile: Profile; onClose: () 
       void utils.auth.me.invalidate();
       onClose();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const mine = user?.ticketBalance ?? 0;
   return (
     <ModalShell title={`Send tickets to ${profile.name}`} onClose={onClose}>
       <p className="text-sm text-ink-soft">
-        Out of your own pool — you hold {mine} ticket{mine === 1 ? '' : 's'}.
+        
+        {say("Out of your own pool — you hold")} {mine}  {say("ticket")}{mine === 1 ? '' : 's'}.
       </p>
       <label className="micro mt-4 block text-ink-soft" htmlFor="send-count">
-        How many
+        
+        {say("How many")}
       </label>
       <SketchInput
         id="send-count"
@@ -754,7 +770,8 @@ function SendTicketsModal({ profile, onClose }: { profile: Profile; onClose: () 
       />
       <div className="mt-5 flex justify-end gap-2">
         <SketchButton variant="ghost" onClick={onClose}>
-          Cancel
+          
+          {say("Cancel")}
         </SketchButton>
         <SketchButton
           variant="accent"
@@ -762,7 +779,8 @@ function SendTicketsModal({ profile, onClose }: { profile: Profile; onClose: () 
           disabled={mine < 1}
           onClick={() => send.mutate({ toUserId: profile.id, count })}
         >
-          Send {count}
+          
+          {say("Send")} {count}
         </SketchButton>
       </div>
     </ModalShell>
@@ -782,31 +800,33 @@ function AdjustCoinsModal({ profile, onClose }: { profile: Profile; onClose: () 
       void utils.users.profile.invalidate();
       onClose();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   return (
     <ModalShell title={`Adjust ${profile.name}'s credits`} onClose={onClose}>
       <p className="text-sm text-ink-soft">
-        Crediting a plain user makes them a moderator; taking their last coin returns them to a
-        user. Admins keep their role either way.
+        
+        {say("Crediting a plain user makes them a moderator; taking their last coin returns them to a user. Admins keep their role either way.")}
       </p>
       <div className="mt-4 flex flex-wrap items-end gap-3">
         <span>
           <label className="micro mb-1 block text-ink-soft" htmlFor="adj-dir">
-            Direction
+            
+            {say("Direction")}
           </label>
           <SketchSelect
             id="adj-dir"
             value={direction}
             onChange={(e) => setDirection(e.target.value as 'credit' | 'deduct')}
           >
-            <option value="credit">+ Add coins</option>
-            <option value="deduct">− Remove coins</option>
+            <option value="credit">{say("+ Add coins")}</option>
+            <option value="deduct">{say("− Remove coins")}</option>
           </SketchSelect>
         </span>
         <span>
           <label className="micro mb-1 block text-ink-soft" htmlFor="adj-amt">
-            Amount
+            
+            {say("Amount")}
           </label>
           <SketchInput
             id="adj-amt"
@@ -820,14 +840,16 @@ function AdjustCoinsModal({ profile, onClose }: { profile: Profile; onClose: () 
         </span>
         <span className="min-w-[10rem] flex-1">
           <label className="micro mb-1 block text-ink-soft" htmlFor="adj-why">
-            Reason (ledger)
+            
+            {say("Reason (ledger)")}
           </label>
           <SketchInput id="adj-why" value={reason} onChange={(e) => setReason(e.target.value)} />
         </span>
       </div>
       <div className="mt-5 flex justify-end gap-2">
         <SketchButton variant="ghost" onClick={onClose}>
-          Cancel
+          
+          {say("Cancel")}
         </SketchButton>
         <SketchButton
           variant="accent"

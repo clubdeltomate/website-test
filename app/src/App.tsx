@@ -37,8 +37,17 @@ import AdminUsers from './pages/AdminUsers';
 import AdminModerators from './pages/AdminModerators';
 import AdminSettings from './pages/AdminSettings';
 import AdminGate from './components/admin/AdminGate';
+import { useLang } from '@/hooks/useLang';
 
 export default function App() {
+  /* Subscribing here is what makes the language switch take effect without a
+     reload. `say()` is a plain function, so no leaf component subscribes to
+     the language — and the provider's own children are a stable element, so
+     React would bail out of re-rendering the tree. Reading the context at the
+     root means a change re-renders App, which builds fresh route elements and
+     cascades all the way down. Re-render, not remount: a half-written card
+     survives the switch. */
+  useLang();
   return (
     <Routes>
       <Route element={<Layout />}>

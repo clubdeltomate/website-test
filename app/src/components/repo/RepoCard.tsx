@@ -8,6 +8,7 @@ import Chip from '@/components/sketch/Chip';
 import { trpc } from '@/providers/trpc';
 import type { RepoSummary } from '@contracts/types';
 import { CardBanner, OwnerAvatar, ProgressStrip, SourceBadge, TemplateIcon, VerifiedBadge, relTime } from './shared';
+import { say } from '@/lib/i18n';
 
 export interface RepoCardProps {
   repo: RepoSummary;
@@ -35,7 +36,7 @@ function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete, onA
       void utils.repos.list.invalidate();
       void utils.auth.me.invalidate();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   return (
@@ -72,7 +73,8 @@ function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete, onA
             />
             {repo.ownerName && (
               <span className="micro flex min-w-0 items-center gap-1 truncate text-ink-faint">
-                by {repo.ownerName}
+                
+                {say("by")} {repo.ownerName}
                 {repo.ownerVerified && <VerifiedBadge />}
               </span>
             )}
@@ -100,8 +102,8 @@ function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete, onA
             {canDelete && (
               <button
                 type="button"
-                aria-label="Delete repository"
-                title="Delete this repository"
+                aria-label={say("Delete repository")}
+                title={say("Delete this repository")}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -145,8 +147,9 @@ function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete, onA
           </Chip>
           <SourceBadge source={repo.source} compact />
           {repo.assigned && (
-            <Chip kind="neutral" className="border-blue bg-blue-soft" title="A moderator put this on your shelf">
-              assigned
+            <Chip kind="neutral" className="border-blue bg-blue-soft" title={say("A moderator put this on your shelf")}>
+              
+              {say("assigned")}
             </Chip>
           )}
           {onAssign && (
@@ -157,8 +160,8 @@ function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete, onA
                 e.stopPropagation();
                 onAssign(repo);
               }}
-              aria-label="Assign to a user"
-              title="Assign — put this notebook on another user's shelf"
+              aria-label={say("Assign to a user")}
+              title={say("Assign — put this notebook on another user's shelf")}
               className="ml-auto rounded-wobble-sm border-2 border-dashed border-pencil p-1 text-ink-faint transition-colors hover:border-ink hover:text-ink"
             >
               <UserRoundPlus className="h-3.5 w-3.5" strokeWidth={2} />
@@ -168,7 +171,7 @@ function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete, onA
 
         {/* meta row */}
         <p className="micro mt-3 text-[0.65rem] text-ink-soft">
-          {repo.unitCount} units · {repo.lessonCount} lessons · {repo.runCount} runs
+          {repo.unitCount}  {say("units ·")} {repo.lessonCount}  {say("lessons ·")} {repo.runCount}  {say("runs")}
         </p>
 
         {/* progress strip */}
@@ -183,7 +186,8 @@ function RepoCardInner({ repo, index, onToggleFavorite, canDelete, onDelete, onA
         {/* footer — pinned to the card's bottom so all cards close evenly */}
         <div className="mt-auto flex items-center justify-between border-t-2 border-dashed border-pencil pt-2.5">
           <span className="flex items-center gap-1 text-xs text-ink-faint">
-            sketched {relTime(repo.createdAt)}
+            
+            {say("sketched")} {relTime(repo.createdAt)}
             {repo.ownerName ? ` · by ${repo.ownerName}` : ''}
             {repo.ownerName && repo.ownerVerified && <VerifiedBadge />}
           </span>

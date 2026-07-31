@@ -34,6 +34,7 @@ import {
   relTime,
   useDebounced,
 } from '@/components/repo/shared';
+import { say } from '@/lib/i18n';
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const PAGE_SIZE = 12;
@@ -55,10 +56,10 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
     role === 'admin' || (!!user && repo.ownerName === user.name);
   const deleteRepo = trpc.repos.delete.useMutation({
     onSuccess: () => {
-      toast.success('Repository deleted.');
+      toast.success(say("Repository deleted."));
       void utils.repos.list.invalidate();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const onDeleteRepo = (repo: RepoSummary) => {
     if (window.confirm(`Delete "${repo.title}" and all its units, lessons and presets? This can't be undone.`)) {
@@ -103,7 +104,7 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
       if (mq.matches) {
         setView((v) => {
           if (v === 'table') {
-            toast.info('Tables need a bigger page — switched to cards.');
+            toast.info(say("Tables need a bigger page — switched to cards."));
             return 'cards';
           }
           return v;
@@ -121,7 +122,7 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
       toast.success(res.favorite ? 'Pinned to your favorites ★' : 'Removed from favorites');
       void utils.repos.list.invalidate();
     },
-    onError: () => toast.error("Couldn't update favorites — try again"),
+    onError: () => toast.error(say("Couldn't update favorites — try again")),
   });
 
   const onToggleFavorite = (repo: RepoSummary) => {
@@ -197,16 +198,17 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
           )}
           <span className="font-heading font-semibold text-ink">{row.title}</span>
           {row.assigned && (
-            <Chip kind="neutral" className="border-blue bg-blue-soft text-[0.55rem]" title="A moderator put this on your shelf">
-              assigned
+            <Chip kind="neutral" className="border-blue bg-blue-soft text-[0.55rem]" title={say("A moderator put this on your shelf")}>
+              
+              {say("assigned")}
             </Chip>
           )}
           {row.source === 'ai' && (
             <span
-              title="Generated with AI"
+              title={say("Generated with AI")}
               className="inline-flex items-center gap-0.5 rounded-wobble-sm border border-purple bg-purple-soft px-1 text-[0.55rem] font-bold text-purple"
             >
-              <Sparkles className="h-2.5 w-2.5" strokeWidth={2.5} /> AI
+              <Sparkles className="h-2.5 w-2.5" strokeWidth={2.5} />  {say("AI")}
             </span>
           )}
         </span>
@@ -292,17 +294,20 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
       {/* guest banner */}
       {isGuest && (
         <p className="mb-4 flex flex-wrap items-center gap-2 rounded-wobble-sm border-2 border-dashed border-blue/50 bg-blue-soft/50 px-4 py-2 text-sm text-ink">
-          You're browsing as a guest —{' '}
+          
+          {say("You're browsing as a guest —")}{' '}
           <Link to="/auth" className="font-bold text-blue hover:squiggle">
-            sign in
+            
+            {say("sign in")}
           </Link>{' '}
-          to create your own.
+          
+          {say("to create your own.")}
         </p>
       )}
 
       {/* heading */}
       <div className="flex items-center gap-3">
-        <h2 className="sr-only">Repositories</h2>
+        <h2 className="sr-only">{say("Repositories")}</h2>
         <p className="font-display text-3xl font-bold text-ink">{mine ? 'Your notebook shelf' : 'Community shelf'}</p>
         {list.data && (
           <Chip kind="neutral" className="font-mono">
@@ -324,8 +329,8 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search notebooks…"
-            aria-label="Search repositories"
+            placeholder={say("Search notebooks…")}
+            aria-label={say("Search repositories")}
             className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
           />
         </label>
@@ -336,7 +341,7 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
           whileTap={{ scale: 1.25 }}
           onClick={onPickFavs}
           aria-pressed={favsOnly}
-          title="Favorites only"
+          title={say("Favorites only")}
           className={cn(
             'flex items-center gap-1.5 rounded-wobble-sm border-2 px-3 py-2 text-sm font-bold transition-colors',
             favsOnly
@@ -345,7 +350,8 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
           )}
         >
           <Star className={cn('h-4 w-4', favsOnly && 'fill-ink')} strokeWidth={2} />
-          Favorites
+          
+          {say("Favorites")}
         </motion.button>
 
         {/* Following — gallery only. On your own shelf every item is yours, so
@@ -356,7 +362,7 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
             whileTap={{ scale: 1.25 }}
             onClick={() => setFollowingOnly((f) => !f)}
             aria-pressed={followingOnly}
-            title="Only work by people you follow"
+            title={say("Only work by people you follow")}
             className={cn(
               'flex items-center gap-1.5 rounded-wobble-sm border-2 px-3 py-2 text-sm font-bold transition-colors',
               followingOnly
@@ -365,29 +371,30 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
             )}
           >
             <UserCheck className="h-4 w-4" strokeWidth={2} />
-            Following
+            
+            {say("Following")}
           </motion.button>
         )}
 
         {/* sort */}
         <label className="flex items-center gap-1.5 text-sm text-ink-soft">
-          <span className="micro hidden text-[0.6rem] sm:inline">Sort</span>
+          <span className="micro hidden text-[0.6rem] sm:inline">{say("Sort")}</span>
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as SortKey)}
-            aria-label="Sort repositories"
+            aria-label={say("Sort repositories")}
             className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-2.5 py-1.5 text-sm font-bold text-ink outline-none"
           >
             {SORTS.map((s) => (
               <option key={s.key} value={s.key}>
-                {s.label}
+                {say(s.label)}
               </option>
             ))}
           </select>
         </label>
 
         {/* view toggle */}
-        <div className="flex overflow-hidden rounded-wobble-sm border-2 border-ink" role="group" aria-label="View">
+        <div className="flex overflow-hidden rounded-wobble-sm border-2 border-ink" role="group" aria-label={say("View")}>
           {(
             [
               { key: 'cards', icon: LayoutGrid, label: 'Cards' },
@@ -413,15 +420,17 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
         {/* new repository — AI (lesson path) or by hand */}
         <div className="ml-auto flex items-center gap-2">
           <Link to="/repos/new/manual" className="no-underline">
-            <SketchButton variant="secondary" size="sm" title="Lay out a repo by hand — no AI">
+            <SketchButton variant="secondary" size="sm" title={say("Lay out a repo by hand — no AI")}>
               <PencilRuler className="h-4 w-4" strokeWidth={2.5} />
-              By hand
+              
+              {say("By hand")}
             </SketchButton>
           </Link>
           <Link to="/lesson-path" className="no-underline">
             <SketchButton variant="accent" size="sm">
               <Plus className="h-4 w-4" strokeWidth={2.5} />
-              New repository
+              
+              {say("New repository")}
             </SketchButton>
           </Link>
         </div>
@@ -457,10 +466,11 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
 
         {list.isError && (
           <div className="rounded-wobble-sm border-2 border-dashed border-red bg-red-soft/60 px-4 py-6 text-center">
-            <p className="font-heading text-lg text-ink">The shelf fell off the wall…</p>
-            <p className="mt-1 text-sm text-ink-soft">Couldn't load repositories.</p>
+            <p className="font-heading text-lg text-ink">{say("The shelf fell off the wall…")}</p>
+            <p className="mt-1 text-sm text-ink-soft">{say("Couldn't load repositories.")}</p>
             <SketchButton variant="secondary" size="sm" className="mt-3" onClick={() => void list.refetch()}>
-              Try again
+              
+              {say("Try again")}
             </SketchButton>
           </div>
         )}
@@ -470,7 +480,8 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
             <div className="flex flex-col items-center gap-2 py-10 text-center">
               <img src="/empty-repos.svg" alt="" className="w-40" />
               <h2 className="font-display text-3xl text-ink">
-                No notebooks match{searching ? ` “${debouncedQ.trim()}”` : ' these filters'}
+                
+                {say("No notebooks match")}{searching ? ` “${debouncedQ.trim()}”` : ' these filters'}
               </h2>
               <SketchButton
                 variant="secondary"
@@ -481,7 +492,8 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
                   setFavsOnly(false);
                 }}
               >
-                Clear search & filters
+                
+                {say("Clear search & filters")}
               </SketchButton>
             </div>
           ) : (
@@ -494,7 +506,8 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
               onCta={() => (isGuest ? setAuthWallOpen(true) : navigate('/lesson-path'))}
             >
               <Link to="/" className="text-sm font-bold text-blue hover:squiggle">
-                Ask the Coach instead
+                
+                {say("Ask the Coach instead")}
               </Link>
             </EmptyState>
           )
@@ -544,12 +557,12 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
 
         {/* pagination */}
         {repos.length > PAGE_SIZE && (
-          <nav aria-label="Pagination" className="mt-8 flex items-center justify-center gap-2">
+          <nav aria-label={say("Pagination")} className="mt-8 flex items-center justify-center gap-2">
             <button
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={safePage === 1}
-              aria-label="Previous page"
+              aria-label={say("Previous page")}
               className="rounded-full p-1.5 text-ink transition-colors hover:bg-paper-2 disabled:opacity-40"
             >
               <ChevronLeft className="h-5 w-5" />
@@ -572,7 +585,7 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
               type="button"
               onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
               disabled={safePage === pageCount}
-              aria-label="Next page"
+              aria-label={say("Next page")}
               className="rounded-full p-1.5 text-ink transition-colors hover:bg-paper-2 disabled:opacity-40"
             >
               <ChevronRight className="h-5 w-5" />
@@ -587,7 +600,7 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
 /** Pencil-stroke skeletons + playful status line (design.md §6) */
 function GallerySkeleton() {
   return (
-    <div aria-label="Loading repositories">
+    <div aria-label={say("Loading repositories")}>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }, (_, i) => (
           <div key={i} className="rounded-wobble-2 border-2 border-dashed border-pencil bg-paper-3/60 p-5">
@@ -601,7 +614,7 @@ function GallerySkeleton() {
           </div>
         ))}
       </div>
-      <p className="mt-4 text-center text-sm text-ink-faint">Dusting off the shelf…</p>
+      <p className="mt-4 text-center text-sm text-ink-faint">{say("Dusting off the shelf…")}</p>
     </div>
   );
 }

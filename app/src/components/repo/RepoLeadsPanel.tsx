@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { ChevronDown, Inbox, ShoppingBag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { trpc } from '@/providers/trpc';
+import { say } from '@/lib/i18n';
 
 function timeAgo(d: Date): string {
   const mins = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
@@ -45,13 +46,13 @@ export default function RepoLeadsPanel({ slug }: { slug: string }) {
         aria-expanded={open}
       >
         <Inbox className="h-4 w-4 text-ink" />
-        <span className="font-heading font-bold text-ink">Leads</span>
+        <span className="font-heading font-bold text-ink">{say("Leads")}</span>
         <span className="micro rounded-full border-2 border-ink bg-yellow-soft px-2 text-[0.6rem] font-bold text-ink">
           {leads.length}
         </span>
         {unseen > 0 && (
           <span className="micro rounded-full border-2 border-red bg-red-soft px-2 text-[0.6rem] font-bold text-red">
-            {unseen} new
+            {unseen}  {say("new")}
           </span>
         )}
         <ChevronDown
@@ -66,7 +67,8 @@ export default function RepoLeadsPanel({ slug }: { slug: string }) {
               onClick={() => markSeen.mutate()}
               className="micro mb-3 rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-ink-soft hover:border-ink hover:text-ink"
             >
-              Mark all as read
+              
+              {say("Mark all as read")}
             </button>
           )}
           <ul className="flex flex-col gap-2">

@@ -27,6 +27,7 @@ import WashiTape from '@/components/sketch/WashiTape';
 import { DoodleSparkle } from '@/components/sketch/DoodleIcons';
 import { usePrefersReducedMotion } from '@/components/about/usePrefersReducedMotion';
 import { LEVELS, type Level, type RunRow, type RunSlideDetail } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 const PAGE_SIZE = 5;
 const EASE_OUT = [0.22, 1, 0.36, 1] as [number, number, number, number];
@@ -262,7 +263,7 @@ function StatsStrip({ stats, scopeLabel }: { stats: RunStats; scopeLabel: string
   ];
 
   return (
-    <section aria-label="Run statistics">
+    <section aria-label={say("Run statistics")}>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {cards.map((c, i) => (
           <motion.div
@@ -343,18 +344,20 @@ function RunDrawer({
           <WashiTape rotate={-3} className="left-8" />
           <button
             onClick={onClose}
-            aria-label="Close run details"
+            aria-label={say("Close run details")}
             className="absolute right-4 top-4 rounded-wobble-sm border-2 border-transparent p-1.5 text-ink-soft transition-colors hover:border-ink hover:text-ink"
           >
             <X className="h-5 w-5" />
           </button>
 
           <p className="font-mono text-xs font-bold text-ink-faint">
-            RUN #{run.id} · {fmtDate(run.completedAt)}
+            
+            {say("RUN #")}{run.id} · {fmtDate(run.completedAt)}
           </p>
           <h2 className="mt-1 font-heading text-2xl text-ink">{run.toolName}</h2>
           <p className="text-sm text-ink-soft">
-            played by <span className="font-bold text-ink">{run.playerName}</span>
+            
+            {say("played by")} <span className="font-bold text-ink">{run.playerName}</span>
           </p>
 
           {/* score header */}
@@ -363,7 +366,7 @@ function RunDrawer({
               {pct}%
             </p>
             <p className="mt-1 font-mono text-sm text-ink-soft">
-              {run.scoreCorrect} / {run.scoreTotal} correct
+              {run.scoreCorrect} / {run.scoreTotal}  {say("correct")}
             </p>
             {/* segmented score bar: correct vs missed */}
             <div className="mt-3 flex h-3 overflow-hidden rounded-full border-2 border-ink bg-paper-3">
@@ -388,7 +391,8 @@ function RunDrawer({
           <Link to={`/runs/${run.id}/replay`} className="mt-4 block no-underline">
             <SketchButton variant="accent" className="w-full">
               <PlayCircle className="h-4 w-4" />
-              Replay this presentation
+              
+              {say("Replay this presentation")}
             </SketchButton>
           </Link>
 
@@ -409,7 +413,7 @@ function RunDrawer({
           </div>
 
           {/* seed info */}
-          <h3 className="mt-6 font-heading text-lg text-ink">Lesson seed</h3>
+          <h3 className="mt-6 font-heading text-lg text-ink">{say("Lesson seed")}</h3>
           {run.repoSlug ? (
             <div className="mt-2 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-2/60 p-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -419,38 +423,42 @@ function RunDrawer({
                 )}
               </div>
               <p className="mt-2 text-xs text-ink-soft">
-                This play wrote a lesson log back to the repo — the next lesson's
-                generation reads it and builds on it.
+                
+                {say("This play wrote a lesson log back to the repo — the next lesson's generation reads it and builds on it.")}
               </p>
               <Link
                 to={`/repos/${run.repoSlug}`}
                 className="squiggle mt-2 inline-block text-sm font-bold"
               >
-                View repository →
+                
+                {say("View repository →")}
               </Link>
             </div>
           ) : (
             <p className="mt-2 rounded-wobble-sm border-2 border-dashed border-pencil p-3 text-sm text-ink-soft">
-              Direct play — launched from the slide tool without a lesson seed.
+              
+              {say("Direct play — launched from the slide tool without a lesson seed.")}
             </p>
           )}
 
           <p className="mt-4 flex items-start gap-1.5 text-xs text-ink-faint">
             <DoodleSparkle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-purple" />
-            Per-slide quiz answers are folded into the repo's Course memory panel.
+            
+            {say("Per-slide quiz answers are folded into the repo's Course memory panel.")}
           </p>
 
           {/* per-slide recap */}
-          <h3 className="mt-6 font-heading text-lg text-ink">Slide recap</h3>
+          <h3 className="mt-6 font-heading text-lg text-ink">{say("Slide recap")}</h3>
           {detail.isLoading ? (
-            <div className="mt-2 flex flex-col gap-2" aria-busy="true" aria-label="Loading slides">
+            <div className="mt-2 flex flex-col gap-2" aria-busy="true" aria-label={say("Loading slides")}>
               {Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="skeleton-stroke h-9 w-full" />
               ))}
             </div>
           ) : detail.isError ? (
             <p className="mt-2 rounded-wobble-sm border-2 border-dashed border-pencil p-3 text-sm text-ink-soft">
-              Couldn't load the slide recap — {detail.error.message}
+              
+              {say("Couldn't load the slide recap —")} {detail.error.message}
             </p>
           ) : detail.data && detail.data.slides.length > 0 ? (
             <div className="mt-2 flex flex-col gap-2">
@@ -460,18 +468,19 @@ function RunDrawer({
             </div>
           ) : (
             <p className="mt-2 rounded-wobble-sm border-2 border-dashed border-pencil p-3 text-sm text-ink-soft">
-              No per-slide detail was recorded for this run.
+              
+              {say("No per-slide detail was recorded for this run.")}
             </p>
           )}
 
           {/* moderation */}
           {isStaff && (
             <div className="mt-6 border-t-2 border-dashed border-pencil pt-4">
-              <p className="micro mb-2 text-ink-faint">Moderation</p>
+              <p className="micro mb-2 text-ink-faint">{say("Moderation")}</p>
               {run.flagged ? (
                 <div className="flex items-center gap-3">
                   <Chip className="border-red bg-red-soft text-red">
-                    <Flag className="h-3 w-3" /> flagged
+                    <Flag className="h-3 w-3" />  {say("flagged")}
                   </Chip>
                   <SketchButton
                     variant="secondary"
@@ -479,7 +488,7 @@ function RunDrawer({
                     loading={flagPending}
                     onClick={onUnflag}
                   >
-                    <FlagOff className="h-4 w-4" /> Remove flag
+                    <FlagOff className="h-4 w-4" />  {say("Remove flag")}
                   </SketchButton>
                 </div>
               ) : (
@@ -489,7 +498,7 @@ function RunDrawer({
                   loading={flagPending}
                   onClick={onFlag}
                 >
-                  <Flag className="h-4 w-4" /> Flag run
+                  <Flag className="h-4 w-4" />  {say("Flag run")}
                 </SketchButton>
               )}
             </div>
@@ -531,11 +540,11 @@ function SlideRecap({ index, slide }: { index: number; slide: RunSlideDetail }) 
           {slide.title}
         </span>
         {status === 'correct' && (
-          <Chip className="border-green bg-green-soft text-green">correct</Chip>
+          <Chip className="border-green bg-green-soft text-green">{say("correct")}</Chip>
         )}
-        {status === 'missed' && <Chip className="border-red bg-red-soft text-red">missed</Chip>}
+        {status === 'missed' && <Chip className="border-red bg-red-soft text-red">{say("missed")}</Chip>}
         {status === 'unanswered' && (
-          <span className="micro text-[0.58rem] text-ink-faint">no quiz</span>
+          <span className="micro text-[0.58rem] text-ink-faint">{say("no quiz")}</span>
         )}
         <ChevronDown
           className={cn('h-4 w-4 shrink-0 text-ink transition-transform duration-200', open && 'rotate-180')}
@@ -545,12 +554,13 @@ function SlideRecap({ index, slide }: { index: number; slide: RunSlideDetail }) 
         <div className="border-t border-dashed border-pencil px-3 py-2.5 text-sm">
           {slide.components.length > 0 && (
             <p className="micro text-[0.58rem] text-ink-faint">
-              components: {slide.components.join(' · ')}
+              
+              {say("components:")} {slide.components.join(' · ')}
             </p>
           )}
           {slide.question ? (
             <>
-              <p className="mt-1 font-heading font-semibold text-ink">Q: {slide.question}</p>
+              <p className="mt-1 font-heading font-semibold text-ink">{say("Q:")} {slide.question}</p>
               {slide.chosenOption ? (
                 <p
                   className={cn(
@@ -560,14 +570,14 @@ function SlideRecap({ index, slide }: { index: number; slide: RunSlideDetail }) 
                       : 'border-red bg-red-soft text-red',
                   )}
                 >
-                  {slide.correct ? '✓' : '✗'} chose: {slide.chosenOption}
+                  {slide.correct ? '✓' : '✗'}  {say("chose:")} {slide.chosenOption}
                 </p>
               ) : (
-                <p className="mt-1.5 text-xs text-ink-faint">No answer recorded.</p>
+                <p className="mt-1.5 text-xs text-ink-faint">{say("No answer recorded.")}</p>
               )}
             </>
           ) : (
-            <p className="mt-1 text-xs text-ink-faint">No quiz question on this slide.</p>
+            <p className="mt-1 text-xs text-ink-faint">{say("No quiz question on this slide.")}</p>
           )}
         </div>
       )}
@@ -602,7 +612,7 @@ function FlagModal({
       <motion.div
         role="dialog"
         aria-modal="true"
-        aria-label="Flag run"
+        aria-label={say("Flag run")}
         className="relative w-full max-w-md rounded-wobble-2 border-2 border-ink bg-paper-3 p-6 pt-8 shadow-offset"
         initial={{ scale: 0.96, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -610,12 +620,14 @@ function FlagModal({
         transition={{ type: 'spring', stiffness: 300, damping: 24 }}
       >
         <WashiTape rotate={-4} className="left-8" />
-        <h3 className="font-display text-3xl text-ink">Flag run #{run.id}?</h3>
+        <h3 className="font-display text-3xl text-ink">{say("Flag run #")}{run.id}?</h3>
         <p className="mt-1 text-sm text-ink-soft">
-          Flagged runs land in the moderation queue for review.
+          
+          {say("Flagged runs land in the moderation queue for review.")}
         </p>
         <label className="micro mt-4 block text-ink-faint" htmlFor="flag-reason">
-          Reason
+          
+          {say("Reason")}
         </label>
         <select
           id="flag-reason"
@@ -631,7 +643,8 @@ function FlagModal({
         </select>
         <div className="mt-5 flex justify-end gap-2">
           <SketchButton variant="ghost" size="sm" onClick={onCancel}>
-            Cancel
+            
+            {say("Cancel")}
           </SketchButton>
           <SketchButton
             variant="danger"
@@ -639,7 +652,7 @@ function FlagModal({
             loading={pending}
             onClick={() => onConfirm(reason)}
           >
-            <Flag className="h-4 w-4" /> Flag run
+            <Flag className="h-4 w-4" />  {say("Flag run")}
           </SketchButton>
         </div>
       </motion.div>
@@ -696,7 +709,7 @@ export default function Runs() {
       void utils.runs.listMine.invalidate();
       setFlagTarget(null);
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   /* derived: repo options for the select */
@@ -844,7 +857,7 @@ export default function Runs() {
       render: (r) => (
         <span className="flex items-center gap-2">
           {isStaff && r.flagged && (
-            <Flag className="h-3.5 w-3.5 shrink-0 text-red" aria-label="Flagged" />
+            <Flag className="h-3.5 w-3.5 shrink-0 text-red" aria-label={say("Flagged")} />
           )}
           <Link
             to={`/slides/${r.toolSlug}`}
@@ -891,7 +904,7 @@ export default function Runs() {
         r.repoRef ? (
           <Chip kind="repo-ref">#{r.repoRef}</Chip>
         ) : (
-          <Chip kind="guest">Direct</Chip>
+          <Chip kind="guest">{say("Direct")}</Chip>
         ),
     },
     {
@@ -921,7 +934,7 @@ export default function Runs() {
             className="h-7 w-10 rounded-wobble-sm border-2 border-ink object-cover"
           />
         ) : (
-          <Chip kind="neutral">none</Chip>
+          <Chip kind="neutral">{say("none")}</Chip>
         ),
     },
     {
@@ -958,10 +971,11 @@ export default function Runs() {
         className="flex flex-wrap items-center gap-3"
       >
         <h1 className="font-display text-[32px] font-bold leading-none text-ink">
-          Presentation runs
+          
+          {say("Presentation runs")}
         </h1>
         <Chip kind="neutral" className="font-mono">
-          {filtered.length} run{filtered.length === 1 ? '' : 's'}
+          {filtered.length}  {say("run")}{filtered.length === 1 ? '' : 's'}
         </Chip>
         <span className="ml-auto">
           <SketchToggle
@@ -989,7 +1003,7 @@ export default function Runs() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: reduced ? 0 : 0.15, ease: EASE_OUT }}
         className="mt-6 rounded-wobble-sm border-2 border-ink bg-paper-3 p-4 shadow-offset"
-        aria-label="Filters"
+        aria-label={say("Filters")}
       >
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative min-w-[200px] flex-1">
@@ -1001,8 +1015,8 @@ export default function Runs() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              placeholder="Search tool, repo or student…"
-              aria-label="Search runs"
+              placeholder={say("Search tool, repo or student…")}
+              aria-label={say("Search runs")}
               className="w-full rounded-wobble-sm border-2 border-ink bg-paper-3 py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-blue focus:shadow-[4px_4px_0_#DDE9FB] focus:outline-none"
             />
           </div>
@@ -1013,10 +1027,10 @@ export default function Runs() {
               setRepoFilter(e.target.value);
               setPage(1);
             }}
-            aria-label="Filter by repository"
+            aria-label={say("Filter by repository")}
             className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink focus:border-blue focus:outline-none"
           >
-            <option value="">All repos</option>
+            <option value="">{say("All repos")}</option>
             {repoOptions.map((o) => (
               <option key={o.ref} value={o.ref}>
                 #{o.ref} · {o.slug}
@@ -1030,10 +1044,10 @@ export default function Runs() {
               setLevelFilter(e.target.value as Level | '');
               setPage(1);
             }}
-            aria-label="Filter by level"
+            aria-label={say("Filter by level")}
             className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink focus:border-blue focus:outline-none"
           >
-            <option value="">All levels</option>
+            <option value="">{say("All levels")}</option>
             {LEVELS.map((l) => (
               <option key={l} value={l}>
                 {l}
@@ -1041,7 +1055,7 @@ export default function Runs() {
             ))}
           </select>
 
-          <div className="flex items-center gap-1" role="group" aria-label="Date range">
+          <div className="flex items-center gap-1" role="group" aria-label={say("Date range")}>
             {RANGE_OPTIONS.map((o) => (
               <button
                 key={o.key}
@@ -1056,13 +1070,13 @@ export default function Runs() {
                     : 'border-transparent text-ink-soft hover:border-dashed hover:border-ink',
                 )}
               >
-                {o.label}
+                {say(o.label)}
               </button>
             ))}
           </div>
 
           <label className="flex items-center gap-2 text-sm text-ink">
-            <span className="micro text-ink-faint">Score</span>
+            <span className="micro text-ink-faint">{say("Score")}</span>
             <input
               type="range"
               min={0}
@@ -1082,7 +1096,7 @@ export default function Runs() {
           <span className="ml-auto flex items-center gap-2">
             {hasFilters && (
               <SketchButton variant="ghost" size="sm" onClick={clearFilters}>
-                <X className="h-4 w-4" /> Clear all
+                <X className="h-4 w-4" />  {say("Clear all")}
               </SketchButton>
             )}
             <SketchButton
@@ -1091,7 +1105,7 @@ export default function Runs() {
               onClick={exportCsv}
               disabled={sorted.length === 0}
             >
-              <Download className="h-4 w-4" /> Export CSV
+              <Download className="h-4 w-4" />  {say("Export CSV")}
             </SketchButton>
           </span>
         </div>
@@ -1192,9 +1206,9 @@ export default function Runs() {
                       <Timer className="h-3.5 w-3.5" />
                       {fmtElapsed(r.elapsedSec)}
                     </span>
-                    <span className="font-mono text-ink-soft">{r.slideCount} slides</span>
+                    <span className="font-mono text-ink-soft">{r.slideCount}  {say("slides")}</span>
                     <span>
-                      {r.repoRef ? <Chip kind="repo-ref">#{r.repoRef}</Chip> : <Chip kind="guest">Direct</Chip>}
+                      {r.repoRef ? <Chip kind="repo-ref">#{r.repoRef}</Chip> : <Chip kind="guest">{say("Direct")}</Chip>}
                     </span>
                     <span>
                       <Chip kind={r.level}>{r.level}</Chip>
@@ -1207,7 +1221,7 @@ export default function Runs() {
             {/* pagination */}
             {totalPages > 1 && (
               <nav
-                aria-label="Pagination"
+                aria-label={say("Pagination")}
                 className="mt-6 flex items-center justify-center gap-2 font-display text-2xl"
               >
                 <PagerArrow
@@ -1342,8 +1356,8 @@ function pagerWindow(page: number, total: number): (number | '…')[] {
 /** Pencil-stroke skeleton rows + playful status line (design.md §6) */
 function RunsSkeleton() {
   return (
-    <div aria-busy="true" aria-label="Loading runs">
-      <p className="mb-3 font-display text-2xl text-ink-faint">Sharpening pencils…</p>
+    <div aria-busy="true" aria-label={say("Loading runs")}>
+      <p className="mb-3 font-display text-2xl text-ink-faint">{say("Sharpening pencils…")}</p>
       <div className="overflow-hidden rounded-wobble-sm border-2 border-ink bg-paper-3 shadow-offset">
         <div className="skeleton-stroke h-11 rounded-none bg-yellow/60" />
         {Array.from({ length: 6 }).map((_, i) => (

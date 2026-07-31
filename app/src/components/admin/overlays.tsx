@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import WashiTape from '@/components/sketch/WashiTape';
+import { say } from '@/lib/i18n';
 
 export interface SketchModalProps {
   open: boolean;
@@ -51,7 +52,7 @@ export function SketchModal({
             <WashiTape rotate={3} color="blue" className="left-auto right-8" />
             <button
               onClick={onClose}
-              aria-label="Close"
+              aria-label={say("Close")}
               className="absolute right-3 top-3 rounded-wobble-sm p-1.5 text-ink-soft hover:bg-paper-2 hover:text-ink"
             >
               <X className="h-5 w-5" strokeWidth={2} />
@@ -121,7 +122,7 @@ export function SketchDrawer({
               </h3>
               <button
                 onClick={onClose}
-                aria-label="Close"
+                aria-label={say("Close")}
                 className="rounded-wobble-sm p-1.5 text-ink-soft hover:bg-paper-2 hover:text-ink"
               >
                 <X className="h-5 w-5" strokeWidth={2} />

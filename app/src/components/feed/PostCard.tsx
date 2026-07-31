@@ -3,6 +3,7 @@ import { Heart, Layers, Lock, Users, Volume2 } from 'lucide-react';
 import { TEMPLATE_META } from '@/components/repo/shared';
 import PostAudience from '@/components/feed/PostAudience';
 import type { PostCategory, PostSummary } from '@contracts/post';
+import { say } from '@/lib/i18n';
 
 /**
  * One post as a card: the first slide, what it says, who posted it.
@@ -40,7 +41,7 @@ export default function PostCard({ post }: { post: PostSummary }) {
         <span className="absolute left-1.5 top-1.5 flex gap-1">
           {post.audioUrl && (
             <span
-              title="Has music"
+              title={say("Has music")}
               className="rounded-full border-2 border-ink bg-paper-3/90 p-1 text-ink"
             >
               <Volume2 className="h-3 w-3" strokeWidth={2} />
@@ -48,7 +49,7 @@ export default function PostCard({ post }: { post: PostSummary }) {
           )}
           {post.saved && (
             <span
-              title="Saved"
+              title={say("Saved")}
               className="rounded-full border-2 border-ink bg-paper-3/90 p-1 text-red"
             >
               <Heart className="h-3 w-3" strokeWidth={2} fill="currentColor" />
@@ -56,7 +57,7 @@ export default function PostCard({ post }: { post: PostSummary }) {
           )}
           {post.who === 'private' && (
             <span
-              title="Off the feed"
+              title={say("Off the feed")}
               className="rounded-full border-2 border-ink bg-yellow-soft p-1 text-ink"
             >
               <Lock className="h-3 w-3" strokeWidth={2} />
@@ -76,7 +77,7 @@ export default function PostCard({ post }: { post: PostSummary }) {
       <div className="flex min-w-0 flex-col gap-1 border-t-2 border-ink px-2 py-1.5">
         <Link to={`/feed/${post.slug}`} className="min-w-0">
           <p className="line-clamp-2 break-words text-[0.72rem] leading-snug text-ink">
-            {post.caption || <span className="text-ink-faint">No caption.</span>}
+            {post.caption || <span className="text-ink-faint">{say("No caption.")}</span>}
           </p>
         </Link>
         <div className="flex items-center gap-1">

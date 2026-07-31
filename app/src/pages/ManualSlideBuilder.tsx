@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import SketchButton from '@/components/sketch/SketchButton';
 import DeckBuilder, { blankDeck } from '@/components/slides/DeckBuilder';
 import type { SlideDeck } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 /**
  * Build a standalone hand-made presentation on the Slides page — start from
@@ -40,49 +41,51 @@ export default function ManualSlideBuilder() {
   });
   const create = trpc.slideTools.createManual.useMutation({
     onSuccess: (r) => {
-      toast.success('Presentation published ✓');
+      toast.success(say("Presentation published ✓"));
       autoBanner.mutate({ slug: r.slug, onlyIfMissing: true });
       void utils.slideTools.list.invalidate();
       navigate('/slides');
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const saveDeck = trpc.slideTools.saveDeck.useMutation({
     onSuccess: () => {
-      toast.success('Presentation saved ✓');
+      toast.success(say("Presentation saved ✓"));
       void utils.slideTools.list.invalidate();
       void utils.slideTools.deck.invalidate({ slug: slug! });
       navigate('/slides');
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const saving = create.isPending || saveDeck.isPending;
 
   if (isGuest) {
     return (
       <div className="mx-auto max-w-content px-4 py-10 text-center">
-        <p className="text-ink-soft">Sign in to build a presentation.</p>
+        <p className="text-ink-soft">{say("Sign in to build a presentation.")}</p>
         <Link to="/auth" className="mt-3 inline-block font-heading font-bold text-blue underline">
-          Sign in
+          
+          {say("Sign in")}
         </Link>
       </div>
     );
   }
   if (editing && deckQ.isLoading) {
-    return <div className="mx-auto max-w-content px-4 py-10 text-center text-ink-faint">Loading…</div>;
+    return <div className="mx-auto max-w-content px-4 py-10 text-center text-ink-faint">{say("Loading…")}</div>;
   }
   if (editing && deckQ.isSuccess && !deckQ.data) {
     return (
       <div className="mx-auto max-w-content px-4 py-10 text-center">
-        <p className="text-ink-soft">This isn't a hand-built presentation.</p>
+        <p className="text-ink-soft">{say("This isn't a hand-built presentation.")}</p>
         <Link to="/slides" className="mt-3 inline-block font-heading font-bold text-blue underline">
-          Back to Slides
+          
+          {say("Back to Slides")}
         </Link>
       </div>
     );
   }
   if (!deck) {
-    return <div className="mx-auto max-w-content px-4 py-10 text-center text-ink-faint">Preparing…</div>;
+    return <div className="mx-auto max-w-content px-4 py-10 text-center text-ink-faint">{say("Preparing…")}</div>;
   }
 
   const doSave = () => {
@@ -91,7 +94,7 @@ export default function ManualSlideBuilder() {
       return;
     }
     if (name.trim().length < 3) {
-      toast.error('Give your presentation a name (at least 3 characters)');
+      toast.error(say("Give your presentation a name (at least 3 characters)"));
       return;
     }
     create.mutate({ name: name.trim(), deck });
@@ -104,13 +107,14 @@ export default function ManualSlideBuilder() {
           to="/slides"
           className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft no-underline hover:text-ink"
         >
-          <ArrowLeft className="h-4 w-4" /> Slides
+          <ArrowLeft className="h-4 w-4" />  {say("Slides")}
         </Link>
         <h2 className="font-display text-3xl font-bold text-ink">
           {editing ? 'Edit presentation' : 'New manual presentation'}
         </h2>
         <span className="micro rounded-full border-2 border-ink bg-green-soft px-2 text-[0.6rem] font-bold text-green">
-          human-made
+          
+          {say("human-made")}
         </span>
         <SketchButton
           variant="accent"
@@ -125,12 +129,12 @@ export default function ManualSlideBuilder() {
 
       {!editing && (
         <div>
-          <span className="micro mb-1 block text-[0.6rem] uppercase tracking-wider text-ink-faint">Name</span>
+          <span className="micro mb-1 block text-[0.6rem] uppercase tracking-wider text-ink-faint">{say("Name")}</span>
           <input
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Espresso Menu"
+            placeholder={say("e.g. Espresso Menu")}
             className={cn(
               'w-full rounded-wobble-sm border-2 border-ink bg-paper px-3 py-2 font-heading text-lg font-bold text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue',
             )}
@@ -138,8 +142,8 @@ export default function ManualSlideBuilder() {
         </div>
       )}
       <p className="-mt-1 text-sm text-ink-soft">
-        Build the slides by hand — text, images, tables and a multiple-choice question. No AI is used,
-        so it's free for anyone to play once you publish.
+        
+        {say("Build the slides by hand — text, images, tables and a multiple-choice question. No AI is used, so it's free for anyone to play once you publish.")}
       </p>
 
       <DeckBuilder deck={deck} onChange={setDeck} />

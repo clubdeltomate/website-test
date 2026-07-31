@@ -11,6 +11,7 @@ import { DoodleSparkle } from '../sketch/DoodleIcons';
 import { splitSentences } from './narration';
 import SketchChart from './SketchChart';
 import { SpeakerButton } from './TtsReader';
+import { say } from '@/lib/i18n';
 
 /* ------------------------------------------------------------------ */
 /* Karaoke span — highlights while the read-aloud speaks this unit     */
@@ -140,13 +141,14 @@ function WolframView({
         <span className="inline-flex h-5 items-center rounded-full border border-ink bg-red-soft px-1.5 font-mono text-[0.65rem] font-bold text-ink">
           ∑
         </span>
-        Step-by-step · <span className="font-mono normal-case">{query}</span>
+        
+        {say("Step-by-step ·")} <span className="font-mono normal-case">{query}</span>
         {d && (
           <>
             <span className="ml-auto" />
             <button
               type="button"
-              title="Solve again with a DIFFERENT AI — rotates through every configured model before repeating"
+              title={say("Solve again with a DIFFERENT AI — rotates through every configured model before repeating")}
               onClick={() => {
                 setPage(0);
                 setUsedProviders((used) => {
@@ -158,7 +160,8 @@ function WolframView({
               className="flex shrink-0 items-center gap-1 rounded-wobble-sm border-2 border-ink bg-yellow px-2 py-0.5 text-[0.65rem] font-bold normal-case text-ink shadow-offset transition-transform hover:-translate-y-0.5"
             >
               <RotateCcw className="h-3 w-3" strokeWidth={2.5} />
-              Different AI
+              
+              {say("Different AI")}
             </button>
           </>
         )}
@@ -169,7 +172,7 @@ function WolframView({
           <div className="skeleton-stroke h-4 w-2/3" />
           <div className="skeleton-stroke h-4 w-5/6" />
           <div className="skeleton-stroke h-4 w-1/2" />
-          <p className="micro text-ink-faint">Working out the steps…</p>
+          <p className="micro text-ink-faint">{say("Working out the steps…")}</p>
         </div>
       ) : d && pg ? (
         <>
@@ -197,7 +200,7 @@ function WolframView({
             {/* the boxed answer closes the last page */}
             {safePage === pageCount - 1 && (d.answer.latex || d.answer.text) && (
               <div className="mt-3 rounded-wobble-sm border-2 border-green bg-green-soft/50 px-3 py-2">
-                <p className="micro font-bold text-ink-soft">Answer</p>
+                <p className="micro font-bold text-ink-soft">{say("Answer")}</p>
                 {d.answer.latex ? (
                   <KatexLine latex={d.answer.latex} />
                 ) : (
@@ -215,10 +218,12 @@ function WolframView({
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
                 className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-2.5 py-1 text-sm font-bold text-ink shadow-offset disabled:border-pencil disabled:text-pencil disabled:shadow-none"
               >
-                ← Prev
+                
+                {say("← Prev")}
               </button>
               <span className="font-mono text-xs text-ink-soft">
-                Page {safePage + 1} of {pageCount}
+                
+                {say("Page")} {safePage + 1}  {say("of")} {pageCount}
               </span>
               <button
                 type="button"
@@ -226,7 +231,8 @@ function WolframView({
                 onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
                 className="rounded-wobble-sm border-2 border-ink bg-yellow px-2.5 py-1 text-sm font-bold text-ink shadow-offset disabled:border-pencil disabled:bg-paper-3 disabled:text-pencil disabled:shadow-none"
               >
-                Next →
+                
+                {say("Next →")}
               </button>
             </div>
           )}
@@ -234,8 +240,8 @@ function WolframView({
       ) : imgFailed ? (
         <div className="flex flex-col items-start gap-2.5">
           <p className="text-sm text-ink-soft">
-            The worked solution isn't available right now — it can be retried, or run the query
-            yourself: <span className="font-mono">{query}</span>
+            
+            {say("The worked solution isn't available right now — it can be retried, or run the query yourself:")} <span className="font-mono">{query}</span>
           </p>
           <button
             type="button"
@@ -247,7 +253,8 @@ function WolframView({
             className="flex items-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-yellow px-3 py-1.5 text-sm font-bold text-ink shadow-offset transition-transform hover:-translate-y-0.5"
           >
             <RotateCcw className="h-3.5 w-3.5" strokeWidth={2.5} />
-            Get the explanation again
+            
+            {say("Get the explanation again")}
           </button>
         </div>
       ) : (
@@ -262,10 +269,10 @@ function WolframView({
             onError={() => setImgFailed(true)}
           />
           <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="micro text-ink-faint">solved by Wolfram|Alpha (AI solver unavailable)</span>
+            <span className="micro text-ink-faint">{say("solved by Wolfram|Alpha (AI solver unavailable)")}</span>
             <button
               type="button"
-              title="Retry the AI step-by-step solver"
+              title={say("Retry the AI step-by-step solver")}
               onClick={() => {
                 setPage(0);
                 void steps.refetch();
@@ -273,7 +280,8 @@ function WolframView({
               className="flex shrink-0 items-center gap-1 rounded-wobble-sm border-2 border-ink bg-yellow px-2 py-0.5 text-[0.65rem] font-bold text-ink shadow-offset transition-transform hover:-translate-y-0.5"
             >
               <RotateCcw className="h-3 w-3" strokeWidth={2.5} />
-              Try the AI solver
+              
+              {say("Try the AI solver")}
             </button>
           </div>
         </div>
@@ -288,7 +296,8 @@ function WolframView({
           )}
           {d && (
             <span className={cn('micro not-italic text-ink-faint', caption && 'ml-2')}>
-              — solved by {solverName(d.providerId, d.provider)}
+              
+              {say("— solved by")} {solverName(d.providerId, d.provider)}
             </span>
           )}
         </p>
@@ -398,7 +407,8 @@ function SvgView({
         {component.description}
       </p>
       <p className="mx-auto mt-3 max-w-md border-t-2 border-dashed border-pencil pt-2 font-mono text-[0.7rem] leading-relaxed text-ink-faint">
-        ✦ sketch brief: {component.sceneHint}
+        
+        {say("✦ sketch brief:")} {component.sceneHint}
       </p>
     </figure>
   );
@@ -530,7 +540,7 @@ export function CodeDeck({
     <figure className="overflow-hidden rounded-wobble-2 border-2 border-ink bg-paper-3 shadow-offset">
       <div className="flex items-center justify-between gap-3 border-b-2 border-dashed border-pencil px-4 py-2">
         {many ? (
-          <div className="flex min-w-0 flex-wrap gap-1.5" role="tablist" aria-label="Code files">
+          <div className="flex min-w-0 flex-wrap gap-1.5" role="tablist" aria-label={say("Code files")}>
             {snippets.map((sn, i) => (
               <button
                 key={i}
@@ -625,7 +635,7 @@ function Pager({
     <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label={ariaLabel}>
       <button
         type="button"
-        aria-label="Previous"
+        aria-label={say("Previous")}
         onClick={() => onPage((page - 1 + labels.length) % labels.length)}
         className="flex h-6 w-6 items-center justify-center rounded-wobble-sm border-2 border-ink bg-paper font-bold leading-none text-ink transition-colors hover:bg-yellow-soft"
       >
@@ -651,7 +661,7 @@ function Pager({
       ))}
       <button
         type="button"
-        aria-label="Next"
+        aria-label={say("Next")}
         onClick={() => onPage((page + 1) % labels.length)}
         className="flex h-6 w-6 items-center justify-center rounded-wobble-sm border-2 border-ink bg-paper font-bold leading-none text-ink transition-colors hover:bg-yellow-soft"
       >

@@ -6,6 +6,7 @@ import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 import { POST_VISIBILITY, VISIBILITY_BRIEF, VISIBILITY_LABEL } from '@contracts/post';
 import type { PostSummary, PostVisibility } from '@contracts/post';
+import { say } from '@/lib/i18n';
 
 /* Who a post is for, changed where the post is.
  *
@@ -63,7 +64,7 @@ export default function PostAudience({
         vars.visibility === 'public' ? 'On the feed for everyone' : 'Off the feed — yours',
       );
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   const setRecipients = trpc.posts.setRecipients.useMutation({
@@ -72,7 +73,7 @@ export default function PostAudience({
       setSendTo(null);
       toast.success(r.sent === 0 ? 'Not sent to anyone now' : `Sent to ${r.sent}`);
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   /* Click away to put it back. A panel that can only be closed by the button
@@ -95,7 +96,7 @@ export default function PostAudience({
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-label={`Who sees ${post.slug}`}
-        title="Who sees this"
+        title={say("Who sees this")}
         className={cn(
           'micro flex items-center gap-1 rounded-wobble-sm border-2 border-dashed border-pencil font-bold text-ink-soft transition-colors hover:border-ink hover:text-ink',
           compact ? 'px-1 py-0.5 text-[0.5rem]' : 'px-2 py-1 text-[0.58rem]',
@@ -112,11 +113,11 @@ export default function PostAudience({
       {open && (
         <div className="absolute bottom-full right-0 z-30 mb-1 w-[280px] rounded-wobble-sm border-2 border-ink bg-paper-3 p-3 shadow-offset">
           <div className="mb-2 flex items-center justify-between">
-            <span className="micro text-[0.58rem] font-semibold text-ink-soft">Who sees it</span>
+            <span className="micro text-[0.58rem] font-semibold text-ink-soft">{say("Who sees it")}</span>
             <button
               type="button"
               onClick={() => setOpen(false)}
-              aria-label="Close"
+              aria-label={say("Close")}
               className="text-ink-faint hover:text-ink"
             >
               <X className="h-3.5 w-3.5" strokeWidth={2} />
@@ -150,13 +151,14 @@ export default function PostAudience({
           {maySend && (
             <div className="mt-2 border-t-2 border-dashed border-pencil pt-2">
               <span className="micro text-[0.58rem] font-semibold text-ink-soft">
-                Sent to {chosen.length > 0 ? chosen.length : 'nobody'}
+                
+                {say("Sent to")} {chosen.length > 0 ? chosen.length : 'nobody'}
               </span>
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                aria-label="Find a user"
-                placeholder="Find someone by name"
+                aria-label={say("Find a user")}
+                placeholder={say("Find someone by name")}
                 className="mt-1 w-full rounded-wobble-sm border-2 border-ink bg-paper-3 px-2 py-1 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-blue"
               />
               <div className="mt-1.5 flex max-h-36 flex-wrap gap-1 overflow-y-auto">

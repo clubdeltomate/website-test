@@ -5,6 +5,7 @@ import { Route, MessageCircle } from 'lucide-react';
 import SketchButton from '@/components/sketch/SketchButton';
 import WashiTape from '@/components/sketch/WashiTape';
 import { usePrefersReducedMotion } from './usePrefersReducedMotion';
+import { say } from '@/lib/i18n';
 
 /**
  * About §6 — Doodle canvas + CTA. A full-width paper-2 band where visitors
@@ -169,13 +170,13 @@ export default function DoodleCta() {
   return (
     <section
       ref={bandRef}
-      aria-label="Draw something and start"
+      aria-label={say("Draw something and start")}
       className="relative h-[540px] overflow-hidden border-y-2 border-dashed border-pencil bg-paper-2"
     >
       {/* drawing surface */}
       <canvas
         ref={canvasRef}
-        aria-label="Doodle canvas — draw with your pointer"
+        aria-label={say("Doodle canvas — draw with your pointer")}
         style={{
           position: 'absolute',
           inset: 0,
@@ -187,7 +188,8 @@ export default function DoodleCta() {
       {/* hint until the first stroke */}
       {!drawn && (
         <p className="micro pointer-events-none absolute right-8 top-5 rotate-2 animate-pulse text-ink-faint">
-          draw something!
+          
+          {say("draw something!")}
         </p>
       )}
 
@@ -203,7 +205,8 @@ export default function DoodleCta() {
           <WashiTape rotate={-4} className="left-10" />
           <WashiTape rotate={3} color="blue" className="left-auto right-10" />
           <h2 className="font-display text-[44px] font-bold leading-none text-ink">
-            Ready to fill the first page?
+            
+            {say("Ready to fill the first page?")}
           </h2>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <motion.span
@@ -214,7 +217,7 @@ export default function DoodleCta() {
             >
               <Link to="/lesson-path">
                 <SketchButton variant="accent" size="lg">
-                  <Route className="h-5 w-5" /> Open the Lesson Path
+                  <Route className="h-5 w-5" />  {say("Open the Lesson Path")}
                 </SketchButton>
               </Link>
             </motion.span>
@@ -226,7 +229,7 @@ export default function DoodleCta() {
             >
               <Link to="/chat">
                 <SketchButton variant="secondary" size="lg">
-                  <MessageCircle className="h-5 w-5" /> Ask the Coach
+                  <MessageCircle className="h-5 w-5" />  {say("Ask the Coach")}
                 </SketchButton>
               </Link>
             </motion.span>
@@ -239,7 +242,8 @@ export default function DoodleCta() {
             className="mt-4"
           >
             <Link to="/repos" className="squiggle text-sm font-bold">
-              or browse the shelf
+              
+              {say("or browse the shelf")}
             </Link>
           </motion.p>
         </motion.div>

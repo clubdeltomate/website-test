@@ -4,6 +4,7 @@ import { trpc } from '@/providers/trpc';
 import { TEMPLATE_META } from '@/components/repo/shared';
 import PostCard from '@/components/feed/PostCard';
 import { POST_CATEGORIES, type PostCategory, type PostScope } from '@contracts/post';
+import { say } from '@/lib/i18n';
 
 /**
  * A shelf of posts under the same category filter the notebooks use.
@@ -44,7 +45,8 @@ export default function PostShelf({
               : 'border-dashed border-pencil bg-paper-3/80 text-ink-soft hover:border-ink hover:text-ink',
           )}
         >
-          All
+          
+          {say("All")}
         </button>
         {POST_CATEGORIES.map((c) => {
           const meta = TEMPLATE_META[c];
@@ -71,7 +73,7 @@ export default function PostShelf({
       </div>
 
       {list.isLoading ? (
-        <p className="micro text-[0.62rem] text-ink-faint">Loading…</p>
+        <p className="micro text-[0.62rem] text-ink-faint">{say("Loading…")}</p>
       ) : posts.length === 0 ? (
         <div className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-3 px-4 py-6 text-center">
           <p className="micro text-[0.62rem] text-ink-faint">

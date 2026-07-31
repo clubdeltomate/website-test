@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import SketchButton from '@/components/sketch/SketchButton';
 import { Squiggle } from '@/components/sketch/Squiggle';
 import { normalizeUsername, USERNAME_MAX_LENGTH } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 type Mode = 'signin' | 'signup';
 
@@ -101,7 +102,7 @@ export default function Auth() {
         toast.success(`Welcome back, ${u.name}!`);
       } else {
         const u = await register(name.trim(), email.trim(), password);
-        toast.success('Notebook created — welcome!');
+        toast.success(say("Notebook created — welcome!"));
         void u;
       }
       setFailures(0);
@@ -135,7 +136,7 @@ export default function Auth() {
         <Link
           to="/"
           className="absolute left-5 top-5 flex items-center gap-2 no-underline"
-          aria-label="Back to home"
+          aria-label={say("Back to home")}
         >
           <img src="/logo.svg" alt="" className="h-8 w-8" />
         </Link>
@@ -143,7 +144,8 @@ export default function Auth() {
           to="/"
           className="micro absolute right-5 top-6 text-ink-soft no-underline hover:text-ink"
         >
-          Continue as guest →
+          
+          {say("Continue as guest →")}
         </Link>
 
         <motion.div
@@ -157,9 +159,10 @@ export default function Auth() {
             className="mb-6 text-center"
           >
             <div className="mb-1 flex items-center justify-center gap-3">
-              <img src="/logo.svg" alt="SketchLearn" className="h-12 w-12" />
+              <img src="/logo.svg" alt={say("SketchLearn")} className="h-12 w-12" />
               <Squiggle color="yellow" className="font-display text-4xl font-bold text-ink">
-                SketchLearn
+                
+                {say("SketchLearn")}
               </Squiggle>
             </div>
           </motion.div>
@@ -169,7 +172,8 @@ export default function Auth() {
               variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
               className="mb-4 rounded-wobble-sm border-2 border-dashed border-blue bg-blue-soft px-3 py-2 text-center text-sm font-semibold text-ink"
             >
-              Sign in to keep creating — your draft prompt is saved.
+              
+              {say("Sign in to keep creating — your draft prompt is saved.")}
             </motion.p>
           )}
 
@@ -233,7 +237,7 @@ export default function Auth() {
             className="my-4 flex items-center gap-3 text-ink-faint"
           >
             <span className="h-0 flex-1 border-t-2 border-dashed border-pencil" />
-            <span className="micro">or with email</span>
+            <span className="micro">{say("or with email")}</span>
             <span className="h-0 flex-1 border-t-2 border-dashed border-pencil" />
           </motion.div>
 
@@ -270,7 +274,8 @@ export default function Auth() {
                   transition={{ duration: 0.22 }}
                 >
                   <label className="micro mb-1 block text-ink-soft" htmlFor="auth-name">
-                    Username — one word, max {USERNAME_MAX_LENGTH} characters
+                    
+                    {say("Username — one word, max")} {USERNAME_MAX_LENGTH}  {say("characters")}
                   </label>
                   {/* Normalized as you type, so the name in the box is the name
                       you'll get. Discovering the rule from a rejected form after
@@ -280,12 +285,13 @@ export default function Auth() {
                     className={fieldCls(errors.name)}
                     value={name}
                     onChange={(e) => setName(normalizeUsername(e.target.value))}
-                    placeholder="SamSketcher"
+                    placeholder={say("SamSketcher")}
                     autoComplete="username"
                     maxLength={USERNAME_MAX_LENGTH}
                   />
                   <p className="micro mt-1 text-ink-faint">
-                    Shown publicly, and lets you sign in without your email.{' '}
+                    
+                    {say("Shown publicly, and lets you sign in without your email.")}{' '}
                     {name.length}/{USERNAME_MAX_LENGTH}
                   </p>
                   {errors.name && <p className="mt-1 text-xs font-bold text-red">{errors.name}</p>}
@@ -312,15 +318,17 @@ export default function Auth() {
             <div>
               <div className="flex items-baseline justify-between">
                 <label className="micro mb-1 block text-ink-soft" htmlFor="auth-password">
-                  Password
+                  
+                  {say("Password")}
                 </label>
                 {mode === 'signin' && (
                   <button
                     type="button"
                     className="text-xs font-bold text-blue hover:underline"
-                    onClick={() => toast.info('Password reset is coming soon — ask a moderator for now ✉️')}
+                    onClick={() => toast.info(say("Password reset is coming soon — ask a moderator for now ✉️"))}
                   >
-                    Forgot?
+                    
+                    {say("Forgot?")}
                   </button>
                 )}
               </div>
@@ -330,7 +338,7 @@ export default function Auth() {
                 className={fieldCls(errors.password)}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="8+ characters"
+                placeholder={say("8+ characters")}
                 autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
               />
               {mode === 'signup' && password && (
@@ -360,7 +368,8 @@ export default function Auth() {
                   transition={{ duration: 0.22 }}
                 >
                   <label className="micro mb-1 block text-ink-soft" htmlFor="auth-confirm">
-                    Confirm password
+                    
+                    {say("Confirm password")}
                   </label>
                   <input
                     id="auth-confirm"
@@ -368,7 +377,7 @@ export default function Auth() {
                     className={fieldCls(errors.confirm)}
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
-                    placeholder="Once more"
+                    placeholder={say("Once more")}
                     autoComplete="new-password"
                   />
                   {errors.confirm && (
@@ -395,12 +404,14 @@ export default function Auth() {
 
             {mode === 'signup' && (
               <p className="micro text-center text-ink-faint">
-                By joining you agree to the Terms & Privacy — the short, human versions.
+                
+                {say("By joining you agree to the Terms & Privacy — the short, human versions.")}
               </p>
             )}
             <p className="text-center">
               <Link to="/" className="text-sm font-bold text-blue hover:underline">
-                Just looking? Continue as guest →
+                
+                {say("Just looking? Continue as guest →")}
               </Link>
             </p>
           </motion.form>
@@ -411,7 +422,7 @@ export default function Auth() {
       <div className="relative hidden items-center justify-center overflow-hidden border-l-2 border-dashed border-pencil bg-paper-2 min-[900px]:flex min-[900px]:flex-1">
         <motion.img
           src="/auth-illustration.svg"
-          alt="An open sketchbook with slide frames popping out and a pencil rocket"
+          alt={say("An open sketchbook with slide frames popping out and a pencil rocket")}
           className="w-full max-w-[520px] px-10"
           initial={{ opacity: 0, scale: 0.94 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -423,7 +434,8 @@ export default function Auth() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.4 }}
         >
-          “Every great course starts as a doodle.”
+          
+          {say("“Every great course starts as a doodle.”")}
         </motion.p>
       </div>
     </div>

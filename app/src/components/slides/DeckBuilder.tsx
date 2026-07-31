@@ -17,6 +17,7 @@ import { trpc } from '@/providers/trpc';
 import SketchButton from '@/components/sketch/SketchButton';
 import { LEVELS } from '@contracts/types';
 import type { ImageStyle, Level, Slide, SlideComponent, SlideDeck, SlideQuiz } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 const inputCls =
   'w-full rounded-wobble-sm border-2 border-ink bg-paper px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue';
@@ -91,7 +92,7 @@ export default function DeckBuilder({
   return (
     <div className="flex flex-col gap-5">
       <label className="flex items-center gap-1.5">
-        <span className="micro text-[0.6rem] text-ink-faint">Level</span>
+        <span className="micro text-[0.6rem] text-ink-faint">{say("Level")}</span>
         <select
           value={deck.level}
           onChange={(e) => patchDeck({ level: e.target.value as Level })}
@@ -103,7 +104,7 @@ export default function DeckBuilder({
             </option>
           ))}
         </select>
-        <span className="micro text-ink-faint">{deck.slides.length} slides</span>
+        <span className="micro text-ink-faint">{deck.slides.length}  {say("slides")}</span>
       </label>
 
       {deck.slides.map((slide, si) => (
@@ -116,14 +117,14 @@ export default function DeckBuilder({
               className={cn(inputCls, 'font-heading text-lg font-bold')}
               value={slide.title}
               onChange={(e) => patchSlide(si, { title: e.target.value })}
-              placeholder="Slide title"
+              placeholder={say("Slide title")}
             />
             {deck.slides.length > 1 && (
               <button
                 type="button"
                 onClick={() => removeSlide(si)}
-                title="Remove slide"
-                aria-label="Remove slide"
+                title={say("Remove slide")}
+                aria-label={say("Remove slide")}
                 className="rounded-wobble-sm border-2 border-transparent p-1.5 text-ink-faint transition-colors hover:border-dashed hover:border-red hover:text-red"
               >
                 <Trash2 className="h-4 w-4" strokeWidth={2} />
@@ -137,8 +138,8 @@ export default function DeckBuilder({
                 <button
                   type="button"
                   onClick={() => removeComponent(si, ci)}
-                  title="Remove this block"
-                  aria-label="Remove block"
+                  title={say("Remove this block")}
+                  aria-label={say("Remove block")}
                   className="absolute right-2 top-2 z-10 rounded-wobble-sm border-2 border-transparent bg-paper-3/80 p-1 text-ink-faint transition-colors hover:border-dashed hover:border-red hover:text-red"
                 >
                   <X className="h-3.5 w-3.5" strokeWidth={2} />
@@ -157,8 +158,8 @@ export default function DeckBuilder({
               <button
                 type="button"
                 onClick={() => patchSlide(si, { quiz: undefined })}
-                title="Remove the question"
-                aria-label="Remove question"
+                title={say("Remove the question")}
+                aria-label={say("Remove question")}
                 className="absolute right-2 top-2 z-10 rounded-wobble-sm border-2 border-transparent bg-paper-3/80 p-1 text-ink-faint transition-colors hover:border-dashed hover:border-red hover:text-red"
               >
                 <X className="h-3.5 w-3.5" strokeWidth={2} />
@@ -184,7 +185,7 @@ export default function DeckBuilder({
         onClick={addSlide}
         className="flex items-center justify-center gap-1.5 rounded-wobble-2 border-2 border-dashed border-pencil bg-paper-2/40 px-3 py-3 font-heading font-semibold text-ink-soft transition-colors hover:border-ink hover:text-ink"
       >
-        <Plus className="h-4 w-4" strokeWidth={2} /> Add slide
+        <Plus className="h-4 w-4" strokeWidth={2} />  {say("Add slide")}
       </button>
     </div>
   );
@@ -228,7 +229,7 @@ function ComponentEditor({
   if (comp.type === 'prose') {
     return (
       <div className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-2/40 p-3">
-        <Label>Text</Label>
+        <Label>{say("Text")}</Label>
         {comp.paragraphs.map((p, pi) => (
           <div key={pi} className="mb-2 flex items-start gap-1.5">
             <textarea
@@ -248,7 +249,7 @@ function ComponentEditor({
                   onChange({ ...comp, paragraphs: comp.paragraphs.filter((_, j) => j !== pi) })
                 }
                 className="mt-1 rounded-wobble-sm p-1 text-ink-faint hover:bg-red-soft hover:text-red"
-                aria-label="Remove paragraph"
+                aria-label={say("Remove paragraph")}
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -260,7 +261,7 @@ function ComponentEditor({
           onClick={() => onChange({ ...comp, paragraphs: [...comp.paragraphs, ''] })}
           className="micro flex items-center gap-1 rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.62rem] text-ink-soft hover:border-ink hover:text-ink"
         >
-          <Plus className="h-3 w-3" /> Add paragraph
+          <Plus className="h-3 w-3" />  {say("Add paragraph")}
         </button>
       </div>
     );
@@ -273,7 +274,7 @@ function ComponentEditor({
   if (comp.type === 'stickynote') {
     return (
       <div className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-2/40 p-3">
-        <Label>Sticky note</Label>
+        <Label>{say("Sticky note")}</Label>
         <textarea
           className={cn(inputCls, 'min-h-[60px] resize-y')}
           value={comp.text}
@@ -286,11 +287,11 @@ function ComponentEditor({
   if (comp.type === 'table') {
     return (
       <div className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-2/40 p-3">
-        <Label>Table</Label>
+        <Label>{say("Table")}</Label>
         <input
           className={cn(inputCls, 'mb-2')}
           value={comp.title ?? ''}
-          placeholder="Table title"
+          placeholder={say("Table title")}
           onChange={(e) => onChange({ ...comp, title: e.target.value })}
         />
         <div className="overflow-x-auto">
@@ -343,7 +344,7 @@ function ComponentEditor({
 
   return (
     <div className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-2/30 px-3 py-2">
-      <Label>{comp.type} (kept as-is)</Label>
+      <Label>{comp.type}  {say("(kept as-is)")}</Label>
     </div>
   );
 }
@@ -362,16 +363,16 @@ function ImageEditor({
     onSuccess: (r) => {
       if (r.imageUrl) {
         onChange({ ...comp, imageUrl: r.imageUrl });
-        toast.success('Image regenerated ✓');
-      } else toast.error('No image came back — check the AI image key');
+        toast.success(say("Image regenerated ✓"));
+      } else toast.error(say("No image came back — check the AI image key"));
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   const onUpload = (file: File | undefined) => {
     if (!file) return;
     if (file.size > 4_000_000) {
-      toast.error('Image too large (max ~4MB)');
+      toast.error(say("Image too large (max ~4MB)"));
       return;
     }
     const reader = new FileReader();
@@ -381,7 +382,7 @@ function ImageEditor({
 
   return (
     <div className="rounded-wobble-sm border-2 border-dashed border-ink bg-paper-2/40 p-3">
-      <Label>Image</Label>
+      <Label>{say("Image")}</Label>
       <div className="flex flex-wrap gap-3">
         <div className="w-40 shrink-0 overflow-hidden rounded-sm border-2 border-ink bg-paper-3">
           {comp.imageUrl ? (
@@ -394,7 +395,7 @@ function ImageEditor({
         </div>
         <div className="flex min-w-[200px] flex-1 flex-col gap-2">
           <div>
-            <Label>Image prompt (used to regenerate)</Label>
+            <Label>{say("Image prompt (used to regenerate)")}</Label>
             <textarea
               className={cn(inputCls, 'min-h-[48px] resize-y font-mono text-xs')}
               value={comp.prompt}
@@ -402,7 +403,7 @@ function ImageEditor({
             />
           </div>
           <div>
-            <Label>Description / alt text</Label>
+            <Label>{say("Description / alt text")}</Label>
             <input
               className={inputCls}
               value={comp.alt}
@@ -416,10 +417,10 @@ function ImageEditor({
               loading={regen.isPending}
               onClick={() => regen.mutate({ prompt: comp.prompt, style })}
             >
-              <RefreshCw className="h-3.5 w-3.5" /> Regenerate
+              <RefreshCw className="h-3.5 w-3.5" />  {say("Regenerate")}
             </SketchButton>
             <label className="flex cursor-pointer items-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-paper px-3 py-1.5 text-sm font-bold text-ink shadow-offset hover:bg-paper-2">
-              <Upload className="h-3.5 w-3.5" /> Upload
+              <Upload className="h-3.5 w-3.5" />  {say("Upload")}
               <input
                 type="file"
                 accept="image/*"
@@ -438,11 +439,11 @@ function QuizEditor({ quiz, onChange }: { quiz: SlideQuiz; onChange: (q: SlideQu
   const options = quiz.options ?? [];
   return (
     <div className="mt-3 rounded-wobble-sm border-2 border-ink bg-blue-soft/40 p-3">
-      <Label>Multiple choice</Label>
+      <Label>{say("Multiple choice")}</Label>
       <input
         className={cn(inputCls, 'mb-2 font-semibold')}
         value={quiz.question}
-        placeholder="Question"
+        placeholder={say("Question")}
         onChange={(e) => onChange({ ...quiz, question: e.target.value })}
       />
       <div className="flex flex-col gap-1.5">
@@ -451,14 +452,14 @@ function QuizEditor({ quiz, onChange }: { quiz: SlideQuiz; onChange: (q: SlideQu
             <button
               type="button"
               onClick={() => onChange({ ...quiz, correctIndex: oi })}
-              title="Mark as the correct answer"
+              title={say("Mark as the correct answer")}
               className={cn(
                 'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
                 quiz.correctIndex === oi
                   ? 'border-green bg-green text-paper-3'
                   : 'border-pencil text-transparent hover:border-ink',
               )}
-              aria-label="Mark correct"
+              aria-label={say("Mark correct")}
             >
               <Check className="h-3.5 w-3.5" strokeWidth={3} />
             </button>
@@ -473,7 +474,7 @@ function QuizEditor({ quiz, onChange }: { quiz: SlideQuiz; onChange: (q: SlideQu
         ))}
       </div>
       <div className="mt-2">
-        <Label>Explanation (shown after answering)</Label>
+        <Label>{say("Explanation (shown after answering)")}</Label>
         <textarea
           className={cn(inputCls, 'min-h-[48px] resize-y')}
           value={quiz.explanation}

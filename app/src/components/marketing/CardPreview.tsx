@@ -8,6 +8,7 @@ import {
   type CardText,
   layoutBusinessCard,
 } from '@/components/marketing/business-card';
+import { say } from '@/lib/i18n';
 
 /* The card on screen, laid out by the same function that draws the print
  * file. Its own component now because three places show a card: the editor,
@@ -84,7 +85,7 @@ export default function CardPreview({
           className="absolute bg-white p-[6%]"
           style={{ left: cq(L.qr.x), top: cq(L.qr.y), width: cq(L.qr.size), height: cq(L.qr.size) }}
         >
-          <img src={L.qr.image} alt="Payment QR code" className="h-full w-full object-contain" />
+          <img src={L.qr.image} alt={say("Payment QR code")} className="h-full w-full object-contain" />
         </div>
       )}
       {L.qr && !L.qr.image && L.qr.modules.length > 0 && (
@@ -97,7 +98,7 @@ export default function CardPreview({
           <svg
             viewBox={`0 0 ${L.qr.modules.length + 8} ${L.qr.modules.length + 8}`}
             className="h-full w-full"
-            aria-label="Payment QR code"
+            aria-label={say("Payment QR code")}
           >
             {L.qr.modules.map((row, r) =>
               row.map((on, c) =>

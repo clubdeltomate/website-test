@@ -15,6 +15,7 @@ import AdminGate from '@/components/admin/AdminGate';
 import { HubHeader, PanelTileCard, type PanelTile } from '@/components/admin/PanelTiles';
 import { SkeletonBlock } from '@/components/admin/controls';
 import { errMsg } from '@/components/admin/utils';
+import { say } from '@/lib/i18n';
 
 /* Controls: the operational control panel — every staff page one click
  * away, with live badges on the queues that need attention. */
@@ -34,10 +35,11 @@ function ControlsBody() {
   if (dashboard.isError || !dashboard.data) {
     return (
       <div className="mx-auto w-full max-w-content px-4 py-16 text-center lg:px-8">
-        <p className="font-display text-3xl text-ink">The control panel smudged itself.</p>
+        <p className="font-display text-3xl text-ink">{say("The control panel smudged itself.")}</p>
         <p className="mt-1 text-sm text-ink-soft">{errMsg(dashboard.error)}</p>
         <SketchButton className="mt-4" onClick={() => dashboard.refetch()}>
-          Try again
+          
+          {say("Try again")}
         </SketchButton>
       </div>
     );
@@ -118,7 +120,7 @@ function ControlsBody() {
       <HubHeader
         backTo="/admin"
         backLabel="Home"
-        title="Controls"
+        title={say("Controls")}
         blurb="Every operational page, one click away."
       />
 

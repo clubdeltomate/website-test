@@ -3,6 +3,7 @@ import { trpc } from '@/providers/trpc';
 import DeckPlayer from '@/components/player/DeckPlayer';
 import SketchButton from '@/components/sketch/SketchButton';
 import { ChevronLeft } from 'lucide-react';
+import { say } from '@/lib/i18n';
 
 /**
  * Replay the signed-in user's OWN saved customization of a lesson — the deck
@@ -21,17 +22,18 @@ export default function MyCustomizationPlay() {
   const back = () => navigate(`/repos/${slug}`);
 
   if (query.isLoading) {
-    return <div className="mx-auto max-w-[720px] px-4 py-16 text-center text-ink-faint">Opening your version…</div>;
+    return <div className="mx-auto max-w-[720px] px-4 py-16 text-center text-ink-faint">{say("Opening your version…")}</div>;
   }
   if (query.isError || !query.data) {
     return (
       <div className="mx-auto max-w-[720px] px-4 py-16 text-center">
-        <p className="font-display text-3xl text-ink">No saved customization</p>
+        <p className="font-display text-3xl text-ink">{say("No saved customization")}</p>
         <p className="mt-2 text-ink-soft">
-          You haven't generated a custom version of this lesson yet.
+          
+          {say("You haven't generated a custom version of this lesson yet.")}
         </p>
         <SketchButton variant="secondary" className="mt-4" onClick={back}>
-          <ChevronLeft className="h-4 w-4" /> Back
+          <ChevronLeft className="h-4 w-4" />  {say("Back")}
         </SketchButton>
       </div>
     );

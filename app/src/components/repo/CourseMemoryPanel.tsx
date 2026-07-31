@@ -7,6 +7,7 @@ import WashiTape from '@/components/sketch/WashiTape';
 import { DoodleCheck, DoodleSparkle } from '@/components/sketch/DoodleIcons';
 import { trpc } from '@/providers/trpc';
 import type { CourseMemoryEntry } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 /**
  * Course memory panel (repository.md §4) — the flagship "Previously taught"
@@ -31,7 +32,8 @@ export default function CourseMemoryPanel({ slug }: { slug: string }) {
       >
         <DoodleSparkle className="h-5 w-5 shrink-0 text-purple" />
         <h2 className="flex-1 font-heading text-xl font-bold text-ink">
-          Course memory — what earlier decks taught
+          
+          {say("Course memory — what earlier decks taught")}
         </h2>
         {entries.length > 0 && (
           <Chip kind="neutral" className="font-mono">
@@ -54,30 +56,32 @@ export default function CourseMemoryPanel({ slug }: { slug: string }) {
           >
             <div className="pt-4">
               {memory.isLoading && (
-                <div className="flex flex-col gap-2" aria-label="Loading course memory">
+                <div className="flex flex-col gap-2" aria-label={say("Loading course memory")}>
                   <div className="skeleton-stroke h-10 w-2/3" />
                   <div className="skeleton-stroke h-10 w-1/2" />
-                  <p className="text-sm text-ink-faint">Unfolding the logbook…</p>
+                  <p className="text-sm text-ink-faint">{say("Unfolding the logbook…")}</p>
                 </div>
               )}
 
               {memory.isError && (
                 <p className="text-sm text-red">
-                  Couldn't read the course memory.{' '}
+                  
+                  {say("Couldn't read the course memory.")}{' '}
                   <button
                     type="button"
                     className="squiggle-red font-bold"
                     onClick={() => void memory.refetch()}
                   >
-                    Try again
+                    
+                    {say("Try again")}
                   </button>
                 </p>
               )}
 
               {memory.isSuccess && entries.length === 0 && (
                 <p className="text-sm text-ink-soft">
-                  Play Lesson 1 to start the course memory. Every deck after it will build
-                  on what's been taught — never re-explaining it.{' '}
+                  
+                  {say("Play Lesson 1 to start the course memory. Every deck after it will build on what's been taught — never re-explaining it.")}{' '}
                   <DoodleSparkle className="inline h-4 w-4 text-purple" />
                 </p>
               )}
@@ -99,7 +103,8 @@ export default function CourseMemoryPanel({ slug }: { slug: string }) {
                     ))}
                   </ol>
                   <p className="micro mt-3 text-[0.62rem] text-ink-faint">
-                    Fed into the next lesson's generation as PREVIOUSLY TAUGHT context ✦
+                    
+                    {say("Fed into the next lesson's generation as PREVIOUSLY TAUGHT context ✦")}
                   </p>
                 </>
               )}
@@ -142,12 +147,13 @@ function MemoryRow({
         <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-ink bg-green-soft">
           <DoodleCheck className="h-3.5 w-3.5 text-green" />
         </span>
-        <span className="font-mono text-xs font-bold text-ink">L{entry.lessonSeq}</span>
+        <span className="font-mono text-xs font-bold text-ink">{say("L")}{entry.lessonSeq}</span>
         <span className="min-w-0 flex-1 truncate font-heading text-sm font-semibold text-ink">
           {entry.lessonTitle}
         </span>
         <span className="micro text-[0.6rem] text-ink-faint">
-          taught {entry.timesTaught}× · best {entry.bestScoreCorrect}/{entry.bestScoreTotal}
+          
+          {say("taught")} {entry.timesTaught}{say("× · best")} {entry.bestScoreCorrect}/{entry.bestScoreTotal}
         </span>
         <Chip kind={entry.lastLevel} className="text-[0.6rem]">
           {entry.lastLevel}
@@ -165,7 +171,8 @@ function MemoryRow({
           >
             <div className="ml-6 mt-2 rounded-wobble-2 border-2 border-ink bg-yellow p-4 font-heading text-sm leading-snug text-ink shadow-offset">
               <p className="micro mb-1.5 text-[0.6rem] text-ink-soft">
-                Previously taught · {entry.unitTitle}
+                
+                {say("Previously taught ·")} {entry.unitTitle}
               </p>
               <ul className="flex list-disc flex-col gap-1 pl-4">
                 {entry.summaries.slice(0, 4).map((s, i) => (
@@ -173,7 +180,7 @@ function MemoryRow({
                 ))}
               </ul>
               {entry.summaries.length === 0 && (
-                <p>Deck finished — summary folded into memory.</p>
+                <p>{say("Deck finished — summary folded into memory.")}</p>
               )}
             </div>
           </motion.div>

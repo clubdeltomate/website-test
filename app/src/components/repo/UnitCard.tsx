@@ -44,6 +44,7 @@ import type {
 } from '@contracts/types';
 import { repoPurpose } from '@contracts/types';
 import { TEMPLATE_META } from './shared';
+import { say } from '@/lib/i18n';
 
 export interface UnitCardProps {
   unit: RepoUnit;
@@ -98,7 +99,7 @@ export default function UnitCard({
     void utils.repos.courseMemory.invalidate({ slug: repoSlug });
   };
   const onError = (err: { message?: string }) =>
-    toast.error(err.message || 'Could not save — try again');
+    toast.error(say(err.message || 'Could not save — try again'));
 
   /* ---------------- unit mutations ---------------- */
   const renameUnit = trpc.units.update.useMutation({
@@ -126,7 +127,7 @@ export default function UnitCard({
   });
   const updateLesson = trpc.lessons.update.useMutation({
     onSuccess: () => {
-      toast.success('Saved ✓');
+      toast.success(say("Saved ✓"));
       refresh();
     },
     onError,
@@ -164,7 +165,7 @@ export default function UnitCard({
     onSuccess: (r) => {
       if (r.moved) refresh();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const addImage = trpc.unitImages.create.useMutation({
     onSuccess: (r) => {
@@ -177,11 +178,11 @@ export default function UnitCard({
       // auth.me, which nothing else here touches.
       if (r.cost > 0) void utils.auth.me.invalidate();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const removeImage = trpc.unitImages.remove.useMutation({
     onSuccess: () => refresh(),
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   /** Reads a picked file as base64 without the data: prefix. */
@@ -203,7 +204,7 @@ export default function UnitCard({
       const { mime, data } = await readAsBase64(file);
       addImage.mutate({ unitId: unit.id, source: 'upload', mime, data, caption: imageCaption.trim() || undefined });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "That file couldn't be read");
+      toast.error(say(err instanceof Error ? err.message : "That file couldn't be read"));
     }
   };
 
@@ -341,7 +342,7 @@ export default function UnitCard({
                   setRenaming(true);
                 }}
                 aria-label={`Rename ${meta.unitNoun.toLowerCase()}`}
-                title="Rename"
+                title={say("Rename")}
                 className="rounded-wobble-sm p-1.5 text-ink-faint transition-colors hover:bg-paper-2 hover:text-ink"
               >
                 <Pencil className="h-4 w-4" strokeWidth={2} />
@@ -350,7 +351,7 @@ export default function UnitCard({
                 type="button"
                 onClick={() => setConfirmDeleteUnit(true)}
                 aria-label={`Delete ${meta.unitNoun.toLowerCase()}`}
-                title="Delete"
+                title={say("Delete")}
                 className="rounded-wobble-sm p-1.5 text-ink-faint transition-colors hover:bg-red-soft hover:text-red"
               >
                 <Trash2 className="h-4 w-4" strokeWidth={2} />
@@ -382,7 +383,8 @@ export default function UnitCard({
           >
             <div className="mt-3 flex flex-wrap items-center gap-2 rounded-wobble-sm border-2 border-red bg-red-soft px-3 py-2">
               <span className="min-w-0 flex-1 text-sm font-bold text-red">
-                Tear out “{unit.title}” and its {unit.lessons.length}{' '}
+                
+                {say("Tear out “")}{unit.title}{say("” and its")} {unit.lessons.length}{' '}
                 {unit.lessons.length === 1 ? meta.lessonNoun.toLowerCase() : `${meta.lessonNoun.toLowerCase()}s`}?
               </span>
               <SketchButton
@@ -392,10 +394,12 @@ export default function UnitCard({
                 onClick={() => deleteUnit.mutate({ unitId: unit.id })}
               >
                 <Trash2 className="h-4 w-4" />
-                Delete
+                
+                {say("Delete")}
               </SketchButton>
               <SketchButton variant="ghost" size="sm" onClick={() => setConfirmDeleteUnit(false)}>
-                Cancel
+                
+                {say("Cancel")}
               </SketchButton>
             </div>
           </motion.div>
@@ -414,7 +418,8 @@ export default function UnitCard({
             <div className="mt-4 flex flex-col gap-3 border-l-2 border-dashed border-pencil pl-4 sm:pl-6">
               {topLevel.length === 0 && (
                 <div className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-2/60 px-4 py-6 text-center text-sm text-ink-faint">
-                  No {meta.lessonNoun.toLowerCase()}s yet
+                  
+                  {say("No")} {meta.lessonNoun.toLowerCase()}{say("s yet")}
                 </div>
               )}
               {items.map((item, idx) => (
@@ -429,8 +434,8 @@ export default function UnitCard({
                           moveItem.mutate({ unitId: unit.id, kind: item.kind, id: item.id, direction: 'up' })
                         }
                         disabled={idx === 0 || moveItem.isPending}
-                        aria-label="Move up"
-                        title="Move up"
+                        aria-label={say("Move up")}
+                        title={say("Move up")}
                         className="rounded-wobble-sm border-2 border-dashed border-pencil p-1 text-ink-faint transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
                       >
                         <ChevronUp className="h-3.5 w-3.5" strokeWidth={2.5} />
@@ -441,8 +446,8 @@ export default function UnitCard({
                           moveItem.mutate({ unitId: unit.id, kind: item.kind, id: item.id, direction: 'down' })
                         }
                         disabled={idx === items.length - 1 || moveItem.isPending}
-                        aria-label="Move down"
-                        title="Move down"
+                        aria-label={say("Move down")}
+                        title={say("Move down")}
                         className="rounded-wobble-sm border-2 border-dashed border-pencil p-1 text-ink-faint transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
                       >
                         <ChevronDown className="h-3.5 w-3.5" strokeWidth={2.5} />
@@ -509,7 +514,8 @@ export default function UnitCard({
                       className="flex items-center justify-center gap-1.5 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-2/40 px-3 py-2 font-heading text-sm font-semibold text-ink-faint transition-colors hover:border-ink hover:text-ink"
                     >
                       <Plus className="h-4 w-4" strokeWidth={2} />
-                      Add to this {meta.unitNoun.toLowerCase()}
+                      
+                      {say("Add to this")} {meta.unitNoun.toLowerCase()}
                     </button>
                   )}
 
@@ -518,7 +524,8 @@ export default function UnitCard({
                   {adding === 'choose' && (
                     <div className="rounded-wobble-sm border-2 border-dashed border-blue bg-paper px-3 py-3">
                       <span className="micro block text-[0.58rem] text-ink-faint">
-                        What are you adding to this {meta.unitNoun.toLowerCase()}?
+                        
+                        {say("What are you adding to this")} {meta.unitNoun.toLowerCase()}?
                       </span>
                       <div className="mt-2 grid gap-2 sm:grid-cols-2">
                         <button
@@ -530,7 +537,8 @@ export default function UnitCard({
                             <BookOpen className="h-4 w-4" strokeWidth={2} /> {meta.lessonNoun}
                           </span>
                           <span className="micro text-[0.58rem] text-ink-faint">
-                            A title and a prompt — something to generate and play
+                            
+                            {say("A title and a prompt — something to generate and play")}
                           </span>
                         </button>
                         <button
@@ -539,16 +547,18 @@ export default function UnitCard({
                           className="flex flex-col items-start gap-0.5 rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-left shadow-offset transition-transform hover:-translate-y-0.5"
                         >
                           <span className="flex items-center gap-1.5 font-heading text-sm font-bold text-ink">
-                            <ImageIcon className="h-4 w-4" strokeWidth={2} /> Image
+                            <ImageIcon className="h-4 w-4" strokeWidth={2} />  {say("Image")}
                           </span>
                           <span className="micro text-[0.58rem] text-ink-faint">
-                            Upload one, or have the AI draw it
+                            
+                            {say("Upload one, or have the AI draw it")}
                           </span>
                         </button>
                       </div>
                       <div className="mt-2 flex justify-end">
                         <SketchButton variant="ghost" size="sm" onClick={() => setAdding(null)}>
-                          Cancel
+                          
+                          {say("Cancel")}
                         </SketchButton>
                       </div>
                     </div>
@@ -557,7 +567,8 @@ export default function UnitCard({
                   {adding === 'lesson' && (
                     <div className="rounded-wobble-sm border-2 border-dashed border-blue bg-paper px-3 py-3">
                       <span className="micro block text-[0.58rem] text-ink-faint">
-                        New {meta.lessonNoun.toLowerCase()} — added at the end of this {meta.unitNoun.toLowerCase()}
+                        
+                        {say("New")} {meta.lessonNoun.toLowerCase()}  {say("— added at the end of this")} {meta.unitNoun.toLowerCase()}
                       </span>
                       <input
                         autoFocus
@@ -577,7 +588,8 @@ export default function UnitCard({
                       />
                       <div className="mt-2 flex items-center justify-end gap-2">
                         <SketchButton variant="ghost" size="sm" onClick={() => setAdding(null)}>
-                          Cancel
+                          
+                          {say("Cancel")}
                         </SketchButton>
                         <SketchButton
                           variant="accent"
@@ -586,7 +598,8 @@ export default function UnitCard({
                           onClick={submitNewLesson}
                         >
                           <Plus className="h-4 w-4" />
-                          Add {meta.lessonNoun.toLowerCase()}
+                          
+                          {say("Add")} {meta.lessonNoun.toLowerCase()}
                         </SketchButton>
                       </div>
                     </div>
@@ -595,22 +608,24 @@ export default function UnitCard({
                   {adding === 'image' && (
                     <div className="rounded-wobble-sm border-2 border-dashed border-blue bg-paper px-3 py-3">
                       <span className="micro block text-[0.58rem] text-ink-faint">
-                        New image — added at the end, then move it wherever you want
+                        
+                        {say("New image — added at the end, then move it wherever you want")}
                       </span>
                       <input
                         value={imageCaption}
                         onChange={(e) => setImageCaption(e.target.value)}
-                        placeholder="Caption (optional)"
-                        aria-label="Image caption"
+                        placeholder={say("Caption (optional)")}
+                        aria-label={say("Image caption")}
                         className="mt-2 w-full rounded-wobble-sm border-2 border-ink bg-paper-3 px-2.5 py-1.5 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
                       />
                       <div className="mt-3 grid gap-3 sm:grid-cols-2">
                         <div className="rounded-wobble-sm border-2 border-dashed border-pencil px-3 py-2.5">
                           <span className="micro block text-[0.58rem] font-semibold text-ink-soft">
-                            Upload — free
+                            
+                            {say("Upload — free")}
                           </span>
                           <label className="mt-2 flex cursor-pointer items-center justify-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-1.5 font-heading text-sm font-bold text-ink shadow-offset">
-                            <Upload className="h-4 w-4" strokeWidth={2} /> Choose a file
+                            <Upload className="h-4 w-4" strokeWidth={2} />  {say("Choose a file")}
                             <input
                               type="file"
                               accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
@@ -621,14 +636,15 @@ export default function UnitCard({
                         </div>
                         <div className="rounded-wobble-sm border-2 border-dashed border-pencil px-3 py-2.5">
                           <span className="micro block text-[0.58rem] font-semibold text-ink-soft">
-                            Let the AI draw it — costs credits
+                            
+                            {say("Let the AI draw it — costs credits")}
                           </span>
                           <textarea
                             value={imagePrompt}
                             onChange={(e) => setImagePrompt(e.target.value)}
-                            placeholder="What should it show?"
+                            placeholder={say("What should it show?")}
                             rows={2}
-                            aria-label="Image prompt"
+                            aria-label={say("Image prompt")}
                             className="mt-2 w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-2.5 py-1.5 text-[0.8rem] text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
                           />
                           <SketchButton
@@ -646,13 +662,14 @@ export default function UnitCard({
                               })
                             }
                           >
-                            <Sparkles className="h-4 w-4" strokeWidth={2} /> Generate
+                            <Sparkles className="h-4 w-4" strokeWidth={2} />  {say("Generate")}
                           </SketchButton>
                         </div>
                       </div>
                       <div className="mt-2 flex justify-end">
                         <SketchButton variant="ghost" size="sm" onClick={() => setAdding(null)}>
-                          Cancel
+                          
+                          {say("Cancel")}
                         </SketchButton>
                       </div>
                     </div>
@@ -698,12 +715,12 @@ function UnitImageCard({
       onChanged();
       if (r.cost > 0) void utils.auth.me.invalidate();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const onPickReplacement = (file: File | undefined) => {
     if (!file) return;
     const fr = new FileReader();
-    fr.onerror = () => toast.error("That file couldn't be read");
+    fr.onerror = () => toast.error(say("That file couldn't be read"));
     fr.onload = () => {
       const out = String(fr.result);
       const comma = out.indexOf(',');
@@ -721,8 +738,8 @@ function UnitImageCard({
       {canEdit && (
         <span className="absolute right-3 top-3 z-10 flex items-center gap-1">
           <label
-            aria-label="Upload a replacement"
-            title="Upload a different picture in this spot"
+            aria-label={say("Upload a replacement")}
+            title={say("Upload a different picture in this spot")}
             className="cursor-pointer rounded-wobble-sm border-2 border-transparent bg-paper-3/80 p-1 text-ink-faint transition-colors hover:border-dashed hover:border-ink hover:text-ink"
           >
             <Upload className="h-3.5 w-3.5" strokeWidth={2} />
@@ -739,8 +756,8 @@ function UnitImageCard({
             type="button"
             onClick={() => replace.mutate({ imageId: image.id, source: 'generate' })}
             disabled={replace.isPending}
-            aria-label="Regenerate image"
-            title="Regenerate this banner from the unit's content (costs credits)"
+            aria-label={say("Regenerate image")}
+            title={say("Regenerate this banner from the unit's content (costs credits)")}
             className="rounded-wobble-sm border-2 border-transparent bg-paper-3/80 p-1 text-ink-faint transition-colors hover:border-dashed hover:border-ink hover:text-ink disabled:cursor-wait"
           >
             {replace.isPending ? <PencilSpinner /> : <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />}
@@ -748,8 +765,8 @@ function UnitImageCard({
           <button
             type="button"
             onClick={onRemove}
-            aria-label="Remove image"
-            title="Remove image"
+            aria-label={say("Remove image")}
+            title={say("Remove image")}
             className="rounded-wobble-sm border-2 border-transparent bg-paper-3/80 p-1 text-ink-faint transition-colors hover:border-dashed hover:border-red hover:text-red"
           >
             <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
@@ -845,7 +862,7 @@ function LessonCard({
       // The row's completed · score · time · counter chips all read getBySlug.
       void utils.repos.getBySlug.invalidate({ slug: seed.repoSlug });
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   // Progress chips reflect ONLY the signed-in viewer's own runs
   const completed = lesson.myStatus === 'completed';
@@ -854,7 +871,7 @@ function LessonCard({
   const utils = trpc.useUtils();
   const deletePreset = trpc.repos.deleteLessonPreset.useMutation({
     onSuccess: () => {
-      toast.success('Preset cleared');
+      toast.success(say("Preset cleared"));
       void utils.repos.getBySlug.invalidate({ slug: seed.repoSlug });
     },
   });
@@ -878,8 +895,8 @@ function LessonCard({
   );
   const ticketCount = ticketQ.data?.count ?? 0;
   const requestTickets = trpc.tickets.request.useMutation({
-    onSuccess: () => toast.success("Requested — the owner will get back to you (usually on WhatsApp)"),
-    onError: (e) => toast.error(e.message),
+    onSuccess: () => toast.success(say("Requested — the owner will get back to you (usually on WhatsApp)")),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   // "Configure" — generate your OWN playable slide with the settings you like.
@@ -896,8 +913,8 @@ function LessonCard({
     if (purpose !== 'education') return null;
     if (isGuest)
       return (
-        <button type="button" onClick={onGuestStudy} className={cfgChipDashed} title="Sign in to configure your own version">
-          <Wand2 className="h-3 w-3" strokeWidth={2} /> Configure
+        <button type="button" onClick={onGuestStudy} className={cfgChipDashed} title={say("Sign in to configure your own version")}>
+          <Wand2 className="h-3 w-3" strokeWidth={2} />  {say("Configure")}
         </button>
       );
     const hasCfg = lesson.myHasCustomization;
@@ -907,8 +924,8 @@ function LessonCard({
     return (
       <span className="flex items-center gap-1">
         {hasCfg && (
-          <Link to={mineHref} className={cfgChip} title="Play the version you configured">
-            <Sparkles className="h-3 w-3" strokeWidth={2} /> Play yours
+          <Link to={mineHref} className={cfgChip} title={say("Play the version you configured")}>
+            <Sparkles className="h-3 w-3" strokeWidth={2} />  {say("Play yours")}
           </Link>
         )}
         {canNow ? (
@@ -935,9 +952,9 @@ function LessonCard({
             onClick={() => requestTickets.mutate({ repoSlug: seed.repoSlug, count: 1, note: '' })}
             disabled={requestTickets.isPending}
             className={cfgChipDashed}
-            title="Ask the repo's owner for a customization ticket"
+            title={say("Ask the repo's owner for a customization ticket")}
           >
-            <Ticket className="h-3 w-3" strokeWidth={2} /> Request ticket
+            <Ticket className="h-3 w-3" strokeWidth={2} />  {say("Request ticket")}
           </button>
         )}
       </span>
@@ -976,7 +993,7 @@ function LessonCard({
         type="button"
         onClick={() => publishKey.mutate({ repoSlug: seed.repoSlug, lessonSeq: seed.lessonSeq })}
         disabled={publishKey.isPending}
-        aria-label="Answer key"
+        aria-label={say("Answer key")}
         className={cfgChipDashed}
         title={
           key
@@ -1001,9 +1018,9 @@ function LessonCard({
           variant="accent"
           size="sm"
           disabled
-          title="Building this presentation — you can leave this page, it keeps going"
+          title={say("Building this presentation — you can leave this page, it keeps going")}
         >
-          <PencilSpinner /> Building…
+          <PencilSpinner />  {say("Building…")}
         </SketchButton>
       );
     }
@@ -1015,7 +1032,7 @@ function LessonCard({
           <span className="flex items-center gap-1.5">
             <Link to={playHref} className="no-underline">
               <SketchButton variant="accent" size="sm">
-                <Clapperboard className="h-4 w-4" strokeWidth={2} /> Play
+                <Clapperboard className="h-4 w-4" strokeWidth={2} />  {say("Play")}
               </SketchButton>
             </Link>
             {/* the eye rides beside Play, like on the slide cards; the
@@ -1023,13 +1040,13 @@ function LessonCard({
             {lesson.myBestRunId != null && (
               <Link
                 to={`/runs/${lesson.myBestRunId}/replay`}
-                title="Best run — every slide with its answers, free to read"
+                title={say("Best run — every slide with its answers, free to read")}
                 className="no-underline"
               >
                 <button
                   type="button"
                   className="rounded-wobble-sm border-2 border-pencil p-1.5 text-ink-soft transition-colors hover:border-ink hover:text-ink"
-                  aria-label="Best run"
+                  aria-label={say("Best run")}
                 >
                   <Eye className="h-3.5 w-3.5" strokeWidth={2} />
                 </button>
@@ -1042,8 +1059,8 @@ function LessonCard({
                   deletePreset.mutate({ repoSlug: seed.repoSlug, lessonSeq: seed.lessonSeq })
                 }
                 disabled={deletePreset.isPending}
-                title="Clear preset"
-                aria-label="Clear preset"
+                title={say("Clear preset")}
+                aria-label={say("Clear preset")}
                 className="rounded-wobble-sm border-2 border-transparent p-1.5 text-ink-faint transition-colors hover:border-dashed hover:border-red hover:text-red"
               >
                 <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
@@ -1056,11 +1073,11 @@ function LessonCard({
       if (!isOwner) return null;
       return isGuest ? (
         <span onClick={onGuestStudy}>
-          <ActionBtn label="Set" title="Generate this item's presentation, then save it as a preset" />
+          <ActionBtn label="Set" title={say("Generate this item's presentation, then save it as a preset")} />
         </span>
       ) : (
         <span onClick={() => setWizard('set')}>
-          <ActionBtn label="Set" title="Generate this item's presentation, then save it as a preset" />
+          <ActionBtn label="Set" title={say("Generate this item's presentation, then save it as a preset")} />
         </span>
       );
     }
@@ -1096,8 +1113,8 @@ function LessonCard({
       return (
         <span className="flex items-center gap-1.5">
           <Link to={playHref} className="no-underline">
-            <SketchButton variant="accent" size="sm" title="Watch the free version">
-              <Clapperboard className="h-4 w-4" strokeWidth={2} /> Play
+            <SketchButton variant="accent" size="sm" title={say("Watch the free version")}>
+              <Clapperboard className="h-4 w-4" strokeWidth={2} />  {say("Play")}
             </SketchButton>
           </Link>
           {/* the eye rides beside Play, like on the slide cards; the
@@ -1105,13 +1122,13 @@ function LessonCard({
           {lesson.myBestRunId != null && (
             <Link
               to={`/runs/${lesson.myBestRunId}/replay`}
-              title="Best run — every slide with its answers, free to read"
+              title={say("Best run — every slide with its answers, free to read")}
               className="no-underline"
             >
               <button
                 type="button"
                 className="rounded-wobble-sm border-2 border-pencil p-1.5 text-ink-soft transition-colors hover:border-ink hover:text-ink"
-                aria-label="Best run"
+                aria-label={say("Best run")}
               >
                 <Eye className="h-3.5 w-3.5" strokeWidth={2} />
               </button>
@@ -1121,8 +1138,8 @@ function LessonCard({
             type="button"
             onClick={() => deletePreset.mutate({ repoSlug: seed.repoSlug, lessonSeq: seed.lessonSeq })}
             disabled={deletePreset.isPending}
-            title="Clear the free preset"
-            aria-label="Clear preset"
+            title={say("Clear the free preset")}
+            aria-label={say("Clear preset")}
             className="rounded-wobble-sm border-2 border-transparent p-1.5 text-ink-faint transition-colors hover:border-dashed hover:border-red hover:text-red"
           >
             <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
@@ -1136,8 +1153,8 @@ function LessonCard({
     if (lesson.hasPreset) {
       return (
         <Link to={playHref} className="no-underline">
-          <SketchButton variant="accent" size="sm" title="Watch the free version — no credits needed">
-            <Clapperboard className="h-4 w-4" strokeWidth={2} /> Play
+          <SketchButton variant="accent" size="sm" title={say("Watch the free version — no credits needed")}>
+            <Clapperboard className="h-4 w-4" strokeWidth={2} />  {say("Play")}
           </SketchButton>
         </Link>
       );
@@ -1179,7 +1196,8 @@ function LessonCard({
           >
             <DoodleCheck className="h-4 w-4" />
             <span className="micro text-[0.6rem]">
-              completed
+              
+              {say("completed")}
               {lesson.myBestTotal > 0 && ` · ${lesson.myBestCorrect}/${lesson.myBestTotal}`}
             </span>
           </span>
@@ -1190,28 +1208,29 @@ function LessonCard({
           >
             <RotateCcw className="h-3.5 w-3.5" />
             <span className="micro text-[0.6rem]">
-              try again · {lesson.myBestCorrect}/{lesson.myBestTotal}
+              
+              {say("try again ·")} {lesson.myBestCorrect}/{lesson.myBestTotal}
             </span>
           </span>
         ) : isNextUp ? (
-          <span title="Next up" className="flex animate-low-pulse items-center gap-1 text-[#b8860b]">
+          <span title={say("Next up")} className="flex animate-low-pulse items-center gap-1 text-[#b8860b]">
             <Hourglass className="h-3.5 w-3.5" />
-            <span className="micro text-[0.6rem]">next up</span>
+            <span className="micro text-[0.6rem]">{say("next up")}</span>
           </span>
         ) : (
-          <span title="Unplayed" className="flex items-center gap-1 text-ink-faint">
+          <span title={say("Unplayed")} className="flex items-center gap-1 text-ink-faint">
             <Square className="h-3.5 w-3.5" />
-            <span className="micro text-[0.6rem]">unplayed</span>
+            <span className="micro text-[0.6rem]">{say("unplayed")}</span>
           </span>
         )}
         {/* owner: build a playable presentation by hand (only until one is set) */}
         {isOwner && !lesson.hasPreset && (
           <Link
             to={editHref}
-            title="Build a playable presentation by hand — no AI"
+            title={say("Build a playable presentation by hand — no AI")}
             className="micro flex items-center gap-1 rounded-wobble-sm border border-ink bg-purple-soft px-1.5 py-0.5 text-[0.58rem] font-semibold text-ink no-underline transition-colors hover:bg-purple/20"
           >
-            <PencilRuler className="h-3 w-3" /> Manual
+            <PencilRuler className="h-3 w-3" />  {say("Manual")}
           </Link>
         )}
         {/* configure your own playable slide (education), next to the stickers */}
@@ -1226,7 +1245,7 @@ function LessonCard({
           <>
             {lesson.myBestLevel && (
               <span
-                title="Level of your best attempt"
+                title={say("Level of your best attempt")}
                 className="micro rounded-wobble-sm border border-pencil bg-paper-2 px-1.5 text-[0.58rem] text-ink-soft"
               >
                 {lesson.myBestLevel}
@@ -1234,7 +1253,7 @@ function LessonCard({
             )}
             {lesson.myBestElapsedSec > 0 && (
               <span
-                title="Time of your best attempt"
+                title={say("Time of your best attempt")}
                 className="micro flex items-center gap-0.5 text-[0.58rem] text-ink-faint"
               >
                 <Clock className="h-3 w-3" />
@@ -1257,8 +1276,8 @@ function LessonCard({
         {isOwner && lesson.hasPreset && (
           <Link
             to={editHref}
-            title="Edit this preset's slides — text, questions, answers"
-            aria-label="Edit preset"
+            title={say("Edit this preset's slides — text, questions, answers")}
+            aria-label={say("Edit preset")}
             className={cfgChipDashed}
           >
             <Pencil className="h-3 w-3" strokeWidth={2} />
@@ -1268,13 +1287,13 @@ function LessonCard({
           <span className="ml-auto flex items-center gap-1">
             {confirmDelete ? (
               <>
-                <span className="micro text-[0.6rem] font-bold text-red">delete?</span>
+                <span className="micro text-[0.6rem] font-bold text-red">{say("delete?")}</span>
                 <button
                   type="button"
                   onClick={() => controls.onDelete(lesson.id)}
                   disabled={controls.deleting}
-                  aria-label="Confirm delete"
-                  title="Confirm delete"
+                  aria-label={say("Confirm delete")}
+                  title={say("Confirm delete")}
                   className="rounded-wobble-sm p-1 text-red transition-colors hover:bg-red-soft"
                 >
                   <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
@@ -1282,8 +1301,8 @@ function LessonCard({
                 <button
                   type="button"
                   onClick={() => setConfirmDelete(false)}
-                  aria-label="Cancel delete"
-                  title="Cancel"
+                  aria-label={say("Cancel delete")}
+                  title={say("Cancel")}
                   className="rounded-wobble-sm p-1 text-ink-faint transition-colors hover:bg-paper-2 hover:text-ink"
                 >
                   <X className="h-3.5 w-3.5" strokeWidth={2.5} />
@@ -1293,8 +1312,8 @@ function LessonCard({
               <button
                 type="button"
                 onClick={() => setConfirmDelete(true)}
-                aria-label="Delete lesson"
-                title="Delete lesson"
+                aria-label={say("Delete lesson")}
+                title={say("Delete lesson")}
                 className="rounded-wobble-sm p-1 text-ink-faint transition-colors hover:bg-red-soft hover:text-red"
               >
                 <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
@@ -1318,7 +1337,7 @@ function LessonCard({
       {editingObjective && controls ? (
         <div className="mt-3 rounded-wobble-sm border border-blue bg-paper px-3 py-2">
           <span className="micro block text-[0.58rem] text-ink-faint">
-            {objectiveLabel} / prompt — editing
+            {objectiveLabel}  {say("/ prompt — editing")}
           </span>
           <textarea
             autoFocus
@@ -1343,7 +1362,8 @@ function LessonCard({
                 setEditingObjective(false);
               }}
             >
-              Cancel
+              
+              {say("Cancel")}
             </SketchButton>
             <SketchButton
               variant="accent"
@@ -1352,7 +1372,8 @@ function LessonCard({
               onClick={saveObjective}
             >
               <Check className="h-4 w-4" />
-              Save
+              
+              {say("Save")}
             </SketchButton>
           </div>
         </div>
@@ -1365,7 +1386,7 @@ function LessonCard({
               aria-expanded={objectiveOpen}
               className="uppercase tracking-[0.12em] hover:text-ink"
             >
-              {objectiveLabel} / prompt
+              {objectiveLabel}  {say("/ prompt")}
             </button>
             <span className="flex items-center gap-1.5">
               {controls && (
@@ -1383,7 +1404,7 @@ function LessonCard({
                 </button>
               )}
               <span className="font-mono normal-case tracking-normal">
-                {lesson.objective.length} chars
+                {lesson.objective.length}  {say("chars")}
               </span>
             </span>
           </div>

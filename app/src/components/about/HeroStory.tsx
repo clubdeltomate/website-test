@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { cn } from '@/lib/utils';
+import { say } from '@/lib/i18n';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -53,7 +54,7 @@ function LoopDiagram() {
       viewBox="0 0 760 400"
       className="mx-auto w-full max-w-[680px]"
       role="img"
-      aria-label="The loop: repository, slide tool, and lesson log connected by dashed arrows"
+      aria-label={say("The loop: repository, slide tool, and lesson log connected by dashed arrows")}
     >
       {/* ---- Repository notebook (left) ---- */}
       <g className="loop-node">
@@ -236,7 +237,7 @@ export default function HeroStory() {
   return (
     <section
       ref={rootRef}
-      aria-label="Introduction"
+      aria-label={say("Introduction")}
       className="relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden px-6 py-16"
     >
       {/* faint static underlayer (about.md §1) */}
@@ -274,9 +275,9 @@ export default function HeroStory() {
       <div className="loop-diagram relative mt-12 w-full motion-safe:md:mt-6">
         <LoopDiagram />
         <div className="mt-2 flex flex-wrap items-center justify-center gap-x-8 gap-y-1 font-heading text-sm text-ink-soft">
-          <span>📒 Repository</span>
-          <span>🎞️ Slide tool</span>
-          <span>✏️ Lesson log</span>
+          <span>{say("📒 Repository")}</span>
+          <span>{say("🎞️ Slide tool")}</span>
+          <span>{say("✏️ Lesson log")}</span>
         </div>
       </div>
 
@@ -291,7 +292,7 @@ export default function HeroStory() {
             strokeLinejoin="round"
           />
         </svg>
-        <p className="micro mt-1">scroll</p>
+        <p className="micro mt-1">{say("scroll")}</p>
       </div>
     </section>
   );

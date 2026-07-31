@@ -5,6 +5,7 @@ import { AuthorProfileLink } from './EndingActions';
 import WashiTape from '../sketch/WashiTape';
 import { DoodleSparkle } from '../sketch/DoodleIcons';
 import type { CommercialInfo } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 /** Turn a phone-ish string into a wa.me link (digits only). */
 function waLink(whatsapp: string): string | null {
@@ -39,7 +40,8 @@ export default function CommercialFinish({
         <DoodleSparkle className="mx-auto h-8 w-8 text-purple" />
         <h1 className="mt-2 font-display text-4xl font-bold text-ink">{itemTitle}</h1>
         <p className="mt-1 text-ink-soft">
-          Offered by <span className="font-bold text-ink">{owner.name}</span>
+          
+          {say("Offered by")} <span className="font-bold text-ink">{owner.name}</span>
         </p>
         {owner.contactNote && (
           <p className="mx-auto mt-3 max-w-md text-sm text-ink-soft">{owner.contactNote}</p>
@@ -49,7 +51,8 @@ export default function CommercialFinish({
         <div className="mt-7">
           <SketchButton variant="accent" className="w-full justify-center" onClick={onExit}>
             <ArrowLeft className="h-4 w-4" strokeWidth={2} />
-            Back to browsing
+            
+            {say("Back to browsing")}
           </SketchButton>
         </div>
 
@@ -63,12 +66,13 @@ export default function CommercialFinish({
               className="inline-flex items-center gap-1.5 font-heading text-sm font-semibold text-ink underline underline-offset-4 transition-colors hover:text-green"
             >
               <MessageCircle className="h-4 w-4" strokeWidth={2} />
-              Contact {owner.name} through WhatsApp
+              
+              {say("Contact")} {owner.name}  {say("through WhatsApp")}
             </a>
           )}
           <AuthorProfileLink ownerId={owner.ownerId} ownerName={owner.name} />
           {!wa && owner.ownerId == null && (
-            <p className="text-sm text-ink-faint">The seller hasn't added contact details yet.</p>
+            <p className="text-sm text-ink-faint">{say("The seller hasn't added contact details yet.")}</p>
           )}
         </div>
       </motion.div>

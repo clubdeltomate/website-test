@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import { cn } from '@/lib/utils';
+import { say } from '@/lib/i18n';
 
 export interface TokenMeterProps {
   tokens?: number;
@@ -30,7 +31,7 @@ export default function TokenMeter({
         low && 'animate-low-pulse',
         className,
       )}
-      title="Tokens — click to recharge"
+      title={say("Tokens — click to recharge")}
     >
       {/* pencil body */}
       <span className="relative block h-3.5 w-24 overflow-hidden rounded-r-full rounded-l-sm border-2 border-ink bg-paper-2">
@@ -42,7 +43,7 @@ export default function TokenMeter({
         <span className="absolute right-0 top-0 h-full w-2 bg-red/70 border-l-2 border-ink" />
       </span>
       <span className="font-mono text-xs text-ink-soft group-hover:text-ink">
-        {tokens} tokens
+        {tokens}  {say("tokens")}
       </span>
     </Link>
   );

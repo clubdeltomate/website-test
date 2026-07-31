@@ -24,6 +24,7 @@ import PostDetails from '@/components/feed/PostDetails';
 import PostCard from '@/components/feed/PostCard';
 import SketchButton from '@/components/sketch/SketchButton';
 import EmptyState from '@/components/sketch/EmptyState';
+import { say } from '@/lib/i18n';
 
 /* The feed — the front door.
  *
@@ -121,7 +122,7 @@ export function Carousel({ post, height }: { post: PostSummary; height?: string 
             type="button"
             disabled={at === 0}
             onClick={() => setAt((a) => a - 1)}
-            aria-label="Previous slide"
+            aria-label={say("Previous slide")}
             className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full border-2 border-ink bg-paper-3/90 p-1.5 text-ink shadow-offset disabled:opacity-0"
           >
             <ChevronLeft className="h-4 w-4" strokeWidth={2.5} />
@@ -130,7 +131,7 @@ export function Carousel({ post, height }: { post: PostSummary; height?: string 
             type="button"
             disabled={at === post.imageUrls.length - 1}
             onClick={() => setAt((a) => a + 1)}
-            aria-label="Next slide"
+            aria-label={say("Next slide")}
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full border-2 border-ink bg-paper-3/90 p-1.5 text-ink shadow-offset disabled:opacity-0"
           >
             <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
@@ -206,9 +207,9 @@ export default function Feed() {
     try {
       await utils.client.posts.remove.mutate({ slug });
       await list.refetch();
-      toast.success('Post removed');
+      toast.success(say("Post removed"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "That post couldn't be removed");
+      toast.error(say(err instanceof Error ? err.message : "That post couldn't be removed"));
     }
   };
 
@@ -353,7 +354,8 @@ export default function Feed() {
             : 'border-dashed border-pencil bg-paper-3/80 text-ink-soft hover:border-ink hover:text-ink',
         )}
       >
-        All
+        
+        {say("All")}
       </button>
       {POST_CATEGORIES.map((c) => {
         const meta = TEMPLATE_META[c];
@@ -391,7 +393,7 @@ export default function Feed() {
             goTo(0);
           }}
           aria-pressed={savedOnly}
-          title="Only the posts you saved"
+          title={say("Only the posts you saved")}
           className={cn(
             'micro flex items-center gap-1 rounded-wobble-sm border-2 px-2.5 py-1.5 text-[0.6rem] font-bold transition-colors',
             savedOnly
@@ -400,12 +402,13 @@ export default function Feed() {
           )}
         >
           <Heart className="h-3 w-3" strokeWidth={2} fill={savedOnly ? 'currentColor' : 'none'} />
-          Saved
+          
+          {say("Saved")}
         </button>
       )}
       {user?.role === 'admin' && (
         <SketchButton variant="accent" onClick={() => navigate('/admin/projects/marketing')}>
-          <Plus className="h-4 w-4" strokeWidth={2.5} /> New post
+          <Plus className="h-4 w-4" strokeWidth={2.5} />  {say("New post")}
         </SketchButton>
       )}
     </div>
@@ -422,7 +425,7 @@ export default function Feed() {
       >
         {controls}
         {list.isLoading ? (
-          <p className="micro text-[0.62rem] text-ink-faint">Loading the feed…</p>
+          <p className="micro text-[0.62rem] text-ink-faint">{say("Loading the feed…")}</p>
         ) : feed.length === 0 ? (
           empty
         ) : (
@@ -447,7 +450,7 @@ export default function Feed() {
       {controls}
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row lg:items-center lg:justify-center lg:gap-4">
       {list.isLoading ? (
-        <p className="micro m-auto text-[0.62rem] text-ink-faint">Loading the feed…</p>
+        <p className="micro m-auto text-[0.62rem] text-ink-faint">{say("Loading the feed…")}</p>
       ) : feed.length === 0 ? (
         <div className="m-auto">{empty}</div>
       ) : (
@@ -477,7 +480,7 @@ export default function Feed() {
               type="button"
               disabled={shown === 0}
               onClick={() => goTo(shown - 1)}
-              aria-label="Previous post"
+              aria-label={say("Previous post")}
               className="rounded-full border-2 border-ink bg-paper-3 p-2 text-ink shadow-offset transition-transform hover:-translate-y-0.5 disabled:opacity-30 disabled:hover:translate-y-0"
             >
               <ChevronUp className="h-4 w-4" strokeWidth={2.5} />
@@ -493,7 +496,7 @@ export default function Feed() {
               type="button"
               disabled={shown >= feed.length - 1}
               onClick={() => goTo(shown + 1)}
-              aria-label="Next post"
+              aria-label={say("Next post")}
               className="rounded-full border-2 border-ink bg-paper-3 p-2 text-ink shadow-offset transition-transform hover:-translate-y-0.5 disabled:opacity-30 disabled:hover:translate-y-0"
             >
               <ChevronDown className="h-4 w-4" strokeWidth={2.5} />

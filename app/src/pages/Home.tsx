@@ -23,6 +23,7 @@ import { DoodleSparkle } from '@/components/sketch/DoodleIcons';
 import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 import type { CoachAction } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -121,7 +122,7 @@ const nextId = () => `m${++idCounter}`;
 
 function TypingDots() {
   return (
-    <span className="inline-flex items-end gap-1 px-1 py-1" aria-label="Coach is typing">
+    <span className="inline-flex items-end gap-1 px-1 py-1" aria-label={say("Coach is typing")}>
       {[0, 1, 2].map((i) => (
         <span
           key={i}
@@ -157,7 +158,7 @@ function ActionCardView({ card, index }: { card: ActionCard; index: number }) {
       >
         <WashiTape rotate={-4} className="left-4 w-16" />
         <p className="micro flex items-center gap-1 text-ink-faint">
-          <DoodleSparkle className="h-3.5 w-3.5 text-purple" /> Pick up where you left off
+          <DoodleSparkle className="h-3.5 w-3.5 text-purple" />  {say("Pick up where you left off")}
         </p>
         <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
           {RECENT_NOTEBOOKS.slice(0, 3).map((nb) => (
@@ -166,7 +167,7 @@ function ActionCardView({ card, index }: { card: ActionCard; index: number }) {
               to={nb.to}
               className="flex min-w-[150px] flex-col rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-2 px-3 py-2 no-underline transition-all hover:-translate-y-0.5 hover:border-ink"
             >
-              <span className="font-heading text-sm font-semibold text-ink">{nb.title}</span>
+              <span className="font-heading text-sm font-semibold text-ink">{say(nb.title)}</span>
               <span className="micro mt-0.5 text-[0.65rem] text-ink-faint">
                 {nb.ref} · {nb.meta}
               </span>
@@ -200,7 +201,7 @@ function ActionCardView({ card, index }: { card: ActionCard; index: number }) {
         )}
         {isLessonPath && card.units && (
           <span className="font-mono text-xs text-ink-soft">
-            ~{card.units} units × {card.lessons} lessons
+            ~{card.units}  {say("units ×")} {card.lessons}  {say("lessons")}
           </span>
         )}
       </div>
@@ -209,17 +210,20 @@ function ActionCardView({ card, index }: { card: ActionCard; index: number }) {
           <>
             <Link to="/lesson-path">
               <SketchButton variant="accent" size="sm">
-                Open in Lesson Path
+                
+                {say("Open in Lesson Path")}
               </SketchButton>
             </Link>
             <SketchButton variant="ghost" size="sm" onClick={() => navigate('/repos')}>
-              Quick generate — skip the form
+              
+              {say("Quick generate — skip the form")}
             </SketchButton>
           </>
         ) : (
           <Link to="/slides">
             <SketchButton variant="secondary" size="sm">
-              Open a slide tool with this topic
+              
+              {say("Open a slide tool with this topic")}
             </SketchButton>
           </Link>
         )}
@@ -256,7 +260,7 @@ function Hero({ onSuggestion }: { onSuggestion: (text: string) => void }) {
         <div className="flex items-center gap-3">
           <motion.img
             src="/coach-avatar.svg"
-            alt="Coach, your pencil mascot"
+            alt={say("Coach, your pencil mascot")}
             className="h-16 w-16"
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -290,8 +294,8 @@ function Hero({ onSuggestion }: { onSuggestion: (text: string) => void }) {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.4, delay: 0.55 }}
         >
-          Tell me about your course, your menu, your services, or your shop —
-          I'll sketch a plan and build the slides with you.
+          
+          {say("Tell me about your course, your menu, your services, or your shop — I'll sketch a plan and build the slides with you.")}
         </motion.p>
 
         <div className="mt-8 grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-2">
@@ -305,7 +309,7 @@ function Hero({ onSuggestion }: { onSuggestion: (text: string) => void }) {
               transition={{ duration: 0.4, delay: 0.7 + i * 0.09, ease: [0.22, 1, 0.36, 1] }}
             >
               <span className="mr-2" aria-hidden="true">{s.icon}</span>
-              {s.label}
+              {say(s.label)}
             </motion.button>
           ))}
         </div>
@@ -317,8 +321,9 @@ function Hero({ onSuggestion }: { onSuggestion: (text: string) => void }) {
             animate={{ opacity: 1 }}
             transition={{ delay: 1.1 }}
           >
-            The Coach is for members —{' '}
-            <Link to="/auth" className="squiggle">sign in</Link> to chat (1 🪙 per message).
+            
+            {say("The Coach is for members —")}{' '}
+            <Link to="/auth" className="squiggle">{say("sign in")}</Link>  {say("to chat (1 🪙 per message).")}
           </motion.p>
         )}
       </div>
@@ -335,7 +340,7 @@ function ContextRailContent() {
   const [tipIndex, setTipIndex] = useState(0);
   return (
     <div className="flex h-full flex-col gap-4 p-4">
-      <p className="micro text-ink-faint">Recent notebooks</p>
+      <p className="micro text-ink-faint">{say("Recent notebooks")}</p>
       <div className="flex flex-col gap-2">
         {RECENT_NOTEBOOKS.slice(0, 4).map((nb, i) => (
           <motion.div
@@ -362,7 +367,7 @@ function ContextRailContent() {
               </span>
               <span className="min-w-0">
                 <span className="block truncate font-heading text-sm font-semibold text-ink">
-                  {nb.title}
+                  {say(nb.title)}
                 </span>
                 <span className="micro block truncate text-[0.62rem] text-ink-faint">
                   {nb.ref} · {nb.meta}
@@ -378,7 +383,7 @@ function ContextRailContent() {
           <p>{TIPS[tipIndex]}</p>
           <button
             onClick={() => setTipIndex((i) => (i + 1) % TIPS.length)}
-            aria-label="Next tip"
+            aria-label={say("Next tip")}
             className="shrink-0 rounded-full p-1 transition-transform duration-300 hover:rotate-180"
           >
             <RefreshCw className="h-4 w-4" strokeWidth={2} />
@@ -392,9 +397,11 @@ function ContextRailContent() {
         ) : (
           <p className="micro text-ink-faint">
             <Link to="/auth" className="squiggle">
-              Sign in
+              
+              {say("Sign in")}
             </Link>{' '}
-            to earn and spend 🪙 tokens.
+            
+            {say("to earn and spend 🪙 tokens.")}
           </p>
         )}
       </div>
@@ -589,7 +596,7 @@ export default function Home() {
                 {/* day divider */}
                 <div className="flex items-center gap-3 text-ink-faint">
                   <span className="h-0 flex-1 border-t-2 border-dashed border-pencil" />
-                  <span className="micro">Today</span>
+                  <span className="micro">{say("Today")}</span>
                   <span className="h-0 flex-1 border-t-2 border-dashed border-pencil" />
                 </div>
 
@@ -634,7 +641,7 @@ export default function Home() {
                           {msg.error && (
                             <div className="mt-2">
                               <SketchButton variant="danger" size="sm" onClick={retryLast}>
-                                <RotateCcw className="h-3.5 w-3.5" /> Retry
+                                <RotateCcw className="h-3.5 w-3.5" />  {say("Retry")}
                               </SketchButton>
                             </div>
                           )}
@@ -671,7 +678,7 @@ export default function Home() {
             onClick={() => setRecentOpen(true)}
             className="absolute right-4 top-3 flex items-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-paper-3 px-2.5 py-1.5 font-heading text-sm font-semibold text-ink shadow-offset transition-transform hover:-translate-y-0.5 min-[1440px]:hidden"
           >
-            <History className="h-4 w-4" strokeWidth={2} /> Recent
+            <History className="h-4 w-4" strokeWidth={2} />  {say("Recent")}
           </button>
 
           {/* composer */}
@@ -681,24 +688,24 @@ export default function Home() {
                 <div className="flex flex-col gap-1 pb-1">
                   <button
                     onClick={() => navigate('/lesson-path')}
-                    title="New repo"
-                    aria-label="New repo"
+                    title={say("New repo")}
+                    aria-label={say("New repo")}
                     className="rounded-wobble-sm p-1.5 text-ink-soft transition-all duration-300 hover:rotate-2 hover:bg-paper-2 hover:text-ink"
                   >
                     <BookOpen className="h-[18px] w-[18px]" strokeWidth={2} />
                   </button>
                   <button
                     onClick={() => navigate('/slides/new')}
-                    title="New slide tool"
-                    aria-label="New slide tool"
+                    title={say("New slide tool")}
+                    aria-label={say("New slide tool")}
                     className="rounded-wobble-sm p-1.5 text-ink-soft transition-all duration-300 hover:rotate-2 hover:bg-paper-2 hover:text-ink"
                   >
                     <Clapperboard className="h-[18px] w-[18px]" strokeWidth={2} />
                   </button>
                   <button
                     onClick={surpriseMe}
-                    title="Surprise me"
-                    aria-label="Surprise me"
+                    title={say("Surprise me")}
+                    aria-label={say("Surprise me")}
                     className="rounded-wobble-sm p-1.5 text-ink-soft transition-all duration-300 hover:-rotate-2 hover:bg-paper-2 hover:text-ink"
                   >
                     <Dices className="h-[18px] w-[18px]" strokeWidth={2} />
@@ -714,13 +721,13 @@ export default function Home() {
                   }}
                   onKeyDown={onKeyDown}
                   placeholder={PLACEHOLDERS[placeholderIdx]}
-                  aria-label="Message the Coach"
+                  aria-label={say("Message the Coach")}
                   className="max-h-40 flex-1 resize-none bg-transparent px-1 py-1.5 font-body text-[0.95rem] text-ink placeholder:text-ink-faint focus:outline-none"
                 />
                 <button
                   onClick={() => send(input)}
                   disabled={!input.trim() || sending}
-                  aria-label="Send message"
+                  aria-label={say("Send message")}
                   className="rounded-wobble-sm border-2 border-ink bg-ink p-2.5 text-paper-3 shadow-offset transition-all hover:bg-[#3d352b] active:translate-x-[2px] active:translate-y-[2px] active:shadow-offset-pressed disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Send className="h-[18px] w-[18px]" strokeWidth={2} />
@@ -729,7 +736,8 @@ export default function Home() {
             </div>
             {isGuest && (
               <p className="mt-1.5 text-center font-mono text-xs text-ink-faint">
-                Sign in to chat — each Coach message costs 1 🪙
+                
+                {say("Sign in to chat — each Coach message costs 1 🪙")}
               </p>
             )}
           </div>
@@ -767,7 +775,7 @@ export default function Home() {
               <div className="flex justify-end p-2">
                 <button
                   onClick={() => setRecentOpen(false)}
-                  aria-label="Close recent notebooks"
+                  aria-label={say("Close recent notebooks")}
                   className="rounded-wobble-sm p-1.5 text-ink-soft hover:bg-paper-2 hover:text-ink"
                 >
                   <X className="h-5 w-5" />

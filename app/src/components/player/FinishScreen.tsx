@@ -15,6 +15,7 @@ import { AuthorProfileLink } from './EndingActions';
 import Chip from '../sketch/Chip';
 import { DoodleCheck } from '../sketch/DoodleIcons';
 import type { QuizAnswer } from './QuizCard';
+import { say } from '@/lib/i18n';
 
 export interface FinishScreenProps {
   deck: SlideDeck;
@@ -89,7 +90,7 @@ export default function FinishScreen({
     // congratulated you and the repo went on saying the lesson was unplayed,
     // with no stats and no way to tell something had gone wrong.
     onError: (e) =>
-      toast.error(`This play wasn't recorded — ${e.message}`, { duration: 9000 }),
+      toast.error(say(`This play wasn't recorded — ${e.message}`), { duration: 9000 }),
     onSuccess: () => {
       // refresh the repo page so the lesson chip (completed / try again)
       // and next-up marker reflect this run when the player goes back
@@ -236,7 +237,7 @@ export default function FinishScreen({
       >
         <img
           src="/finish-celebration.svg"
-          alt="Trophy doodle with confetti"
+          alt={say("Trophy doodle with confetti")}
           className="w-64 max-w-full"
         />
         <h1 className="mt-4 font-display text-6xl font-bold leading-none text-ink sm:text-7xl">
@@ -259,12 +260,11 @@ export default function FinishScreen({
           >
             {passed ? (
               <>
-                <DoodleCheck className="h-4 w-4" /> Lesson completed
+                <DoodleCheck className="h-4 w-4" />  {say("Lesson completed")}
               </>
             ) : (
               <>
-                <RotateCcw className="h-4 w-4" /> Below {Math.round(PASS_THRESHOLD * 100)}% — marked
-                try again
+                <RotateCcw className="h-4 w-4" />  {say("Below")} {Math.round(PASS_THRESHOLD * 100)}{say("% — marked try again")}
               </>
             )}
           </span>
@@ -274,22 +274,26 @@ export default function FinishScreen({
       {/* save status — never lose the log silently (§C6) */}
       {complete.isPending && (
         <p className="mt-6 text-center font-display text-2xl text-ink-faint">
-          Grading your quiz…
+          
+          {say("Grading your quiz…")}
         </p>
       )}
       {complete.isError && (
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3 rounded-wobble-sm border-2 border-red bg-red-soft px-4 py-3 text-sm font-bold text-ink">
           <TriangleAlert className="h-4 w-4 text-red" />
-          Couldn't save this run — your log matters to us.
+          
+          {say("Couldn't save this run — your log matters to us.")}
           <SketchButton size="sm" variant="secondary" onClick={retrySave}>
-            Retry save
+            
+            {say("Retry save")}
           </SketchButton>
         </div>
       )}
       {complete.isSuccess && (
         <div className="mt-6 flex flex-col items-center gap-2">
           <p className="text-center text-sm text-ink-soft">
-            Run saved ✦{' '}
+            
+            {say("Run saved ✦")}{' '}
             {seed
               ? 'The lesson log was folded into this repo’s memory.'
               : 'Find it under Presentation runs.'}
@@ -298,7 +302,8 @@ export default function FinishScreen({
             <Link to={`/runs/${complete.data.runId}/replay`} className="no-underline">
               <SketchButton size="sm" variant="secondary">
                 <PlayCircle className="h-4 w-4" />
-                Review this play
+                
+                {say("Review this play")}
               </SketchButton>
             </Link>
           )}
@@ -332,7 +337,8 @@ export default function FinishScreen({
       {scoreTotal > 0 && (
         <section className="mt-10">
           <h2 className="font-display text-3xl font-bold text-ink">
-            Review your answers
+            
+            {say("Review your answers")}
           </h2>
           <ul className="mt-4 flex flex-col gap-2.5">
             {deck.slides.map((slide, i) => {
@@ -359,7 +365,8 @@ export default function FinishScreen({
                       {slide.quiz.question}
                     </p>
                     <p className="text-xs text-ink-soft">
-                      You {ans?.firstText != null ? 'answered' : 'picked'}:{' '}
+                      
+                      {say("You")} {ans?.firstText != null ? 'answered' : 'picked'}:{' '}
                       <span className="font-bold">
                         {ans?.firstText ??
                           (ans && typeof ans.firstChosen === 'number'
@@ -369,7 +376,8 @@ export default function FinishScreen({
                       {!correct && (
                         <>
                           {' '}
-                          · Correct:{' '}
+                          
+                          {say("· Correct:")}{' '}
                           <span className="font-bold">
                             {slide.quiz.answer ??
                               (slide.quiz.options && typeof slide.quiz.correctIndex === 'number'
@@ -384,7 +392,8 @@ export default function FinishScreen({
                     onClick={() => onReviewSlide(i)}
                     className="micro rounded-wobble-sm border-2 border-ink bg-paper-3 px-2.5 py-1 text-ink transition-transform hover:-translate-y-0.5"
                   >
-                    Slide {i + 1}
+                    
+                    {say("Slide")} {i + 1}
                   </button>
                 </li>
               );
@@ -412,15 +421,17 @@ export default function FinishScreen({
                 className="flex h-full w-full flex-col gap-1 rounded-wobble-2 border-2 border-ink bg-yellow p-5 text-left shadow-offset transition-transform hover:-translate-y-1"
               >
                 <Chip kind="repo-ref" className="w-fit">
-                  Lesson {seed.lessonSeq} of {seed.lessonSeqTotal}
+                  
+                  {say("Lesson")} {seed.lessonSeq}  {say("of")} {seed.lessonSeqTotal}
                 </Chip>
                 <span className="mt-1 flex items-center gap-2 font-heading text-lg font-bold text-ink">
-                  Try this lesson again
+                  
+                  {say("Try this lesson again")}
                   <RotateCcw className="h-5 w-5" />
                 </span>
                 <span className="text-sm text-ink-soft">
-                  Score {Math.round(PASS_THRESHOLD * 100)}% or more to mark it completed and
-                  unlock the next one.
+                  
+                  {say("Score")} {Math.round(PASS_THRESHOLD * 100)}{say("% or more to mark it completed and unlock the next one.")}
                 </span>
               </button>
             </motion.div>
@@ -429,7 +440,8 @@ export default function FinishScreen({
             >
               <Link to={`/repos/${seed.repoSlug}`}>
                 <SketchButton variant="secondary" size="lg">
-                  Back to repository
+                  
+                  {say("Back to repository")}
                 </SketchButton>
               </Link>
             </motion.div>
@@ -445,16 +457,19 @@ export default function FinishScreen({
                 className="flex h-full flex-col gap-1 rounded-wobble-2 border-2 border-ink bg-yellow p-5 no-underline shadow-offset transition-transform hover:-translate-y-1"
               >
                 <Chip kind="repo-ref" className="w-fit">
-                  Lesson {seed.lessonSeq + 1} of {seed.lessonSeqTotal}
+                  
+                  {say("Lesson")} {seed.lessonSeq + 1}  {say("of")} {seed.lessonSeqTotal}
                 </Chip>
                 <span className="mt-1 flex items-center gap-2 font-heading text-lg font-bold text-ink">
-                  Next: Lesson {seed.lessonSeq + 1}
+                  
+                  {say("Next: Lesson")} {seed.lessonSeq + 1}
                   {nextLessonTitle ? ` — ${nextLessonTitle}` : ''}
                   <ArrowRight className="h-5 w-5" />
                 </span>
                 <span className="text-sm text-ink-soft">
-                  Back in the repository — your memory of Lessons 1–
-                  {seed.lessonSeq} comes with you.
+                  
+                  {say("Back in the repository — your memory of Lessons 1–")}
+                  {seed.lessonSeq}  {say("comes with you.")}
                 </span>
               </Link>
             </motion.div>
@@ -463,7 +478,8 @@ export default function FinishScreen({
             >
               <Link to={`/repos/${seed.repoSlug}`}>
                 <SketchButton variant="secondary" size="lg">
-                  Back to repository
+                  
+                  {say("Back to repository")}
                 </SketchButton>
               </Link>
             </motion.div>
@@ -475,7 +491,8 @@ export default function FinishScreen({
             >
               <SketchButton variant="secondary" size="lg" onClick={onReplay}>
                 <RotateCcw className="h-4 w-4" />
-                Replay deck
+                
+                {say("Replay deck")}
               </SketchButton>
             </motion.div>
             <motion.div
@@ -493,7 +510,8 @@ export default function FinishScreen({
           >
             <Link to={`/repos/${seed.repoSlug}`}>
               <SketchButton variant="accent" size="lg">
-                Course complete — back to repository
+                
+                {say("Course complete — back to repository")}
               </SketchButton>
             </Link>
           </motion.div>
