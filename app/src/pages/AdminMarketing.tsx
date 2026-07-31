@@ -10,6 +10,7 @@ import {
   Layers,
   Palette,
   Plus,
+  RefreshCw,
   Save,
   Send,
   Sparkles,
@@ -794,6 +795,30 @@ function MarketingBody() {
                   </p>
                 </div>
               ))}
+            {/* Redraw this one picture, from this one slide's brief, without
+                scrolling down to find its card. */}
+            {!onFollow && slide.imagePrompt.trim().length > 2 && (
+              <button
+                type="button"
+                disabled={drawing === active}
+                onClick={() => void drawOne(active)}
+                aria-label={slide.imageUrl ? 'Redraw this picture' : 'Draw this picture'}
+                title={
+                  slide.imageUrl
+                    ? `Redraw this picture from the slide's brief${imgCost != null ? ` — ${imgCost} 🪙` : ''}`
+                    : `Draw this picture${imgCost != null ? ` — ${imgCost} 🪙` : ''}`
+                }
+                className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-wobble-sm border-2 border-ink bg-paper-3/90 px-2 py-1 text-ink shadow-offset transition-transform hover:-translate-y-0.5 disabled:opacity-60"
+              >
+                <RefreshCw
+                  className={cn('h-3.5 w-3.5', drawing === active && 'animate-spin')}
+                  strokeWidth={2.5}
+                />
+                <span className="micro text-[0.55rem] font-bold">
+                  {drawing === active ? 'Drawing…' : slide.imageUrl ? 'Redraw' : 'Draw'}
+                </span>
+              </button>
+            )}
             {!onFollow && layout.bandH > 0 && design.bandFinish === 'fade' && (
               <div
                 className="pointer-events-none absolute"

@@ -5,7 +5,7 @@ import { createRouter } from "../middleware.js";
 import { adminProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
 import { marketingProfiles, slideImages } from "../../db/schema.js";
-import { completeText, generateImage } from "../ai/provider.js";
+import { type AspectRatio, completeText, generateImage } from "../ai/provider.js";
 import { extractJson } from "../ai/prompts.js";
 import { applyTokenDelta } from "../tokens.js";
 import { getSettings } from "../settings.js";
@@ -551,6 +551,9 @@ export const marketingRouter = createRouter({
           .join("\n\n"),
         what: "a post image",
         note: `marketing post: ${input.prompt.slice(0, 55)}`,
+        // Ask for the frame the slide actually is, so the generator composes
+        // to fill it instead of letterboxing a tall scene inside a square.
+        aspect: input.format,
       }),
     ),
 
@@ -566,6 +569,8 @@ export const marketingRouter = createRouter({
         prompt: `Logo brief: ${input.prompt}\n\n${LOGO_DIRECTIVE}`,
         what: "a logo",
         note: `marketing logo: ${input.prompt.slice(0, 55)}`,
+        // A mark that ends up in a circle wants a square to begin with.
+        aspect: "1:1",
       }),
     ),
 });
@@ -578,7 +583,7 @@ export const marketingRouter = createRouter({
 async function drawAndStore(
   userId: number,
   balance: number,
-  opts: { prompt: string; what: string; note: string },
+  opts: { prompt: string; what: string; note: string; aspect: AspectRatio },
 ): Promise<{ url: string; cost: number }> {
   const { prices } = await getSettings();
   const cost = Math.max(1, Math.ceil(prices.perImageSlide));
@@ -588,7 +593,7 @@ async function drawAndStore(
       message: `INSUFFICIENT_TOKENS: ${opts.what} costs ${cost} 🪙, you have ${balance} 🪙`,
     });
   }
-  const url = await generateImage({ userId, prompt: opts.prompt });
+  const url = await generateImage({ userId, prompt: opts.prompt, aspect: opts.aspect });
   if (!url) {
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",

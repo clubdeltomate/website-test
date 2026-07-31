@@ -1111,13 +1111,51 @@ const IMAGE_STYLE_DIRECTIVES: Record<string, string> = {
 };
 
 /** "Nano banana" = Gemini 2.5 Flash Image; fall back on 404. */
+/**
+ * The shape to ask a generator for.
+ *
+ * This used to be nobody's business: every provider was pinned to a square
+ * (or, for Leonardo, a landscape), and the caller cover-fitted whatever came
+ * back. That works when the picture is a picture, and fails badly when the
+ * prompt asks for a vertical composition — the model draws a tall scene
+ * letterboxed inside the square it was given, and cover-fitting a square into
+ * 9:16 keeps the full height, bars and all. Asking for the real shape up
+ * front is the only fix; cropping afterwards would eat the composition.
+ */
+export type AspectRatio = "1:1" | "4:5" | "9:16" | "16:9";
+
+/** gpt-image-1 only offers three; the nearest one is what a ratio maps to. */
+export const OPENAI_SIZES: Record<AspectRatio, string> = {
+  "1:1": "1024x1024",
+  "4:5": "1024x1536",
+  "9:16": "1024x1536",
+  "16:9": "1536x1024",
+};
+export const DALLE_SIZES: Record<AspectRatio, string> = {
+  "1:1": "1024x1024",
+  "4:5": "1024x1792",
+  "9:16": "1024x1792",
+  "16:9": "1792x1024",
+};
+/** Leonardo takes pixels, and wants multiples of eight. */
+export const LEONARDO_SIZES: Record<AspectRatio, { width: number; height: number }> = {
+  "1:1": { width: 1024, height: 1024 },
+  "4:5": { width: 832, height: 1040 },
+  "9:16": { width: 768, height: 1360 },
+  "16:9": { width: 1360, height: 768 },
+};
+
 const GEMINI_IMAGE_MODELS = [
   "gemini-2.5-flash-image",
   "gemini-2.5-flash-image-preview",
   "gemini-2.0-flash-preview-image-generation",
 ];
 
-async function callGeminiImage(key: ResolvedKey, prompt: string): Promise<string> {
+async function callGeminiImage(
+  key: ResolvedKey,
+  prompt: string,
+  aspect: AspectRatio,
+): Promise<string> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.gemini).replace(/\/$/, "");
   let lastError: Error | null = null;
   const models = key.model ? [key.model, ...GEMINI_IMAGE_MODELS] : GEMINI_IMAGE_MODELS;
@@ -1130,7 +1168,10 @@ async function callGeminiImage(key: ResolvedKey, prompt: string): Promise<string
       },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseModalities: ["IMAGE"] },
+        generationConfig: {
+          responseModalities: ["IMAGE"],
+          imageConfig: { aspectRatio: aspect },
+        },
       }),
       signal: AbortSignal.timeout(60_000),
     });
@@ -1175,7 +1216,11 @@ const LEONARDO_DEFAULT_MODEL = "6b645e3a-d64f-4341-a6d8-7a3690fbf042";
  * appears some seconds later, so this polls. The whole thing is bounded well
  * under the serverless ceiling — a slow picture must never cost the deck.
  */
-async function callLeonardoImage(key: ResolvedKey, prompt: string): Promise<string> {
+async function callLeonardoImage(
+  key: ResolvedKey,
+  prompt: string,
+  aspect: AspectRatio,
+): Promise<string> {
   const base = (key.baseUrl || LEONARDO_BASE_URL).replace(/\/$/, "");
   const headers = {
     "content-type": "application/json",
@@ -1189,8 +1234,7 @@ async function callLeonardoImage(key: ResolvedKey, prompt: string): Promise<stri
       prompt: prompt.slice(0, 1400),
       modelId: key.model || LEONARDO_DEFAULT_MODEL,
       num_images: 1,
-      width: 1024,
-      height: 768,
+      ...LEONARDO_SIZES[aspect],
       alchemy: false,
     }),
     signal: AbortSignal.timeout(20_000),
@@ -1259,7 +1303,11 @@ async function fetchUnsplashImage(key: ResolvedKey, query: string): Promise<stri
   return await urlToDataUri(photo);
 }
 
-async function callOpenAIImage(key: ResolvedKey, prompt: string): Promise<string> {
+async function callOpenAIImage(
+  key: ResolvedKey,
+  prompt: string,
+  aspect: AspectRatio,
+): Promise<string> {
   const base = (key.baseUrl || DEFAULT_BASE_URLS.openai).replace(/\/$/, "");
   const request = (body: Record<string, unknown>) =>
     fetch(`${base}/images/generations`, {
@@ -1275,12 +1323,12 @@ async function callOpenAIImage(key: ResolvedKey, prompt: string): Promise<string
   let res = await request({
     model: key.model || "gpt-image-1",
     prompt,
-    size: "1024x1024",
+    size: OPENAI_SIZES[aspect],
     response_format: "b64_json",
   });
   if (!res.ok && (res.status === 400 || res.status === 404)) {
     // model/param rejected — retry dall-e-3 (no response_format param)
-    res = await request({ model: "dall-e-3", prompt, size: "1024x1024" });
+    res = await request({ model: "dall-e-3", prompt, size: DALLE_SIZES[aspect] });
   }
   if (!res.ok)
     throw new Error(`OpenAI image API ${res.status}: ${(await res.text()).slice(0, 200)}`);
@@ -1325,6 +1373,8 @@ export async function generateImageDetailed(opts: {
   userId?: number;
   prompt: string;
   style?: string;
+  /** the frame the picture is going into; square when nothing says otherwise */
+  aspect?: AspectRatio;
 }): Promise<{ url: string; provider: ImageProvider } | null> {
   const candidates = await resolveKeyCandidates(opts.userId, "image").catch(() => [] as ResolvedKey[]);
   if (candidates.length === 0) {
@@ -1333,21 +1383,22 @@ export async function generateImageDetailed(opts: {
     // image path (charge, storage, display) can be exercised end-to-end.
     // Credited as "mock" so it can never pass for a real provider's work.
     if (process.env.SKETCHLEARN_ALLOW_MOCK_AI === "1") {
-      return { url: mockImageDataUri(opts.prompt), provider: "mock" };
+      return { url: mockImageDataUri(opts.prompt, opts.aspect ?? "1:1"), provider: "mock" };
     }
     return null;
   }
   const directive = opts.style ? IMAGE_STYLE_DIRECTIVES[opts.style] : undefined;
   const prompt = directive ? `${opts.prompt}\n\nStyle: ${directive}.` : opts.prompt;
+  const aspect = opts.aspect ?? "1:1";
   for (const key of candidates) {
     try {
       switch (key.provider) {
         case "gemini":
-          return { url: await callGeminiImage(key, prompt), provider: "gemini" };
+          return { url: await callGeminiImage(key, prompt, aspect), provider: "gemini" };
         case "openai":
-          return { url: await callOpenAIImage(key, prompt), provider: "openai" };
+          return { url: await callOpenAIImage(key, prompt, aspect), provider: "openai" };
         case "leonardo":
-          return { url: await callLeonardoImage(key, prompt), provider: "leonardo" };
+          return { url: await callLeonardoImage(key, prompt, aspect), provider: "leonardo" };
         case "unsplash":
           // Searches for the subject, so it gets the un-art-directed prompt.
           return { url: await fetchUnsplashImage(key, opts.prompt), provider: "unsplash" };
@@ -1368,14 +1419,20 @@ export async function generateImageDetailed(opts: {
 
 /** A hand-labelled placeholder for SKETCHLEARN_ALLOW_MOCK_AI — sketch-styled
  *  so it doesn't look broken, and stamped MOCK so it can't pass for real. */
-function mockImageDataUri(prompt: string): string {
+function mockImageDataUri(prompt: string, aspect: AspectRatio): string {
   const label = prompt.slice(0, 60).replace(/[<>&"]/g, " ");
+  // Drawn at the requested shape, so the offline path exercises the same
+  // "does it fill the frame" question the real generators do.
+  const [aw, ah] = aspect.split(":").map(Number);
+  const w = 720;
+  const h = Math.round((w * ah) / aw);
   const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400">` +
-    `<rect width="640" height="400" fill="#faf6ee"/>` +
-    `<rect x="14" y="14" width="612" height="372" fill="none" stroke="#2b2b2b" stroke-width="3" stroke-dasharray="14 7" rx="18"/>` +
-    `<text x="320" y="180" font-family="sans-serif" font-size="26" font-weight="bold" fill="#2b2b2b" text-anchor="middle">MOCK IMAGE</text>` +
-    `<text x="320" y="222" font-family="sans-serif" font-size="16" fill="#6b6b6b" text-anchor="middle">${label}</text>` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
+    `<rect width="${w}" height="${h}" fill="#faf6ee"/>` +
+    `<rect x="14" y="14" width="${w - 28}" height="${h - 28}" fill="none" stroke="#2b2b2b" stroke-width="3" stroke-dasharray="14 7" rx="18"/>` +
+    `<text x="${w / 2}" y="${h / 2 - 12}" font-family="sans-serif" font-size="26" font-weight="bold" fill="#2b2b2b" text-anchor="middle">MOCK IMAGE</text>` +
+    `<text x="${w / 2}" y="${h / 2 + 24}" font-family="sans-serif" font-size="16" fill="#6b6b6b" text-anchor="middle">${label}</text>` +
+    `<text x="${w / 2}" y="${h - 30}" font-family="sans-serif" font-size="18" fill="#8566D4" text-anchor="middle">${aspect}</text>` +
     `</svg>`;
   return `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
 }
@@ -1385,6 +1442,7 @@ export async function generateImage(opts: {
   userId?: number;
   prompt: string;
   style?: string;
+  aspect?: AspectRatio;
 }): Promise<string | null> {
   return (await generateImageDetailed(opts))?.url ?? null;
 }
