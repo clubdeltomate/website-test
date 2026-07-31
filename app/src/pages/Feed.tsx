@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ChevronUp,
   Grid3x3,
+  Heart,
   Layers,
   Plus,
   Rows3,
@@ -186,13 +187,18 @@ function Dots({ count, at }: { count: number; at: number }) {
 export default function Feed() {
   const [view, setView] = useState<View>('feed');
   const [category, setCategory] = useState<PostCategory | null>(null);
+  const [savedOnly, setSavedOnly] = useState(false);
   const [atPost, setAtPost] = useState(0);
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const isMobile = useIsMobile();
   const utils = trpc.useUtils();
-  const list = trpc.posts.list.useQuery({ category: category ?? undefined, limit: 30 });
+  const list = trpc.posts.list.useQuery({
+    category: category ?? undefined,
+    saved: savedOnly,
+    limit: 30,
+  });
 
   const remove = async (slug: string) => {
     try {
@@ -282,14 +288,26 @@ export default function Feed() {
     <EmptyState
       image="/empty-repos.svg"
       imageAlt="Empty notebook doodle"
-      headline={category ? 'Nothing filed under that yet' : 'Nothing posted yet'}
+      headline={
+        savedOnly
+          ? 'Nothing saved yet'
+          : category
+            ? 'Nothing filed under that yet'
+            : 'Nothing posted yet'
+      }
       explainer={
-        user?.role === 'admin'
+        savedOnly
+          ? 'Tap the heart on a post and it waits for you here.'
+          : user?.role === 'admin'
           ? 'Build a carousel in the marketing tool, then publish it here.'
           : 'Posts made with the marketing tool show up here.'
       }
-      ctaLabel={user?.role === 'admin' ? 'Open the marketing tool' : undefined}
-      onCta={user?.role === 'admin' ? () => navigate('/admin/projects/marketing') : undefined}
+      ctaLabel={!savedOnly && user?.role === 'admin' ? 'Open the marketing tool' : undefined}
+      onCta={
+        !savedOnly && user?.role === 'admin'
+          ? () => navigate('/admin/projects/marketing')
+          : undefined
+      }
     />
   );
 
@@ -360,6 +378,29 @@ export default function Feed() {
           </button>
         );
       })}
+      {/* Sits with the category chips because it is the same kind of thing —
+          a narrowing of the same feed — and it combines with them: saved
+          restaurant posts is a sentence you can say here. */}
+      {user && (
+        <button
+          type="button"
+          onClick={() => {
+            setSavedOnly((s) => !s);
+            goTo(0);
+          }}
+          aria-pressed={savedOnly}
+          title="Only the posts you saved"
+          className={cn(
+            'micro flex items-center gap-1 rounded-wobble-sm border-2 px-2.5 py-1.5 text-[0.6rem] font-bold transition-colors',
+            savedOnly
+              ? 'border-ink bg-red-soft text-ink shadow-offset'
+              : 'border-dashed border-pencil bg-paper-3/80 text-ink-soft hover:border-ink hover:text-ink',
+          )}
+        >
+          <Heart className="h-3 w-3" strokeWidth={2} fill={savedOnly ? 'currentColor' : 'none'} />
+          Saved
+        </button>
+      )}
       {user?.role === 'admin' && (
         <SketchButton variant="accent" onClick={() => navigate('/admin/projects/marketing')}>
           <Plus className="h-4 w-4" strokeWidth={2.5} /> New post
@@ -407,14 +448,24 @@ export default function Feed() {
                         {p.imageUrls.length}
                       </span>
                     )}
-                    {p.audioUrl && (
-                      <span
-                        title="Has music"
-                        className="absolute left-1.5 top-1.5 rounded-full border-2 border-ink bg-paper-3/90 p-1 text-ink"
-                      >
-                        <Volume2 className="h-3 w-3" strokeWidth={2} />
-                      </span>
-                    )}
+                    <span className="absolute left-1.5 top-1.5 flex gap-1">
+                      {p.audioUrl && (
+                        <span
+                          title="Has music"
+                          className="rounded-full border-2 border-ink bg-paper-3/90 p-1 text-ink"
+                        >
+                          <Volume2 className="h-3 w-3" strokeWidth={2} />
+                        </span>
+                      )}
+                      {p.saved && (
+                        <span
+                          title="Saved"
+                          className="rounded-full border-2 border-ink bg-paper-3/90 p-1 text-red"
+                        >
+                          <Heart className="h-3 w-3" strokeWidth={2} fill="currentColor" />
+                        </span>
+                      )}
+                    </span>
                   </div>
                   <div className="flex min-w-0 flex-col gap-1 border-t-2 border-ink px-2 py-1.5">
                     <p className="line-clamp-2 break-words text-[0.72rem] leading-snug text-ink">

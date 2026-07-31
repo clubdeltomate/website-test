@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { Download, Lock, MessageCircle, Trash2, Users } from 'lucide-react';
+import { Download, Heart, Lock, MessageCircle, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { trpc } from '@/providers/trpc';
+import { useAuth } from '@/hooks/useAuth';
 import { type ZipEntry, makeZip } from '@/lib/zip';
 import { TEMPLATE_META, VerifiedBadge } from '@/components/repo/shared';
 import type { PostCategory, PostSummary } from '@contracts/post';
@@ -34,6 +36,16 @@ export default function PostDetails({
 }) {
   const meta = TEMPLATE_META[post.category as PostCategory] ?? TEMPLATE_META.course;
   const Icon = meta.icon;
+  const { user } = useAuth();
+  const utils = trpc.useUtils();
+  const save = trpc.posts.toggleSaved.useMutation({
+    onSuccess: (r) => {
+      void utils.posts.list.invalidate();
+      void utils.posts.bySlug.invalidate({ slug: post.slug });
+      toast.success(r.saved ? 'Saved ♥' : 'Removed from saved');
+    },
+    onError: (e) => toast.error(e.message),
+  });
   const [zipping, setZipping] = useState(false);
   const when = new Date(post.createdAt);
 
@@ -118,6 +130,29 @@ export default function PostDetails({
           <Icon className="h-3 w-3" strokeWidth={2} />
           {meta.label}
         </span>
+        {/* The same heart repos and people wear, so a saved thing means one
+            thing across the site. Signed out it is not offered — there would
+            be nowhere to keep it. */}
+        {user && (
+          <button
+            type="button"
+            disabled={save.isPending}
+            onClick={() => save.mutate({ slug: post.slug })}
+            aria-pressed={post.saved}
+            aria-label={post.saved ? `Unsave ${post.slug}` : `Save ${post.slug}`}
+            title={post.saved ? 'Saved — click to remove' : 'Save this post'}
+            className={cn(
+              'shrink-0 transition-colors disabled:opacity-40',
+              post.saved ? 'text-red' : 'text-ink-faint hover:text-red',
+            )}
+          >
+            <Heart
+              className="h-4 w-4"
+              strokeWidth={2}
+              fill={post.saved ? 'currentColor' : 'none'}
+            />
+          </button>
+        )}
         {onRemove && (
           <button
             type="button"

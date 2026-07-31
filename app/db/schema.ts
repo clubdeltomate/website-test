@@ -30,7 +30,7 @@ const templateEnum = appSchema.enum("template", ["course", "restaurant", "servic
 const levelEnum = appSchema.enum("level", ["A0", "A1", "A2", "B1", "B2", "C1", "C2"]);
 const imageStyleEnum = appSchema.enum("imageStyle", ["sketch", "watercolor", "flat", "photo", "none"]);
 const paymentStatusEnum = appSchema.enum("status", ["pending", "credited", "rejected"]);
-const targetTypeEnum = appSchema.enum("targetType", ["repo", "slideTool", "user"]);
+const targetTypeEnum = appSchema.enum("targetType", ["repo", "slideTool", "user", "post"]);
 
 export const users = appSchema.table(
   "users",

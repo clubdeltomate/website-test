@@ -35,12 +35,32 @@ describe("generateMusic under the mock provider", () => {
   it("returns an mp3 data URI that grows with the length asked for", async () => {
     const short = await generateMusic({ prompt: "warm lo-fi", seconds: 10 });
     const long = await generateMusic({ prompt: "warm lo-fi", seconds: 60 });
-    expect(short?.mime).toBe("audio/mpeg");
-    expect(short?.audio.startsWith("data:audio/mpeg;base64,")).toBe(true);
-    expect(long!.audio.length).toBeGreaterThan(short!.audio.length);
+    if (!short.ok || !long.ok) throw new Error(`mock music failed: ${JSON.stringify(short)}`);
+    expect(short.mime).toBe("audio/mpeg");
+    expect(short.audio.startsWith("data:audio/mpeg;base64,")).toBe(true);
+    expect(long.audio.length).toBeGreaterThan(short.audio.length);
   });
 
   it("refuses an empty brief rather than charging for silence", async () => {
-    expect(await generateMusic({ prompt: "   ", seconds: 30 })).toBeNull();
+    const out = await generateMusic({ prompt: "   ", seconds: 30 });
+    expect(out.ok).toBe(false);
+  });
+
+  it("says WHY it failed, so the toast can point somewhere useful", async () => {
+    // Without the mock and without a key, the answer has to name the thing
+    // that is missing rather than shrug.
+    const was = process.env.SKETCHLEARN_ALLOW_MOCK_AI;
+    delete process.env.SKETCHLEARN_ALLOW_MOCK_AI;
+    const was2 = process.env.ELEVENLABS_API_KEY;
+    delete process.env.ELEVENLABS_API_KEY;
+    try {
+      const out = await generateMusic({ prompt: "warm lo-fi", seconds: 30 });
+      expect(out.ok).toBe(false);
+      if (out.ok) return;
+      expect(out.reason).toMatch(/ELEVENLABS_API_KEY|Settings/);
+    } finally {
+      if (was !== undefined) process.env.SKETCHLEARN_ALLOW_MOCK_AI = was;
+      if (was2 !== undefined) process.env.ELEVENLABS_API_KEY = was2;
+    }
   });
 });

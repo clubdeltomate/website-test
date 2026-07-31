@@ -175,6 +175,11 @@ export async function ensureRequiredSchema(): Promise<void> {
     await client.query(
       `ALTER TABLE sketchlearn.posts ADD COLUMN IF NOT EXISTS "audioId" integer`,
     );
+    // Posts can be favourited, like repos and people before them. The enum
+    // behind favorites.targetType has to learn the word first.
+    await client.query(
+      `ALTER TYPE sketchlearn."targetType" ADD VALUE IF NOT EXISTS 'post'`,
+    );
     // Who a post is for. The boolean it replaces is kept in step with it, so
     // this backfill only ever finds rows written before the column existed —
     // an "assigned" post is isPublic=false but must not become private.

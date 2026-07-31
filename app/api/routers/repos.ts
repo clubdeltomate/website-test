@@ -332,7 +332,7 @@ function lessonProgress(
 
 export async function favoriteSlugs(
   userId: number | undefined,
-  targetType: "repo" | "slideTool" | "user",
+  targetType: "repo" | "slideTool" | "user" | "post",
 ) {
   if (!userId) return new Set<string>();
   const rows = await getDb()
