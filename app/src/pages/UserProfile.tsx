@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Coins,
+  Images,
   Instagram,
   MessageCircle,
   Play,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import PostShelf from '@/components/feed/PostShelf';
 import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 import Chip from '@/components/sketch/Chip';
@@ -52,7 +54,7 @@ export default function UserProfile() {
   const { user, isGuest, role } = useAuth();
   const utils = trpc.useUtils();
 
-  const [tab, setTab] = useState<'repos' | 'slides'>('repos');
+  const [tab, setTab] = useState<'repos' | 'slides' | 'posts'>('repos');
   const [category, setCategory] = useState<RepoTemplate | 'all'>('all');
   const [search, setSearch] = useState('');
   /**
@@ -311,7 +313,7 @@ export default function UserProfile() {
 
       {/* tabs */}
       <div className="flex items-center gap-2">
-        {(['repos', 'slides'] as const).map((t) => (
+        {(['repos', 'slides', 'posts'] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -323,12 +325,35 @@ export default function UserProfile() {
                 : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
             )}
           >
-            {t === 'repos' ? <TemplateIcon template="course" className="h-4 w-4" /> : <Presentation className="h-4 w-4" />}
-            {t === 'repos' ? `Repos (${filteredRepos.length})` : `Slides (${filteredTools.length})`}
+            {t === 'repos' ? (
+              <TemplateIcon template="course" className="h-4 w-4" />
+            ) : t === 'slides' ? (
+              <Presentation className="h-4 w-4" />
+            ) : (
+              <Images className="h-4 w-4" strokeWidth={2} />
+            )}
+            {t === 'repos'
+              ? `Repos (${filteredRepos.length})`
+              : t === 'slides'
+                ? `Slides (${filteredTools.length})`
+                : 'Feed'}
           </button>
         ))}
       </div>
 
+      {/* The posts shelf brings its own filter — it filters over posts, which
+          have no "made by AI or by hand" and no name to search, so sharing
+          the row below would have meant three controls that do nothing. */}
+      {tab === 'posts' && (
+        <PostShelf
+          scope="all"
+          ownerId={userId}
+          emptyLine={isSelf ? "You haven't posted anything yet." : 'Nothing posted yet.'}
+        />
+      )}
+
+      {tab !== 'posts' && (
+      <>
       {/* filters */}
       <div className="flex flex-col gap-2 rounded-wobble-2 border-2 border-ink bg-paper-3 p-3 shadow-offset">
         {/* The search box gets its own row and says what it does. It is a plain
@@ -420,6 +445,8 @@ export default function UserProfile() {
             Next <ChevronRight className="h-4 w-4" />
           </SketchButton>
         </div>
+      )}
+      </>
       )}
 
       {coinOpen && <CoinRequestModal onClose={() => setCoinOpen(false)} />}

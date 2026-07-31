@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import {
   ChevronDown,
   ChevronLeft,
@@ -7,7 +7,6 @@ import {
   ChevronUp,
   Grid3x3,
   Heart,
-  Layers,
   Plus,
   Rows3,
   Volume2,
@@ -22,6 +21,7 @@ import { setSoundOn, useSoundOn } from '@/lib/sound';
 import { POST_CATEGORIES, type PostCategory, type PostSummary } from '@contracts/post';
 import { TEMPLATE_META } from '@/components/repo/shared';
 import PostDetails from '@/components/feed/PostDetails';
+import PostCard from '@/components/feed/PostCard';
 import SketchButton from '@/components/sketch/SketchButton';
 import EmptyState from '@/components/sketch/EmptyState';
 
@@ -431,59 +431,9 @@ export default function Feed() {
              on a page of its own. The feed beside it is for reading them one
              after another; this is for finding one. */
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
-            {feed.map((p) => {
-              const meta = TEMPLATE_META[p.category as PostCategory] ?? TEMPLATE_META.course;
-              const Icon = meta.icon;
-              return (
-                <Link
-                  key={p.slug}
-                  to={`/feed/${p.slug}`}
-                  aria-label={`Open ${p.slug}`}
-                  className="group flex flex-col overflow-hidden rounded-wobble-sm border-2 border-ink bg-paper-3 shadow-offset transition-transform hover:-translate-y-0.5"
-                >
-                  <div className="relative aspect-square overflow-hidden bg-paper-2">
-                    <img
-                      src={p.imageUrls[0]}
-                      alt=""
-                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                    />
-                    {p.imageUrls.length > 1 && (
-                      <span className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-full border-2 border-ink bg-paper-3/90 px-1.5 font-mono text-[0.6rem] text-ink">
-                        <Layers className="h-3 w-3" strokeWidth={2} />
-                        {p.imageUrls.length}
-                      </span>
-                    )}
-                    <span className="absolute left-1.5 top-1.5 flex gap-1">
-                      {p.audioUrl && (
-                        <span
-                          title="Has music"
-                          className="rounded-full border-2 border-ink bg-paper-3/90 p-1 text-ink"
-                        >
-                          <Volume2 className="h-3 w-3" strokeWidth={2} />
-                        </span>
-                      )}
-                      {p.saved && (
-                        <span
-                          title="Saved"
-                          className="rounded-full border-2 border-ink bg-paper-3/90 p-1 text-red"
-                        >
-                          <Heart className="h-3 w-3" strokeWidth={2} fill="currentColor" />
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex min-w-0 flex-col gap-1 border-t-2 border-ink px-2 py-1.5">
-                    <p className="line-clamp-2 break-words text-[0.72rem] leading-snug text-ink">
-                      {p.caption || <span className="text-ink-faint">No caption.</span>}
-                    </p>
-                    <span className="micro flex items-center gap-1 text-[0.52rem] text-ink-faint">
-                      <Icon className="h-2.5 w-2.5" strokeWidth={2} />
-                      {meta.label} · {p.ownerName}
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
+            {feed.map((p) => (
+              <PostCard key={p.slug} post={p} />
+            ))}
           </div>
         )}
       </div>
