@@ -4,21 +4,53 @@ import { and, desc, eq } from "drizzle-orm";
 import { createRouter } from "../middleware.js";
 import { adminProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
-import { castModels, slideImages } from "../../db/schema.js";
-import { completeVision } from "../ai/provider.js";
+import { castModels, castPortraits, slideImages } from "../../db/schema.js";
+import { completeVision, generateImage } from "../ai/provider.js";
 import { extractJson } from "../ai/prompts.js";
 import { applyTokenDelta } from "../tokens.js";
+import { getSettings } from "../settings.js";
 import { IMAGE_URL_PREFIX } from "../deck-images.js";
 import { DEFAULT_CAST, type CastModel } from "../../contracts/cast.js";
 
 /** Reading a face out of a photograph is one short vision call. */
 const DESCRIBE_COST = 1;
 
+/**
+ * How a model's portrait is drawn.
+ *
+ * Not art — a reference photo. The point is to answer "who am I casting?" at
+ * thumbnail size, so it is framed tight, lit plainly and shot against nothing,
+ * which also makes two portraits of the same sheet look like the same person
+ * far more reliably than a scene would.
+ */
+const PORTRAIT_DIRECTIVE =
+  "Photograph this person as a casting reference: a head-and-shoulders portrait, " +
+  "square crop, face fully visible and centred, looking towards the camera, neutral " +
+  "friendly expression. Plain soft grey studio background, even natural lighting, no " +
+  "props, no scene, no text. Hyper-realistic photographic quality — NOT an " +
+  "illustration. Match the described features exactly; they are the point of the shot.";
+
 const sheetSchema = z.object({
   name: z.string().min(1).max(120),
   headline: z.string().min(1).max(200),
   sheet: z.string().min(40).max(2000),
 });
+
+/** Look a model up by picker id, whether it ships with the tool or not. */
+async function findModel(
+  ownerId: number,
+  id: string,
+): Promise<{ name: string; sheet: string } | null> {
+  const built = DEFAULT_CAST.find((m) => m.id === id);
+  if (built) return built;
+  const numeric = Number(id.replace(/^own-/, ""));
+  if (!Number.isInteger(numeric) || numeric <= 0) return null;
+  const [row] = await getDb()
+    .select({ name: castModels.name, sheet: castModels.sheet })
+    .from(castModels)
+    .where(and(eq(castModels.id, numeric), eq(castModels.ownerId, ownerId)));
+  return row ?? null;
+}
 
 export const castRouter = createRouter({
   /**
@@ -27,23 +59,88 @@ export const castRouter = createRouter({
    * database is never missing them and nobody can delete them by accident.
    */
   list: adminProcedure.query(async ({ ctx }): Promise<CastModel[]> => {
-    const rows = await getDb()
-      .select()
-      .from(castModels)
-      .where(eq(castModels.ownerId, ctx.user.id))
-      .orderBy(desc(castModels.id));
+    const [rows, portraits] = await Promise.all([
+      getDb()
+        .select()
+        .from(castModels)
+        .where(eq(castModels.ownerId, ctx.user.id))
+        .orderBy(desc(castModels.id)),
+      getDb()
+        .select({ modelId: castPortraits.modelId, imageId: castPortraits.imageId })
+        .from(castPortraits)
+        .where(eq(castPortraits.ownerId, ctx.user.id)),
+    ]);
+    // A drawn portrait wins over the photograph a model was made from: it is
+    // the AI's reading of the sheet, which is what the prompts will actually
+    // produce, so it is the honest thumbnail.
+    const drawn = new Map(portraits.map((p) => [p.modelId, p.imageId]));
+    const url = (id: number | null | undefined) =>
+      id == null ? null : `${IMAGE_URL_PREFIX}${id}`;
     return [
-      ...DEFAULT_CAST,
+      ...DEFAULT_CAST.map((m) => ({ ...m, photoUrl: url(drawn.get(m.id)) })),
       ...rows.map((r) => ({
         id: `own-${r.id}`,
         name: r.name,
         headline: r.headline,
         sheet: r.sheet,
-        photoUrl: r.photoId == null ? null : `${IMAGE_URL_PREFIX}${r.photoId}`,
+        photoUrl: url(drawn.get(`own-${r.id}`) ?? r.photoId),
         custom: true,
       })),
     ];
   }),
+
+  /**
+   * Draw a model's face from their sheet, so the picker shows who they are
+   * instead of two initials. Re-runnable — a portrait you don't recognise is
+   * a sign the sheet needs a word changed, and redrawing is how you check.
+   */
+  portrait: adminProcedure
+    .input(z.object({ id: z.string().min(1).max(80) }))
+    .mutation(async ({ ctx, input }): Promise<{ url: string; cost: number }> => {
+      const model = await findModel(ctx.user.id, input.id);
+      if (!model) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No such model" });
+      }
+      const { prices } = await getSettings();
+      const cost = Math.max(1, Math.ceil(prices.perImageSlide));
+      if (ctx.user.tokenBalance < cost) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `INSUFFICIENT_TOKENS: a portrait costs ${cost} 🪙, you have ${ctx.user.tokenBalance} 🪙`,
+        });
+      }
+      const url = await generateImage({
+        userId: ctx.user.id,
+        prompt: `${model.sheet}\n\n${PORTRAIT_DIRECTIVE}`,
+        aspect: "1:1",
+      });
+      if (!url) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "AI_UNAVAILABLE: no image generator answered — nothing was charged",
+        });
+      }
+      const m = /^data:([^;,]+);base64,(.+)$/s.exec(url);
+      if (!m) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "The generator returned an image in a form we can't store",
+        });
+      }
+      await applyTokenDelta(ctx.user.id, -cost, `cast portrait: ${model.name}`);
+      const [img] = await getDb()
+        .insert(slideImages)
+        .values({ ownerId: ctx.user.id, mime: m[1], data: m[2] })
+        .returning({ id: slideImages.id });
+      await getDb()
+        .insert(castPortraits)
+        .values({ ownerId: ctx.user.id, modelId: input.id, imageId: img.id })
+        .onConflictDoUpdate({
+          target: [castPortraits.ownerId, castPortraits.modelId],
+          set: { imageId: img.id },
+        });
+      return { url: `${IMAGE_URL_PREFIX}${img.id}`, cost };
+    }),
 
   /**
    * Turn an uploaded photograph into a cast member.

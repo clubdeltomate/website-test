@@ -498,6 +498,27 @@ export const castModels = appSchema.table(
 );
 
 /**
+ * A drawn head-and-shoulders for one cast model.
+ *
+ * Separate from castModels because the ten built-in models live in code, not
+ * in a table, and still need a face — and because a portrait is per account:
+ * two people casting Marisol Rivera each drew their own, and neither should
+ * overwrite the other's. Keyed by the model's id, which is "marisol" for a
+ * built-in and "own-12" for one somebody made.
+ */
+export const castPortraits = appSchema.table(
+  "castPortraits",
+  {
+    id: serial("id").primaryKey(),
+    ownerId: fk("ownerId").notNull(),
+    modelId: varchar("modelId", { length: 80 }).notNull(),
+    imageId: fk("imageId").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("castPortraits_owner_model").on(t.ownerId, t.modelId)],
+);
+
+/**
  * A published carousel, as it appears on the feed.
  *
  * The slides are stored as the finished PNGs rather than as the editor state

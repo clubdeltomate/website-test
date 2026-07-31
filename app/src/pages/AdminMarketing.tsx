@@ -18,6 +18,7 @@ import {
   Type,
   Upload,
   UserPlus,
+  UserRound,
   Users,
   Wand2,
 } from 'lucide-react';
@@ -311,6 +312,8 @@ function MarketingBody() {
   const [posting, setPosting] = useState(false);
   const [modelNote, setModelNote] = useState('');
   const [reading, setReading] = useState(false);
+  /** which model's face is being drawn, so only its button spins */
+  const [portraying, setPortraying] = useState<string | null>(null);
   const confirm = useCostConfirm();
 
   const measureRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -724,6 +727,22 @@ function MarketingBody() {
     reader.readAsDataURL(file);
   };
 
+  /** Put a face on a model, so the picker shows who rather than two initials. */
+  const drawPortrait = async (id: string, name: string) => {
+    if (!(await confirm.ask(`Drawing ${name}`, imgCost))) return;
+    setPortraying(id);
+    try {
+      const r = await utils.client.cast.portrait.mutate({ id });
+      await cast.refetch();
+      toast.success(`${name} drawn — ${r.cost} 🪙`);
+      void utils.auth.me.invalidate();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "That portrait couldn't be drawn");
+    } finally {
+      setPortraying(null);
+    }
+  };
+
   const removeModel = async (id: string) => {
     const numeric = Number(id.replace('own-', ''));
     if (!numeric) return;
@@ -1057,6 +1076,24 @@ function MarketingBody() {
                             </span>
                           </span>
                         </button>
+                        <button
+                          type="button"
+                          disabled={portraying === m.id}
+                          onClick={() => void drawPortrait(m.id, m.name)}
+                          aria-label={`${m.photoUrl ? 'Redraw' : 'Draw'} ${m.name}'s portrait`}
+                          title={
+                            m.photoUrl
+                              ? `Redraw ${m.name} from their description`
+                              : `See what ${m.name} looks like`
+                          }
+                          className="shrink-0 text-ink-faint hover:text-ink disabled:opacity-40"
+                        >
+                          {portraying === m.id ? (
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />
+                          ) : (
+                            <UserRound className="h-3.5 w-3.5" strokeWidth={2} />
+                          )}
+                        </button>
                         {m.custom && (
                           <button
                             type="button"
@@ -1114,8 +1151,10 @@ function MarketingBody() {
                   Pick who may appear and the AI casts each slide from them — often only two or
                   three across a whole carousel, and nobody at all on a slide that is a close-up.
                   They are written descriptions, not photos, so a shot of just hands still carries
-                  the right skin, build and nails. The same cast is here for every carousel you
-                  make, which is what keeps a feed looking like one feed.
+                  the right skin, build and nails. Use the face button to draw a portrait from
+                  someone's description and see who you are casting
+                  {imgCost != null ? ` — ${imgCost} 🪙 each` : ''}. The same cast is here for every
+                  carousel you make, which is what keeps a feed looking like one feed.
                 </p>
               </>
             )}

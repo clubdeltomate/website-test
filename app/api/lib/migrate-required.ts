@@ -143,6 +143,19 @@ export async function ensureRequiredSchema(): Promise<void> {
     await client.query(
       `CREATE INDEX IF NOT EXISTS "castModels_owner_idx" ON sketchlearn."castModels" ("ownerId")`,
     );
+    // Drawn faces for the cast; the picker selects them on every load.
+    await client.query(
+      `CREATE TABLE IF NOT EXISTS sketchlearn."castPortraits" (
+         id serial PRIMARY KEY,
+         "ownerId" integer NOT NULL,
+         "modelId" varchar(80) NOT NULL,
+         "imageId" integer NOT NULL,
+         "createdAt" timestamp NOT NULL DEFAULT now()
+       )`,
+    );
+    await client.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "castPortraits_owner_model" ON sketchlearn."castPortraits" ("ownerId", "modelId")`,
+    );
     // Published carousels; the feed is the homepage, so this must exist.
     await client.query(
       `CREATE TABLE IF NOT EXISTS sketchlearn.posts (
