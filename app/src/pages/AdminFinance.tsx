@@ -26,6 +26,7 @@ import { HubHeader } from '@/components/admin/PanelTiles';
 import { SketchModal } from '@/components/admin/overlays';
 import { LabeledField, SketchInput, SketchSelect, SkeletonBlock } from '@/components/admin/controls';
 import { errMsg, formatMoney, formatRelative } from '@/components/admin/utils';
+import { say } from '@/lib/i18n';
 
 /* ------------------------------------------------------------------ */
 /* Types inferred from the finance router                              */
@@ -124,14 +125,15 @@ function ReceiptModal({ receipt, onClose }: { receipt: Receipt; onClose: () => v
       maxWidth="max-w-[420px]"
     >
       <div className="rounded-wobble-sm border-2 border-ink bg-paper-3 p-4">
-        <p className="font-display text-2xl text-ink">SketchLearn ✎</p>
+        <p className="font-display text-2xl text-ink">{say("SketchLearn ✎")}</p>
         <p className="micro text-ink-faint">
-          Token receipt · {new Date(receipt.createdAt).toLocaleString()}
+          
+          {say("Token receipt ·")} {new Date(receipt.createdAt).toLocaleString()}
         </p>
         <div className="my-3 border-t-2 border-dashed border-pencil" />
         <dl className="space-y-1 text-sm text-ink">
           <div className="flex justify-between">
-            <dt>Billed to</dt>
+            <dt>{say("Billed to")}</dt>
             <dd className="font-bold">{receipt.userName}</dd>
           </div>
           <div className="flex justify-between">
@@ -139,24 +141,25 @@ function ReceiptModal({ receipt, onClose }: { receipt: Receipt; onClose: () => v
             <dd />
           </div>
           <div className="flex justify-between">
-            <dt>Coins credited</dt>
+            <dt>{say("Coins credited")}</dt>
             <dd className="font-bold text-orange">{receipt.tokens} 🪙</dd>
           </div>
           <div className="flex justify-between pt-2 font-heading text-lg">
-            <dt>Total paid</dt>
+            <dt>{say("Total paid")}</dt>
             <dd className="font-bold">{formatMoney(receipt.amountCents)}</dd>
           </div>
         </dl>
         {receipt.note && <p className="mt-2 text-xs italic text-ink-soft">“{receipt.note}”</p>}
         <div className="my-3 border-t-2 border-dashed border-pencil" />
-        <p className="micro text-ink-faint">Issued by {receipt.issuedBy ?? 'SketchLearn'}</p>
+        <p className="micro text-ink-faint">{say("Issued by")} {receipt.issuedBy ?? 'SketchLearn'}</p>
       </div>
       <div className="mt-4 flex gap-2">
         <SketchButton onClick={() => printReceipt(receipt)}>
-          <Printer className="h-4 w-4" strokeWidth={2} /> Print / save PDF
+          <Printer className="h-4 w-4" strokeWidth={2} />  {say("Print / save PDF")}
         </SketchButton>
         <SketchButton variant="ghost" onClick={onClose}>
-          Close
+          
+          {say("Close")}
         </SketchButton>
       </div>
     </SketchModal>
@@ -208,9 +211,9 @@ function GrantForm({
   });
 
   const submit = () => {
-    if (userId === '') return toast.error('Pick who paid');
+    if (userId === '') return toast.error(say("Pick who paid"));
     const cents = Math.round(Number(amount) * 100);
-    if (!Number.isFinite(cents) || cents < 0) return toast.error('That amount looks smudged');
+    if (!Number.isFinite(cents) || cents < 0) return toast.error(say("That amount looks smudged"));
     grant.mutate({ userId, tokens, amountCents: cents, note: note.trim() || undefined });
   };
 
@@ -224,7 +227,7 @@ function GrantForm({
           value={String(userId)}
           onChange={(e) => setUserId(e.target.value ? Number(e.target.value) : '')}
         >
-          <option value="">Pick a user…</option>
+          <option value="">{say("Pick a user…")}</option>
           {(usersList.data ?? []).map((u) => (
             <option key={u.id} value={u.id}>
               {u.name} — {u.email}
@@ -245,7 +248,7 @@ function GrantForm({
         <div className="flex items-center gap-2">
           <SketchInput
             className="min-w-0 flex-1"
-            aria-label="Amount paid in dollars"
+            aria-label={say("Amount paid in dollars")}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder={listPrice.toFixed(2)}
@@ -263,21 +266,23 @@ function GrantForm({
         </div>
       </LabeledField>
       <LabeledField label="Note (on the receipt)">
-        <SketchInput value={note} onChange={(e) => setNote(e.target.value)} placeholder="Bank transfer ref…" />
+        <SketchInput value={note} onChange={(e) => setNote(e.target.value)} placeholder={say("Bank transfer ref…")} />
       </LabeledField>
       <p className="self-end pb-1 text-xs text-ink-faint">
-        {tokens} 🪙 at {centsPerCoin.toFixed(2)}¢ = {fmtUsd(listPrice)}
-        {offList && <span className="text-orange"> · charging {fmtUsd(Number(amount) || 0)}</span>}
+        {tokens}  {say("🪙 at")} {centsPerCoin.toFixed(2)}¢ = {fmtUsd(listPrice)}
+        {offList && <span className="text-orange">  {say("· charging")} {fmtUsd(Number(amount) || 0)}</span>}
         <br />
-        those coins cost you ~{fmtUsd(estCost)} to honor →{' '}
+        
+        {say("those coins cost you ~")}{fmtUsd(estCost)}  {say("to honor →")}{' '}
         <span className={estProfit >= 0 ? 'font-bold text-green' : 'font-bold text-red'}>
-          {fmtUsd(estProfit)} profit
+          {fmtUsd(estProfit)}  {say("profit")}
         </span>{' '}
-        (private)
+        
+        {say("(private)")}
       </p>
       <div className="flex items-end">
         <SketchButton variant="accent" loading={grant.isPending} onClick={submit} className="w-full">
-          <ReceiptText className="h-4 w-4" strokeWidth={2} /> Credit + receipt
+          <ReceiptText className="h-4 w-4" strokeWidth={2} />  {say("Credit + receipt")}
         </SketchButton>
       </div>
     </div>
@@ -309,10 +314,10 @@ function BalanceFixForm() {
 
   return (
     <div className="mt-4 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper p-4">
-      <p className="mb-1 font-heading font-semibold text-ink">Fix a balance</p>
+      <p className="mb-1 font-heading font-semibold text-ink">{say("Fix a balance")}</p>
       <p className="mb-3 text-xs text-ink-soft">
-        Handed out too many coins (even to yourself)? Take them back here — circulation, the
-        liability figure, and the ledger above adapt immediately, so your gains and losses stay honest.
+        
+        {say("Handed out too many coins (even to yourself)? Take them back here — circulation, the liability figure, and the ledger above adapt immediately, so your gains and losses stay honest.")}
       </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <LabeledField label="Whose balance">
@@ -320,7 +325,7 @@ function BalanceFixForm() {
             value={String(userId)}
             onChange={(e) => setUserId(e.target.value ? Number(e.target.value) : '')}
           >
-            <option value="">Pick a user…</option>
+            <option value="">{say("Pick a user…")}</option>
             {(usersList.data ?? []).map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name} — {u.tokenBalance} 🪙
@@ -333,8 +338,8 @@ function BalanceFixForm() {
             value={direction}
             onChange={(e) => setDirection(e.target.value as 'credit' | 'deduct')}
           >
-            <option value="deduct">− Remove coins</option>
-            <option value="credit">+ Add coins</option>
+            <option value="deduct">{say("− Remove coins")}</option>
+            <option value="credit">{say("+ Add coins")}</option>
           </SketchSelect>
         </LabeledField>
         <LabeledField label="Amount 🪙">
@@ -366,7 +371,7 @@ function BalanceFixForm() {
       </div>
       {direction === 'deduct' && target && amount > target.tokenBalance && (
         <p className="mt-2 text-xs font-bold text-red">
-          {target.name} only holds {target.tokenBalance} 🪙.
+          {target.name}  {say("only holds")} {target.tokenBalance} 🪙.
         </p>
       )}
     </div>
@@ -451,14 +456,15 @@ function TicketReceiptModal({ sale, onClose }: { sale: TicketSale; onClose: () =
       maxWidth="max-w-[420px]"
     >
       <div className="rounded-wobble-sm border-2 border-ink bg-paper-3 p-4">
-        <p className="font-display text-2xl text-ink">SketchLearn ✎</p>
+        <p className="font-display text-2xl text-ink">{say("SketchLearn ✎")}</p>
         <p className="micro text-ink-faint">
-          Ticket receipt · {new Date(sale.createdAt).toLocaleString()}
+          
+          {say("Ticket receipt ·")} {new Date(sale.createdAt).toLocaleString()}
         </p>
         <div className="my-3 border-t-2 border-dashed border-pencil" />
         <dl className="space-y-1 text-sm text-ink">
           <div className="flex justify-between">
-            <dt>Billed to</dt>
+            <dt>{say("Billed to")}</dt>
             <dd className="font-bold">{sale.userName}</dd>
           </div>
           <div className="flex justify-between">
@@ -466,23 +472,24 @@ function TicketReceiptModal({ sale, onClose }: { sale: TicketSale; onClose: () =
             <dd />
           </div>
           <div className="flex justify-between">
-            <dt>Customization tickets</dt>
+            <dt>{say("Customization tickets")}</dt>
             <dd className="font-bold text-green">{sale.tickets}</dd>
           </div>
           <div className="flex justify-between pt-2 font-heading text-lg">
-            <dt>Total paid</dt>
+            <dt>{say("Total paid")}</dt>
             <dd className="font-bold text-orange">{sale.coinsPaid} 🪙</dd>
           </div>
         </dl>
         <div className="my-3 border-t-2 border-dashed border-pencil" />
-        <p className="micro text-ink-faint">One ticket = one custom generation on the issuing repo</p>
+        <p className="micro text-ink-faint">{say("One ticket = one custom generation on the issuing repo")}</p>
       </div>
       <div className="mt-4 flex gap-2">
         <SketchButton onClick={() => printTicketReceipt(sale)}>
-          <Printer className="h-4 w-4" strokeWidth={2} /> Print / save PDF
+          <Printer className="h-4 w-4" strokeWidth={2} />  {say("Print / save PDF")}
         </SketchButton>
         <SketchButton variant="ghost" onClick={onClose}>
-          Close
+          
+          {say("Close")}
         </SketchButton>
       </div>
     </SketchModal>
@@ -550,7 +557,7 @@ function SellTicketsForm({
           value={String(userId)}
           onChange={(e) => setUserId(e.target.value ? Number(e.target.value) : '')}
         >
-          <option value="">Pick a moderator…</option>
+          <option value="">{say("Pick a moderator…")}</option>
           {mods.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name} — {u.tokenBalance} 🪙
@@ -569,10 +576,12 @@ function SellTicketsForm({
       </LabeledField>
       <div className="flex flex-col justify-end pb-1 text-sm text-ink">
         <p>
-          They pay <span className="font-bold text-orange">{totalCoins} 🪙</span> ≈ {fmtUsd(valueUsd)}
+          
+          {say("They pay")} <span className="font-bold text-orange">{totalCoins} 🪙</span> ≈ {fmtUsd(valueUsd)}
         </p>
         <p className="text-xs text-ink-faint">
-          your est. profit: <span className={estProfit >= 0 ? 'font-bold text-green' : 'font-bold text-red'}>{fmtUsd(estProfit)}</span> (private)
+          
+          {say("your est. profit:")} <span className={estProfit >= 0 ? 'font-bold text-green' : 'font-bold text-red'}>{fmtUsd(estProfit)}</span>  {say("(private)")}
         </p>
       </div>
       <div className="flex items-end">
@@ -583,13 +592,13 @@ function SellTicketsForm({
           disabled={userId === '' || short}
           onClick={() => userId !== '' && sell.mutate({ userId, count })}
         >
-          <ReceiptText className="h-4 w-4" strokeWidth={2} /> Sell {count} ticket
-          {count === 1 ? '' : 's'} + receipt
+          <ReceiptText className="h-4 w-4" strokeWidth={2} />  {say("Sell")} {count}  {say("ticket")}
+          {count === 1 ? '' : 's'}  {say("+ receipt")}
         </SketchButton>
       </div>
       {short && (
         <p className="col-span-full -mt-2 text-xs font-bold text-red">
-          {target?.name} only holds {target?.tokenBalance} 🪙 — that's not enough for {totalCoins} 🪙 of tickets.
+          {target?.name}  {say("only holds")} {target?.tokenBalance}  {say("🪙 — that's not enough for")} {totalCoins}  {say("🪙 of tickets.")}
         </p>
       )}
     </div>
@@ -657,11 +666,10 @@ function PricingEditor({
 
   return (
     <div className="p-4">
-      <h3 className="mb-1 font-heading text-lg font-semibold text-ink">What you charge</h3>
+      <h3 className="mb-1 font-heading text-lg font-semibold text-ink">{say("What you charge")}</h3>
       <p className="mb-4 text-xs text-ink-soft">
-        These are live prices: packs are what buyers pay for coins, and the ticket price is what
-        a moderator pays (in coins) for one customization. Every chart on this page recalculates
-        from what you set here.
+        
+        {say("These are live prices: packs are what buyers pay for coins, and the ticket price is what a moderator pays (in coins) for one customization. Every chart on this page recalculates from what you set here.")}
       </p>
 
       {/* The packs ARE the coin price, but only indirectly — to make a coin
@@ -669,14 +677,14 @@ function PricingEditor({
           hand. This sets the rate directly and rescales the packs to match,
           which is how the question is actually asked: "what should a coin
           cost?" */}
-      <h4 className="mb-2 font-heading font-semibold text-ink">Price per coin</h4>
+      <h4 className="mb-2 font-heading font-semibold text-ink">{say("Price per coin")}</h4>
       <div className="mb-5 flex flex-wrap items-center gap-2 rounded-wobble-sm border-2 border-dashed border-pencil p-3">
         <SketchInput
           type="number"
           min={0}
           step="0.1"
           className="w-24"
-          aria-label="Price per coin in cents"
+          aria-label={say("Price per coin in cents")}
           value={perCoin}
           onChange={(e) => {
             setPerCoin(e.target.value);
@@ -684,19 +692,20 @@ function PricingEditor({
             if (Number.isFinite(c) && c >= 0) applyPerCoin(c);
           }}
         />
-        <span className="text-sm text-ink-soft">¢ per 🪙</span>
+        <span className="text-sm text-ink-soft">{say("¢ per 🪙")}</span>
         <span className="font-mono text-xs text-ink-faint">
-          = ${((Number(perCoin || 0) * 100) / 100).toFixed(2)} per 100 🪙
+          = ${((Number(perCoin || 0) * 100) / 100).toFixed(2)}  {say("per 100 🪙")}
           {Math.abs(Number(perCoin || 0) - rateFromPacks) > 0.05 && (
-            <span className="ml-2 text-orange">was {rateFromPacks.toFixed(1)}¢</span>
+            <span className="ml-2 text-orange">{say("was")} {rateFromPacks.toFixed(1)}¢</span>
           )}
         </span>
         <span className="ml-auto text-xs text-ink-faint">
-          Every pack below rescales to this rate. Edit a pack afterwards to give it its own deal.
+          
+          {say("Every pack below rescales to this rate. Edit a pack afterwards to give it its own deal.")}
         </span>
       </div>
 
-      <h4 className="mb-2 font-heading font-semibold text-ink">Coin packs</h4>
+      <h4 className="mb-2 font-heading font-semibold text-ink">{say("Coin packs")}</h4>
       <div className="flex flex-col gap-2">
         {rows.map((r, i) => (
           <div key={i} className="flex flex-wrap items-center gap-2">
@@ -707,7 +716,7 @@ function PricingEditor({
               value={r.tokens}
               onChange={(e) => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, tokens: e.target.value } : x)))}
             />
-            <span className="text-sm text-ink-soft">🪙 for $</span>
+            <span className="text-sm text-ink-soft">{say("🪙 for $")}</span>
             <SketchInput
               className="w-24"
               value={r.price}
@@ -723,7 +732,8 @@ function PricingEditor({
                 onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}
                 className="rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-0.5 text-xs font-bold text-ink-soft hover:border-red hover:text-red"
               >
-                Remove
+                
+                {say("Remove")}
               </button>
             )}
           </div>
@@ -734,11 +744,12 @@ function PricingEditor({
           onClick={() => setRows((rs) => [...rs, { tokens: '100', price: '5.00' }])}
           className="mt-2 rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-xs font-bold text-ink-soft hover:border-ink hover:text-ink"
         >
-          + Add pack
+          
+          {say("+ Add pack")}
         </button>
       )}
 
-      <h4 className="mb-2 mt-5 font-heading font-semibold text-ink">Ticket price</h4>
+      <h4 className="mb-2 mt-5 font-heading font-semibold text-ink">{say("Ticket price")}</h4>
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-sm text-ink">
           <input
@@ -747,7 +758,8 @@ function PricingEditor({
             checked={mode === 'auto'}
             onChange={() => setMode('auto')}
           />
-          Automatic — always covers the priciest deck (currently {autoPrice} 🪙)
+          
+          {say("Automatic — always covers the priciest deck (currently")} {autoPrice} 🪙)
         </label>
         <label className="flex items-center gap-2 text-sm text-ink">
           <input
@@ -756,13 +768,14 @@ function PricingEditor({
             checked={mode === 'custom'}
             onChange={() => setMode('custom')}
           />
-          Fixed:
+          
+          {say("Fixed:")}
         </label>
         <SketchInput
           type="number"
           min={1}
           className="w-24"
-          aria-label="Ticket price in coins"
+          aria-label={say("Ticket price in coins")}
           value={ticket}
           disabled={mode === 'auto'}
           onChange={(e) => setTicket(e.target.value)}
@@ -771,8 +784,8 @@ function PricingEditor({
       </div>
       {mode === 'custom' && Number(ticket) < autoPrice && (
         <p className="mt-1 text-xs font-bold text-orange">
-          Below the automatic price ({autoPrice} 🪙) a maxed-out deck earns you less than a
-          coin-paid one would — check the Per-generation tab's guarantee after saving.
+          
+          {say("Below the automatic price (")}{autoPrice}  {say("🪙) a maxed-out deck earns you less than a coin-paid one would — check the Per-generation tab's guarantee after saving.")}
         </p>
       )}
 
@@ -788,7 +801,8 @@ function PricingEditor({
             })
           }
         >
-          Save prices
+          
+          {say("Save prices")}
         </SketchButton>
       </div>
     </div>
@@ -841,16 +855,17 @@ function UserCoinProfile() {
 
   return (
     <div className="mt-4 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper p-4">
-      <p className="mb-1 font-heading font-semibold text-ink">Look up a user</p>
+      <p className="mb-1 font-heading font-semibold text-ink">{say("Look up a user")}</p>
       <p className="mb-3 text-xs text-ink-soft">
-        Where one person&apos;s coins came from and where they went.
+        
+        {say("Where one person's coins came from and where they went.")}
       </p>
       <SketchSelect
-        aria-label="User to inspect"
+        aria-label={say("User to inspect")}
         value={String(userId)}
         onChange={(e) => setUserId(e.target.value ? Number(e.target.value) : '')}
       >
-        <option value="">Pick a user…</option>
+        <option value="">{say("Pick a user…")}</option>
         {(usersList.data ?? []).map((u) => (
           <option key={u.id} value={u.id}>
             {u.name} — {u.email}
@@ -858,7 +873,7 @@ function UserCoinProfile() {
         ))}
       </SketchSelect>
 
-      {q.isLoading && userId !== '' && <p className="mt-3 text-sm text-ink-faint">Adding it up…</p>}
+      {q.isLoading && userId !== '' && <p className="mt-3 text-sm text-ink-faint">{say("Adding it up…")}</p>}
 
       {d && (
         <div className="mt-4">
@@ -866,13 +881,13 @@ function UserCoinProfile() {
             <span className="font-heading text-lg font-bold text-ink">{d.user.name}</span>
             <span className="text-xs text-ink-faint">{d.user.email}</span>
             <span className="ml-auto font-mono text-sm font-bold text-ink">
-              {d.user.tokenBalance} 🪙 · {d.user.ticketBalance} 🎫 · {d.generations} generation
+              {d.user.tokenBalance} 🪙 · {d.user.ticketBalance} 🎫 · {d.generations}  {say("generation")}
               {d.generations === 1 ? '' : 's'}
             </span>
           </div>
 
           {rows.length === 0 ? (
-            <p className="mt-3 text-sm text-ink-faint">No coin movements on this account yet.</p>
+            <p className="mt-3 text-sm text-ink-faint">{say("No coin movements on this account yet.")}</p>
           ) : (
             <div className="mt-3 flex flex-col gap-1.5">
               {rows.map((r) => (
@@ -894,7 +909,7 @@ function UserCoinProfile() {
 
           {d.recent.length > 0 && (
             <>
-              <p className="micro mb-1 mt-4 text-ink-soft">Most recent movements</p>
+              <p className="micro mb-1 mt-4 text-ink-soft">{say("Most recent movements")}</p>
               <div className="flex max-h-56 flex-col gap-1 overflow-y-auto pr-1" data-lenis-prevent>
                 {d.recent.map((r) => (
                   <div key={r.id} className="flex items-baseline gap-3 text-xs">
@@ -949,9 +964,9 @@ function PerGenerationPrices({
     onSuccess: async () => {
       await utils.finance.overview.invalidate();
       void utils.tokens.packs.invalidate();
-      toast.success('Prices saved');
+      toast.success(say("Prices saved"));
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   const rateNum = Number(rate);
@@ -975,7 +990,7 @@ function PerGenerationPrices({
             min={0}
             step="0.01"
             className="w-24"
-            aria-label="Price per coin in cents"
+            aria-label={say("Price per coin in cents")}
             value={rate}
             onChange={(e) => setRate(e.target.value)}
           />
@@ -989,7 +1004,7 @@ function PerGenerationPrices({
             type="number"
             min={1}
             className="w-20"
-            aria-label="Ticket price in coins"
+            aria-label={say("Ticket price in coins")}
             value={auto ? String(ticketPriceCoins) : ticket}
             disabled={auto}
             onChange={(e) => setTicket(e.target.value)}
@@ -997,7 +1012,8 @@ function PerGenerationPrices({
           <span className="text-sm text-ink-soft">🪙</span>
           <label className="flex items-center gap-1 text-xs text-ink-soft">
             <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
-            auto
+            
+            {say("auto")}
           </label>
         </div>
       </LabeledField>
@@ -1009,7 +1025,7 @@ function PerGenerationPrices({
             min={0}
             max={99}
             className="w-20"
-            aria-label="Target profit margin percent"
+            aria-label={say("Target profit margin percent")}
             defaultValue={Math.round(marginPct)}
             onChange={(e) => {
               // Three decimals, not two: at low coin prices a hundredth of a
@@ -1024,13 +1040,14 @@ function PerGenerationPrices({
       </LabeledField>
 
       <p className="pb-1 text-sm text-ink">
-        This deck earns <span className="font-bold">{fmtUsd(incomeUsd)}</span>, costs{' '}
+        
+        {say("This deck earns")} <span className="font-bold">{fmtUsd(incomeUsd)}</span>{say(", costs")}{' '}
         <span className="font-bold text-red">~{fmtUsd(deckCostUsd)}</span> →{' '}
         <span className={`font-bold ${marginPct >= 0 ? 'text-green' : 'text-red'}`}>
-          {marginPct.toFixed(1)}% margin
+          {marginPct.toFixed(1)}{say("% margin")}
         </span>
         {Math.abs(rateNum - currentRate) > 0.005 && (
-          <span className="text-ink-faint"> · unsaved, was {currentRate.toFixed(2)}¢</span>
+          <span className="text-ink-faint">  {say("· unsaved, was")} {currentRate.toFixed(2)}¢</span>
         )}
       </p>
 
@@ -1051,7 +1068,8 @@ function PerGenerationPrices({
           })
         }
       >
-        Save prices
+        
+        {say("Save prices")}
       </SketchButton>
     </div>
   );
@@ -1118,7 +1136,7 @@ function FinanceBody() {
 
   const refresh = trpc.finance.refreshPricing.useMutation({
     onSuccess: () => {
-      toast.success('Model prices refreshed from the live feed ✓');
+      toast.success(say("Model prices refreshed from the live feed ✓"));
       void utils.finance.overview.invalidate();
     },
     onError: (e) => toast.error(errMsg(e)),
@@ -1246,10 +1264,11 @@ function FinanceBody() {
   if (overview.isError || !data || !calc) {
     return (
       <div className="mx-auto w-full max-w-content px-4 py-16 text-center lg:px-8">
-        <p className="font-display text-3xl text-ink">The ledger smudged itself.</p>
+        <p className="font-display text-3xl text-ink">{say("The ledger smudged itself.")}</p>
         <p className="mt-1 text-sm text-ink-soft">{errMsg(overview.error)}</p>
         <SketchButton className="mt-4" onClick={() => overview.refetch()}>
-          Try again
+          
+          {say("Try again")}
         </SketchButton>
       </div>
     );
@@ -1374,7 +1393,7 @@ function FinanceBody() {
       <HubHeader
         backTo="/admin"
         backLabel="Home"
-        title="Finance"
+        title={say("Finance")}
         blurb="Your income, your expenses, and what every generation really costs."
         chip={
           <span className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-ink bg-green-soft">
@@ -1387,23 +1406,23 @@ function FinanceBody() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <SketchCard borderStyle="dashed" className="p-4 text-center">
           <p className="font-display text-3xl font-bold text-green">{formatMoney(data.revenueCents)}</p>
-          <p className="micro text-ink-faint">collected from coin sales</p>
+          <p className="micro text-ink-faint">{say("collected from coin sales")}</p>
         </SketchCard>
         <SketchCard borderStyle="dashed" index={1} className="p-4 text-center">
           <p className="font-display text-3xl font-bold text-red">~{fmtUsd(totalEstUsd)}</p>
-          <p className="micro text-ink-faint">estimated API cost (all time)</p>
+          <p className="micro text-ink-faint">{say("estimated API cost (all time)")}</p>
         </SketchCard>
         <SketchCard borderStyle="dashed" index={2} className="p-4 text-center">
           <p className="font-display text-3xl font-bold text-ink">
             {fmtUsd(data.revenueCents / 100 - totalEstUsd)}
           </p>
-          <p className="micro text-ink-faint">margin so far</p>
+          <p className="micro text-ink-faint">{say("margin so far")}</p>
         </SketchCard>
         <SketchCard borderStyle="dashed" index={3} className="p-4 text-center">
           <p className="font-display text-3xl font-bold text-orange">
             {data.circulationTokens.toLocaleString()} 🪙
           </p>
-          <p className="micro text-ink-faint">in circulation ≈ {fmtUsd(liabilityUsd)} of unused generations</p>
+          <p className="micro text-ink-faint">{say("in circulation ≈")} {fmtUsd(liabilityUsd)}  {say("of unused generations")}</p>
         </SketchCard>
       </div>
 
@@ -1430,7 +1449,7 @@ function FinanceBody() {
             loading={refresh.isPending}
             onClick={() => refresh.mutate()}
           >
-            <RefreshCw className="h-3.5 w-3.5" strokeWidth={2} /> Refresh prices
+            <RefreshCw className="h-3.5 w-3.5" strokeWidth={2} />  {say("Refresh prices")}
           </SketchButton>
         </div>
 
@@ -1438,12 +1457,12 @@ function FinanceBody() {
         {tab === 'generation' && (
           <div className="p-4">
             <h3 className="font-heading text-lg font-semibold text-ink">
-              What a presentation costs you vs what it earns
+              
+              {say("What a presentation costs you vs what it earns")}
             </h3>
             <p className="mb-3 text-xs text-ink-soft">
-              Orange bars: what each model charges YOU in AI fees to generate the deck configured
-              below. The dotted lines are money coming in — every line above the bars is profit.
-              Set what you charge in the second row and everything here redraws before you save.
+              
+              {say("Orange bars: what each model charges YOU in AI fees to generate the deck configured below. The dotted lines are money coming in — every line above the bars is profit. Set what you charge in the second row and everything here redraws before you save.")}
             </p>
 
             {/* calculator */}
@@ -1460,8 +1479,8 @@ function FinanceBody() {
               </LabeledField>
               <LabeledField label="Images">
                 <SketchSelect value={calcImages ? 'yes' : 'no'} onChange={(e) => setCalcImages(e.target.value === 'yes')}>
-                  <option value="yes">With images</option>
-                  <option value="no">Text only</option>
+                  <option value="yes">{say("With images")}</option>
+                  <option value="no">{say("Text only")}</option>
                 </SketchSelect>
               </LabeledField>
               <LabeledField label="Level">
@@ -1481,13 +1500,15 @@ function FinanceBody() {
                   setCalcLevel('C2');
                 }}
               >
-                Max deck (what a ticket covers)
+                
+                {say("Max deck (what a ticket covers)")}
               </SketchButton>
               <p className="pb-1 text-sm text-ink">
-                This deck charges{' '}
+                
+                {say("This deck charges")}{' '}
                 <span className="font-bold text-orange">{calc.coins} 🪙</span> ≈{' '}
                 <span className="font-bold">{fmtUsd(calc.chargeUsd)}</span>
-                <span className="text-ink-faint"> · one ticket sells for </span>
+                <span className="text-ink-faint">  {say("· one ticket sells for")} </span>
                 <span className="font-bold text-green">{data.ticketPriceCoins} 🪙 ≈ {fmtUsd(calc.ticketUsd)}</span>
               </p>
             </div>
@@ -1497,25 +1518,26 @@ function FinanceBody() {
                 real money going out, so it is stated here beside the deck. */}
             <div className="mb-4 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper px-4 py-2.5">
               <p className="text-sm text-ink">
-                <span className="font-heading font-bold">Post music (ElevenLabs)</span> — a{' '}
-                {MUSIC_REF_SECONDS}-second bed is about{' '}
-                {(MUSIC_CREDITS_PER_SECOND * MUSIC_REF_SECONDS).toLocaleString()} ElevenLabs
-                credits, roughly{' '}
-                <span className="font-bold text-orange">{fmtUsd(musicApiUsd)}</span>. You charge{' '}
+                <span className="font-heading font-bold">{say("Post music (ElevenLabs)")}</span>  {say("— a")}{' '}
+                {MUSIC_REF_SECONDS}{say("-second bed is about")}{' '}
+                {(MUSIC_CREDITS_PER_SECOND * MUSIC_REF_SECONDS).toLocaleString()}  {say("ElevenLabs credits, roughly")}{' '}
+                <span className="font-bold text-orange">{fmtUsd(musicApiUsd)}</span>{say(". You charge")}{' '}
                 <span className="font-bold text-green">
                   {musicCoins} 🪙 ≈ {fmtUsd(musicChargeUsd)}
                 </span>{' '}
-                for it —{' '}
+                
+                {say("for it —")}{' '}
                 <span className={musicChargeUsd >= musicApiUsd ? 'text-green' : 'text-red'}>
                   {musicChargeUsd >= musicApiUsd
                     ? `${fmtUsd(musicChargeUsd - musicApiUsd)} margin`
                     : `${fmtUsd(musicApiUsd - musicChargeUsd)} LOSS`}
                 </span>
-                . Everyone pays it, admins included.
+                
+                {say(". Everyone pays it, admins included.")}
               </p>
               <p className="mt-1 text-xs text-ink-faint">
-                The credit rate is an estimate — check it against your ElevenLabs plan and set the
-                coin price in Settings → Pricing → Post music.
+                
+                {say("The credit rate is an estimate — check it against your ElevenLabs plan and set the coin price in Settings → Pricing → Post music.")}
               </p>
             </div>
 
@@ -1538,9 +1560,8 @@ function FinanceBody() {
                   <span className="font-heading font-bold">
                     {worstCase.profit >= 0 ? 'Ticket guarantee holds ✓' : 'Ticket guarantee BROKEN ✗'}
                   </span>{' '}
-                  The biggest deck we offer (15 slides, images, top level) on the priciest model
-                  ({worstCase.model}, generously estimated at ~{fmtUsd(worstCase.costUsd)}) vs a
-                  ticket at {fmtUsd(calc.ticketUsd)} →{' '}
+                  
+                  {say("The biggest deck we offer (15 slides, images, top level) on the priciest model (")}{worstCase.model}{say(", generously estimated at ~")}{fmtUsd(worstCase.costUsd)}{say(") vs a ticket at")} {fmtUsd(calc.ticketUsd)} →{' '}
                   <span className={`font-bold ${worstCase.profit >= 0 ? 'text-green' : 'text-red'}`}>
                     {worstCase.profit >= 0 ? 'at least ' : ''}
                     {fmtUsd(worstCase.profit)} {worstCase.profit >= 0 ? 'profit per ticket' : 'LOSS per ticket'}
@@ -1611,41 +1632,41 @@ function FinanceBody() {
               </ResponsiveContainer>
             </div>
             <p className="micro mt-1 text-center text-ink-faint">
-              Vertical scale is logarithmic — each gridline is 10× the one below, so cent-sized
-              costs and dollar-sized income both stay visible.
+              
+              {say("Vertical scale is logarithmic — each gridline is 10× the one below, so cent-sized costs and dollar-sized income both stay visible.")}
             </p>
 
             {/* the two readings: per generation, and per 100 coins */}
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <div className="rounded-wobble-sm border-2 border-dashed border-blue bg-blue-soft/40 p-3">
-                <p className="font-heading font-semibold text-ink">Average per generation</p>
+                <p className="font-heading font-semibold text-ink">{say("Average per generation")}</p>
                 <p className="mt-1 text-sm text-ink">
-                  This deck costs you <span className="font-bold text-red">~{fmtUsd(avgCostUsd)}</span> on
-                  an average model and the user pays{' '}
+                  
+                  {say("This deck costs you")} <span className="font-bold text-red">~{fmtUsd(avgCostUsd)}</span>  {say("on an average model and the user pays")}{' '}
                   <span className="font-bold text-orange">{calc.coins} 🪙</span> ={' '}
                   <span className="font-bold">{fmtUsd(calc.chargeUsd)}</span> →{' '}
                   <span className={perGenMargin >= 0 ? 'font-bold text-green' : 'font-bold text-red'}>
-                    {fmtUsd(perGenMargin)} kept
+                    {fmtUsd(perGenMargin)}  {say("kept")}
                   </span>
                   {perGenMargin > 0 && avgCostUsd > 0 && (
-                    <span className="text-ink-faint"> ({(calc.chargeUsd / avgCostUsd).toFixed(0)}× what it cost)</span>
+                    <span className="text-ink-faint"> ({(calc.chargeUsd / avgCostUsd).toFixed(0)}{say("× what it cost)")}</span>
                   )}
                 </p>
               </div>
               <div className="rounded-wobble-sm border-2 border-dashed border-purple bg-purple-soft/40 p-3">
-                <p className="font-heading font-semibold text-ink">Per 100 coins sold</p>
+                <p className="font-heading font-semibold text-ink">{say("Per 100 coins sold")}</p>
                 <p className="mt-1 text-sm text-ink">
-                  100 🪙 sell for <span className="font-bold text-green">{fmtUsd(hundredCoinsUsd)}</span> and
-                  buy <span className="font-bold">{decksPer100}</span> deck
-                  {decksPer100 === 1 ? '' : 's'} this size, costing you{' '}
+                  
+                  {say("100 🪙 sell for")} <span className="font-bold text-green">{fmtUsd(hundredCoinsUsd)}</span>  {say("and buy")} <span className="font-bold">{decksPer100}</span>  {say("deck")}
+                  {decksPer100 === 1 ? '' : 's'}  {say("this size, costing you")}{' '}
                   <span className="font-bold text-red">~{fmtUsd(costOf100Coins)}</span> →{' '}
                   <span className={hundredCoinsUsd - costOf100Coins >= 0 ? 'font-bold text-green' : 'font-bold text-red'}>
-                    {fmtUsd(hundredCoinsUsd - costOf100Coins)} kept
+                    {fmtUsd(hundredCoinsUsd - costOf100Coins)}  {say("kept")}
                   </span>
                   {calc.coins > 0 && (
                     <span className="text-ink-faint">
                       {' '}
-                      · {calc.coins} 🪙 per generation, ~{(calc.coins / calcSlides).toFixed(1)} 🪙 per slide
+                      · {calc.coins}  {say("🪙 per generation, ~")}{(calc.coins / calcSlides).toFixed(1)}  {say("🪙 per slide")}
                     </span>
                   )}
                 </p>
@@ -1656,12 +1677,12 @@ function FinanceBody() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b-2 border-ink text-left font-heading text-xs uppercase tracking-wider text-ink-soft">
-                    <th className="py-1.5 pr-3">Model</th>
-                    <th className="py-1.5 pr-3 text-right">Tokens / deck</th>
-                    <th className="py-1.5 pr-3 text-right">Costs you ({calcSlides} sl.)</th>
-                    <th className="py-1.5 pr-3 text-right">Max deck (15 sl.)</th>
-                    <th className="py-1.5 pr-3 text-right">Margin (coin-paid)</th>
-                    <th className="py-1.5 text-right">Margin (ticketed)</th>
+                    <th className="py-1.5 pr-3">{say("Model")}</th>
+                    <th className="py-1.5 pr-3 text-right">{say("Tokens / deck")}</th>
+                    <th className="py-1.5 pr-3 text-right">{say("Costs you (")}{calcSlides}  {say("sl.)")}</th>
+                    <th className="py-1.5 pr-3 text-right">{say("Max deck (15 sl.)")}</th>
+                    <th className="py-1.5 pr-3 text-right">{say("Margin (coin-paid)")}</th>
+                    <th className="py-1.5 text-right">{say("Margin (ticketed)")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1689,14 +1710,13 @@ function FinanceBody() {
               </table>
             </div>
             <p className="micro mt-2 text-ink-faint">
-              Text cost only — image generation isn't metered yet, so decks with images cost a
-              little more than shown. Coin value uses today's pack prices
-              ({packRate.toFixed(1)}¢ per coin).
+              
+              {say("Text cost only — image generation isn't metered yet, so decks with images cost a little more than shown. Coin value uses today's pack prices (")}{packRate.toFixed(1)}{say("¢ per coin).")}
             </p>
 
             {/* what-if: sell N coins */}
             <div className="mt-5 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper p-4">
-              <p className="mb-1 font-heading font-semibold text-ink">What if I sell…</p>
+              <p className="mb-1 font-heading font-semibold text-ink">{say("What if I sell…")}</p>
               <div className="flex flex-wrap items-center gap-2">
                 <SketchInput
                   type="number"
@@ -1706,7 +1726,8 @@ function FinanceBody() {
                   onChange={(e) => setSellCoins(Math.max(1, Math.min(1000000, Number(e.target.value) || 1)))}
                 />
                 <span className="text-sm text-ink">
-                  coins — and every one of them gets spent on decks like the one above?
+                  
+                  {say("coins — and every one of them gets spent on decks like the one above?")}
                 </span>
               </div>
               {(() => {
@@ -1719,15 +1740,16 @@ function FinanceBody() {
                 const worstProfit = revenue - dear;
                 return (
                   <p className="mt-2 text-sm text-ink">
-                    You collect <span className="font-bold text-green">{fmtUsd(revenue)}</span>. Those
-                    coins buy <span className="font-bold">{decks}</span> generations, costing you{' '}
-                    {fmtUsd(cheap)}–{fmtUsd(dear)} depending on which model answers →{' '}
+                    
+                    {say("You collect")} <span className="font-bold text-green">{fmtUsd(revenue)}</span>{say(". Those coins buy")} <span className="font-bold">{decks}</span>  {say("generations, costing you")}{' '}
+                    {fmtUsd(cheap)}–{fmtUsd(dear)}  {say("depending on which model answers →")}{' '}
                     <span className={`font-bold ${worstProfit >= 0 ? 'text-green' : 'text-red'}`}>
                       {worstProfit >= 0
                         ? `${fmtUsd(worstProfit)}–${fmtUsd(bestProfit)} profit`
                         : `between ${fmtUsd(worstProfit)} and ${fmtUsd(bestProfit)} — you'd be at a loss on pricier models`}
                     </span>
-                    . Every unspent coin is pure margin.
+                    
+                    {say(". Every unspent coin is pure margin.")}
                   </p>
                 );
               })()}
@@ -1740,16 +1762,16 @@ function FinanceBody() {
           <div className="p-4">
             <div className="mb-1 flex flex-wrap items-center gap-2">
               <h3 className="font-heading text-lg font-semibold text-ink">
-                Raw model prices <span className="text-sm font-normal text-ink-faint">(USD per 1M tokens)</span>
+                
+                {say("Raw model prices")} <span className="text-sm font-normal text-ink-faint">{say("(USD per 1M tokens)")}</span>
               </h3>
               <Chip kind="neutral" className="border-ink bg-paper-3">
                 {data.pricing.source === 'web' ? `refreshed ${pricingAge}` : `seed prices · ${pricingAge}`}
               </Chip>
             </div>
             <p className="mb-3 text-xs text-ink-soft">
-              "Input" is the prompt we send the model; "output" is the text it writes back.
-              Prices are per one million tokens (≈ 750,000 words) — one deck uses only a tiny
-              slice of that; see the Per-generation tab for what a single deck costs.
+              
+              {say("\"Input\" is the prompt we send the model; \"output\" is the text it writes back. Prices are per one million tokens (≈ 750,000 words) — one deck uses only a tiny slice of that; see the Per-generation tab for what a single deck costs.")}
             </p>
             <div style={{ height: data.pricing.models.length * 44 + 60 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -1780,10 +1802,10 @@ function FinanceBody() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b-2 border-ink text-left font-heading text-xs uppercase tracking-wider text-ink-soft">
-                    <th className="py-1.5 pr-3">Model</th>
-                    <th className="py-1.5 pr-3">Provider</th>
-                    <th className="py-1.5 pr-3 text-right">Input / 1M</th>
-                    <th className="py-1.5 text-right">Output / 1M</th>
+                    <th className="py-1.5 pr-3">{say("Model")}</th>
+                    <th className="py-1.5 pr-3">{say("Provider")}</th>
+                    <th className="py-1.5 pr-3 text-right">{say("Input / 1M")}</th>
+                    <th className="py-1.5 text-right">{say("Output / 1M")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1804,29 +1826,30 @@ function FinanceBody() {
         {/* ---------------- tab 3: income ---------------- */}
         {tab === 'income' && (
           <div className="p-4">
-            <h3 className="mb-3 font-heading text-lg font-semibold text-ink">Money coming in</h3>
+            <h3 className="mb-3 font-heading text-lg font-semibold text-ink">{say("Money coming in")}</h3>
             <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
               <SketchCard borderStyle="dashed" className="p-3 text-center">
                 <p className="font-display text-2xl font-bold text-green">{formatMoney(data.revenueCents)}</p>
-                <p className="micro text-ink-faint">from coin sales</p>
+                <p className="micro text-ink-faint">{say("from coin sales")}</p>
               </SketchCard>
               <SketchCard borderStyle="dashed" index={1} className="p-3 text-center">
                 <p className="font-display text-2xl font-bold text-orange">{data.purchasedTokens.toLocaleString()} 🪙</p>
-                <p className="micro text-ink-faint">coins sold</p>
+                <p className="micro text-ink-faint">{say("coins sold")}</p>
               </SketchCard>
               <SketchCard borderStyle="dashed" index={2} className="p-3 text-center">
                 <p className="font-display text-2xl font-bold text-ink">{led.ticketCoins.toLocaleString()} 🪙</p>
                 <p className="micro text-ink-faint">
-                  collected from tickets ≈ {fmtUsd((led.ticketCoins * data.centsPerCoin) / 100)}
+                  
+                  {say("collected from tickets ≈")} {fmtUsd((led.ticketCoins * data.centsPerCoin) / 100)}
                 </p>
               </SketchCard>
               <SketchCard borderStyle="dashed" index={3} className="p-3 text-center">
                 <p className="font-display text-2xl font-bold text-ink">{data.recentReceipts.length}</p>
-                <p className="micro text-ink-faint">recent receipts (below)</p>
+                <p className="micro text-ink-faint">{say("recent receipts (below)")}</p>
               </SketchCard>
             </div>
             {data.monthlyRevenue.length === 0 ? (
-              <p className="py-6 text-center font-display text-2xl text-ink-faint">No credited sales yet 🪙</p>
+              <p className="py-6 text-center font-display text-2xl text-ink-faint">{say("No credited sales yet 🪙")}</p>
             ) : (
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
@@ -1844,9 +1867,8 @@ function FinanceBody() {
               </div>
             )}
             <p className="micro mt-2 text-ink-faint">
-              Coin sales are real dollars (credited payments + Finance receipts). Ticket income is
-              collected in coins moderators already bought, valued at your blended sale rate — it's
-              not counted twice as dollars.
+              
+              {say("Coin sales are real dollars (credited payments + Finance receipts). Ticket income is collected in coins moderators already bought, valued at your blended sale rate — it's not counted twice as dollars.")}
             </p>
           </div>
         )}
@@ -1855,13 +1877,11 @@ function FinanceBody() {
         {tab === 'credits' && (
           <div className="p-4">
             <h3 className="mb-1 font-heading text-lg font-semibold text-ink">
-              Every coin, accounted for
+              
+              {say("Every coin, accounted for")}
             </h3>
             <p className="mb-4 text-xs text-ink-soft">
-              {data.circulationTokens.toLocaleString()} 🪙 are sitting in user balances right now —
-              about {fmtUsd(liabilityUsd)} of generations you've promised but not yet paid API costs
-              for. Coins granted free (including to yourself) create that obligation without matching
-        income; grants you have since taken back are already netted out of the figures below.</p>
+              {data.circulationTokens.toLocaleString()}  {say("🪙 are sitting in user balances right now — about")} {fmtUsd(liabilityUsd)}  {say("of generations you've promised but not yet paid API costs for. Coins granted free (including to yourself) create that obligation without matching income; grants you have since taken back are already netted out of the figures below.")}</p>
             <div className="flex flex-col gap-2">
               {ledgerRows.map((r) => (
                 <div key={r.label} className="flex items-center gap-3">
@@ -1883,10 +1903,10 @@ function FinanceBody() {
             </div>
             <div className="mt-3 flex gap-4 text-xs text-ink-soft">
               <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-full border-2 border-ink bg-green/70" /> coins entering circulation
+                <span className="h-3 w-3 rounded-full border-2 border-ink bg-green/70" />  {say("coins entering circulation")}
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-full border-2 border-ink bg-orange/80" /> coins leaving circulation
+                <span className="h-3 w-3 rounded-full border-2 border-ink bg-orange/80" />  {say("coins leaving circulation")}
               </span>
             </div>
             <BalanceFixForm />
@@ -1898,18 +1918,18 @@ function FinanceBody() {
         {tab === 'sales' && salesBasis && (
           <div className="p-4">
             <h3 className="font-heading text-lg font-semibold text-ink">
-              Sales desk — coins and tickets
+              
+              {say("Sales desk — coins and tickets")}
             </h3>
             <p className="mb-4 text-xs text-ink-soft">
-              Every transfer you've made, what it cost you, and what you kept. The cost and profit
-              columns are yours alone — a receipt printed from any row shows the buyer only what
-              they bought and what they paid.
+              
+              {say("Every transfer you've made, what it cost you, and what you kept. The cost and profit columns are yours alone — a receipt printed from any row shows the buyer only what they bought and what they paid.")}
             </p>
 
             {/* the two things you can sell */}
             <div className="mb-5 grid gap-4 lg:grid-cols-2">
               <div className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper p-3">
-                <p className="mb-2 font-heading font-semibold text-ink">Sell coins (against a payment)</p>
+                <p className="mb-2 font-heading font-semibold text-ink">{say("Sell coins (against a payment)")}</p>
                 <GrantForm
                   onReceipt={setReceipt}
                   costPerCoinUsd={salesBasis.costPerCoinUsd}
@@ -1918,9 +1938,11 @@ function FinanceBody() {
               </div>
               <div className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper p-3">
                 <p className="mb-2 font-heading font-semibold text-ink">
-                  Sell tickets{' '}
+                  
+                  {say("Sell tickets")}{' '}
                   <span className="text-xs font-normal text-ink-soft">
-                    (paid from the moderator's coins, {data.ticketPriceCoins} 🪙 each)
+                    
+                    {say("(paid from the moderator's coins,")} {data.ticketPriceCoins}  {say("🪙 each)")}
                   </span>
                 </p>
                 <SellTicketsForm
@@ -1933,26 +1955,27 @@ function FinanceBody() {
             </div>
 
             {/* one table of every transfer */}
-            <h4 className="mb-2 font-heading font-semibold text-ink">Transfers</h4>
+            <h4 className="mb-2 font-heading font-semibold text-ink">{say("Transfers")}</h4>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b-2 border-ink text-left font-heading text-xs uppercase tracking-wider text-ink-soft">
-                    <th className="py-1.5 pr-3">Ref</th>
-                    <th className="py-1.5 pr-3">Buyer</th>
-                    <th className="py-1.5 pr-3">What</th>
-                    <th className="py-1.5 pr-3 text-right">Sold for</th>
-                    <th className="py-1.5 pr-3 text-right">Cost to me</th>
-                    <th className="py-1.5 pr-3 text-right">I earned</th>
-                    <th className="py-1.5 pr-3 text-right">When</th>
-                    <th className="py-1.5 text-right">Receipt</th>
+                    <th className="py-1.5 pr-3">{say("Ref")}</th>
+                    <th className="py-1.5 pr-3">{say("Buyer")}</th>
+                    <th className="py-1.5 pr-3">{say("What")}</th>
+                    <th className="py-1.5 pr-3 text-right">{say("Sold for")}</th>
+                    <th className="py-1.5 pr-3 text-right">{say("Cost to me")}</th>
+                    <th className="py-1.5 pr-3 text-right">{say("I earned")}</th>
+                    <th className="py-1.5 pr-3 text-right">{say("When")}</th>
+                    <th className="py-1.5 text-right">{say("Receipt")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {transfers.length === 0 && (
                     <tr>
                       <td colSpan={8} className="py-4 text-center font-display text-2xl text-ink-faint">
-                        No transfers yet 🧾
+                        
+                        {say("No transfers yet 🧾")}
                       </td>
                     </tr>
                   )}
@@ -1977,7 +2000,7 @@ function FinanceBody() {
                       </td>
                       <td className="py-1.5 text-right">
                         <SketchButton variant="ghost" size="sm" onClick={t.openReceipt}>
-                          <ReceiptText className="h-3.5 w-3.5" strokeWidth={2} /> Receipt
+                          <ReceiptText className="h-3.5 w-3.5" strokeWidth={2} />  {say("Receipt")}
                         </SketchButton>
                       </td>
                     </tr>
@@ -1985,7 +2008,8 @@ function FinanceBody() {
                   {transfers.length > 0 && (
                     <tr className="text-ink">
                       <td className="pt-2 font-heading font-bold" colSpan={4}>
-                        Total
+                        
+                        {say("Total")}
                       </td>
                       <td className="pt-2 text-right font-mono font-bold text-red">
                         ~{fmtUsd(transfers.reduce((n, t) => n + t.costUsd, 0))}
@@ -2000,11 +2024,8 @@ function FinanceBody() {
               </table>
             </div>
             <p className="micro mt-2 text-ink-faint">
-              Cost basis: a coin is costed at {(salesBasis.costPerCoinUsd * 100).toFixed(3)}¢ — the
-              average model's AI bill for a reference deck spread over what that deck charges. A
-              ticket is costed at ~{fmtUsd(salesBasis.maxDeckCostUsd)}, the average model's bill for
-              the biggest deck it must cover (15 slides, images, top level). Both move with the
-              live model prices.
+              
+              {say("Cost basis: a coin is costed at")} {(salesBasis.costPerCoinUsd * 100).toFixed(3)}{say("¢ — the average model's AI bill for a reference deck spread over what that deck charges. A ticket is costed at ~")}{fmtUsd(salesBasis.maxDeckCostUsd)}{say(", the average model's bill for the biggest deck it must cover (15 slides, images, top level). Both move with the live model prices.")}
             </p>
           </div>
         )}
@@ -2023,14 +2044,15 @@ function FinanceBody() {
       {/* usage detail (the expense receipts) */}
       <section>
         <h3 className="mb-3 font-heading text-xl font-semibold text-ink">
-          Where the API money goes
+          
+          {say("Where the API money goes")}
         </h3>
         {data.usage.length === 0 ? (
           <div className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-3 px-4 py-4">
-            <p className="font-heading text-ink">No AI calls metered yet.</p>
+            <p className="font-heading text-ink">{say("No AI calls metered yet.")}</p>
             <p className="text-sm text-ink-soft">
-              From now on every text generation records the tokens the provider reports, priced
-              with the current table. Generate a deck and this fills in.
+              
+              {say("From now on every text generation records the tokens the provider reports, priced with the current table. Generate a deck and this fills in.")}
             </p>
           </div>
         ) : (
@@ -2038,12 +2060,12 @@ function FinanceBody() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b-2 border-ink text-left font-heading text-xs uppercase tracking-wider text-ink-soft">
-                  <th className="py-1.5 pr-3">Model</th>
-                  <th className="py-1.5 pr-3 text-right">Calls</th>
-                  <th className="py-1.5 pr-3 text-right">Tokens in</th>
-                  <th className="py-1.5 pr-3 text-right">Tokens out</th>
-                  <th className="py-1.5 pr-3 text-right">Est. cost</th>
-                  <th className="py-1.5 text-right">Last used</th>
+                  <th className="py-1.5 pr-3">{say("Model")}</th>
+                  <th className="py-1.5 pr-3 text-right">{say("Calls")}</th>
+                  <th className="py-1.5 pr-3 text-right">{say("Tokens in")}</th>
+                  <th className="py-1.5 pr-3 text-right">{say("Tokens out")}</th>
+                  <th className="py-1.5 pr-3 text-right">{say("Est. cost")}</th>
+                  <th className="py-1.5 text-right">{say("Last used")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -2063,7 +2085,7 @@ function FinanceBody() {
                     </tr>
                   ))}
                 <tr className="text-ink">
-                  <td className="pt-2 font-heading font-bold">Total</td>
+                  <td className="pt-2 font-heading font-bold">{say("Total")}</td>
                   <td colSpan={3} />
                   <td className="pt-2 text-right font-mono font-bold">~{fmtUsd(totalEstUsd)}</td>
                   <td />
@@ -2073,9 +2095,8 @@ function FinanceBody() {
           </div>
         )}
         <p className="micro mt-2 text-ink-faint">
-          Counted from what each API reports per call — text generations only for now (images and
-          speech aren't metered yet). Estimates, not invoices: check them against each provider's
-          own console.
+          
+          {say("Counted from what each API reports per call — text generations only for now (images and speech aren't metered yet). Estimates, not invoices: check them against each provider's own console.")}
         </p>
       </section>
 

@@ -12,6 +12,7 @@ import { Kara } from './SlideComponents';
 import AnnotationLayer, { type AnnTool } from './AnnotationLayer';
 import AnnotationToolbar from './AnnotationToolbar';
 import { rasterizeAnnotations, pageHasMarks } from './rasterize';
+import { say } from '@/lib/i18n';
 
 const LETTERS = ['A', 'B', 'C', 'D'];
 /** Text answers (fill-blank / typed) get this many tries before Next unlocks. */
@@ -110,7 +111,7 @@ function ChoiceCard({ quiz, answer, onAnswer, onSolved, review = false, current 
   const showExplanation = attempts > 0 || answer !== null;
 
   return (
-    <section className="mt-10" aria-label="Quick check quiz">
+    <section className="mt-10" aria-label={say("Quick check quiz")}>
       <QuizHeader question={quiz.question} current={current} />
       <div
         className={cn(
@@ -226,7 +227,7 @@ function TextAnswerCard({
   const canRetry = !!result && !result.correct && !solved;
 
   return (
-    <section className="mt-10" aria-label="Quick check">
+    <section className="mt-10" aria-label={say("Quick check")}>
       <QuizHeader question={quiz.question} current={current} />
 
       {kind === 'typed' ? (
@@ -235,7 +236,7 @@ function TextAnswerCard({
           onChange={(e) => setText(e.target.value)}
           disabled={solved || grading}
           rows={3}
-          placeholder="Type your answer…"
+          placeholder={say("Type your answer…")}
           className="mt-4 w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3.5 py-2.5 text-[0.95rem] text-ink shadow-offset outline-none focus:border-blue disabled:opacity-70"
         />
       ) : (
@@ -244,7 +245,7 @@ function TextAnswerCard({
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
           disabled={solved}
-          placeholder="Type the missing word(s)…"
+          placeholder={say("Type the missing word(s)…")}
           className="mt-4 w-full rounded-wobble-sm border-2 border-ink bg-paper-3 px-3.5 py-2.5 text-[0.95rem] font-bold text-ink shadow-offset outline-none focus:border-blue disabled:opacity-70"
         />
       )}
@@ -271,11 +272,13 @@ function TextAnswerCard({
               a coin per AI check, a fill-blank never leaves the device. */}
           {kind === 'typed' ? (
             <span className="micro text-[0.6rem] text-ink-faint">
-              ✦ AI-checked · {TEXT_GRADE_COST} 🪙 per check
+              
+              {say("✦ AI-checked ·")} {TEXT_GRADE_COST}  {say("🪙 per check")}
             </span>
           ) : (
             <span className="micro text-[0.6rem] text-ink-faint">
-              ✓ checked on your device — free
+              
+              {say("✓ checked on your device — free")}
             </span>
           )}
         </div>
@@ -298,14 +301,14 @@ function TextAnswerCard({
             {/* still has tries: nudge, don't reveal the answer yet */}
             {!result.correct && !solved && (
               <span className="mt-1 block text-sm text-ink-soft">
-                {triesLeft} {triesLeft === 1 ? 'try' : 'tries'} left — you just need the right idea,
-                not the exact words.
+                {triesLeft} {triesLeft === 1 ? 'try' : 'tries'}  {say("left — you just need the right idea, not the exact words.")}
               </span>
             )}
             {/* out of tries (or correct): reveal the reference + explanation */}
             {solved && !result.correct && kind === 'fillblank' && quiz.answer && (
               <span className="block">
-                Answer: <span className="font-bold">{quiz.answer}</span>.
+                
+                {say("Answer:")} <span className="font-bold">{quiz.answer}</span>.
               </span>
             )}
             {solved && <span className="block text-sm text-ink-soft">{quiz.explanation}</span>}
@@ -432,11 +435,12 @@ function SolveCard({
   }, [solved, review, grading, canSubmit, scratchpad, text, quiz, attempts, pages]);
 
   return (
-    <section className="mt-10" aria-label="Solve">
+    <section className="mt-10" aria-label={say("Solve")}>
       <SquiggleDivider className="text-pencil" />
       <h3 className="mt-3 flex items-center gap-2 font-display text-2xl font-bold text-ink">
         <Pencil className="h-5 w-5 text-ink" strokeWidth={2} />
-        Solve it
+        
+        {say("Solve it")}
       </h3>
       <p className="mt-2 text-[1.05rem] font-extrabold leading-snug text-ink">
         <Kara k="solveq" current={current}>
@@ -474,7 +478,8 @@ function SolveCard({
               onChange={(next) => setPage(safePage, next)}
             />
             <span className="pointer-events-none absolute right-2 top-2 rounded-wobble-sm bg-paper-2/80 px-2 py-0.5 font-mono text-[0.6rem] text-ink-faint">
-              Show your work
+              
+              {say("Show your work")}
             </span>
           </div>
           {/* pagination */}
@@ -483,19 +488,20 @@ function SolveCard({
               type="button"
               onClick={() => setPageIdx((i) => Math.max(0, i - 1))}
               disabled={safePage === 0}
-              aria-label="Previous page"
+              aria-label={say("Previous page")}
               className="rounded-wobble-sm border-2 border-ink bg-paper-3 p-1 text-ink shadow-offset disabled:opacity-40"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <span className="font-mono text-ink-soft">
-              Page {safePage + 1} / {pages.length}
+              
+              {say("Page")} {safePage + 1} / {pages.length}
             </span>
             {safePage < pages.length - 1 ? (
               <button
                 type="button"
                 onClick={() => setPageIdx((i) => Math.min(pages.length - 1, i + 1))}
-                aria-label="Next page"
+                aria-label={say("Next page")}
                 className="rounded-wobble-sm border-2 border-ink bg-paper-3 p-1 text-ink shadow-offset"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -504,11 +510,11 @@ function SolveCard({
               <button
                 type="button"
                 onClick={addPage}
-                aria-label="Add page"
-                title="Add another page"
+                aria-label={say("Add page")}
+                title={say("Add another page")}
                 className="flex items-center gap-1 rounded-wobble-sm border-2 border-ink bg-yellow px-2 py-1 font-semibold text-ink shadow-offset"
               >
-                <Plus className="h-3.5 w-3.5" /> Page
+                <Plus className="h-3.5 w-3.5" />  {say("Page")}
               </button>
             )}
           </div>
@@ -520,13 +526,13 @@ function SolveCard({
           drawn work itself, so there is no separate answer box. */}
       {!scratchpad && (
         <>
-          <label className="micro mt-5 block text-ink-soft">Your answer</label>
+          <label className="micro mt-5 block text-ink-soft">{say("Your answer")}</label>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             disabled={solved || grading || review}
             rows={6}
-            placeholder="Work through the problem and give your answer…"
+            placeholder={say("Work through the problem and give your answer…")}
             className="mt-1 w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3.5 py-2.5 text-[0.95rem] text-ink shadow-offset outline-none focus:border-blue disabled:opacity-70"
           />
         </>
@@ -554,10 +560,11 @@ function SolveCard({
                   : 'Submit answer'}
           </button>
           {scratchpad ? (
-            <span className="micro text-ink-faint">The AI reads your pages · 6 🪙 per check</span>
+            <span className="micro text-ink-faint">{say("The AI reads your pages · 6 🪙 per check")}</span>
           ) : (
             <span className="micro text-ink-faint">
-              ✦ AI-checked · {TEXT_GRADE_COST} 🪙 per check
+              
+              {say("✦ AI-checked ·")} {TEXT_GRADE_COST}  {say("🪙 per check")}
             </span>
           )}
         </div>
@@ -578,13 +585,14 @@ function SolveCard({
           {result.feedback ? `${result.feedback} ` : ''}
           {!result.correct && !solved && (
             <span className="mt-1 block text-sm text-ink-soft">
-              {triesLeft} {triesLeft === 1 ? 'try' : 'tries'} left —{' '}
+              {triesLeft} {triesLeft === 1 ? 'try' : 'tries'}  {say("left —")}{' '}
               {scratchpad ? 'revise your working and resubmit.' : 'check your working and refine the answer.'}
             </span>
           )}
           {solved && !result.correct && quiz.answer && (
             <span className="block">
-              Answer: <span className="font-bold">{quiz.answer}</span>.
+              
+              {say("Answer:")} <span className="font-bold">{quiz.answer}</span>.
             </span>
           )}
           {solved && <span className="block text-sm text-ink-soft">{quiz.explanation}</span>}
@@ -601,7 +609,8 @@ function QuizHeader({ question, current }: { question: string; current: string |
       <SquiggleDivider className="text-pencil" />
       <h3 className="mt-3 flex items-center gap-2 font-display text-2xl font-bold text-ink">
         <Pencil className="h-5 w-5 text-ink" strokeWidth={2} />
-        Quick check
+        
+        {say("Quick check")}
       </h3>
       <p className="mt-2 text-[1.125rem] font-extrabold leading-snug text-ink">
         <Kara k="quizq" current={current}>
@@ -626,10 +635,10 @@ function Explanation({ show, solved, text }: { show: boolean; solved: boolean; t
             solved ? 'bg-green-soft' : 'bg-yellow',
           )}
         >
-          {!solved && <span className="font-bold">Not quite — </span>}
+          {!solved && <span className="font-bold">{say("Not quite —")} </span>}
           {text}
           {!solved && (
-            <span className="mt-1 block text-sm text-ink-soft">Try again — you've got this.</span>
+            <span className="mt-1 block text-sm text-ink-soft">{say("Try again — you've got this.")}</span>
           )}
         </motion.div>
       )}

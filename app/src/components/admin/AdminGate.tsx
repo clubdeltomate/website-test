@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import AuthWall from '@/components/AuthWall';
 import SketchButton from '@/components/sketch/SketchButton';
 import type { Role } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 /** Doodle padlock for the staff-only empty state */
 function PadlockDoodle({ className }: { className?: string }) {
@@ -37,7 +38,7 @@ function PadlockDoodle({ className }: { className?: string }) {
 export function GateSkeleton() {
   return (
     <div className="mx-auto w-full max-w-content px-4 py-10 lg:px-8" aria-busy="true">
-      <p className="mb-6 font-heading text-ink-faint">Sharpening pencils…</p>
+      <p className="mb-6 font-heading text-ink-faint">{say("Sharpening pencils…")}</p>
       <div className="skeleton-stroke mb-4 h-12 w-2/3" />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {[0, 1, 2].map((i) => (
@@ -55,7 +56,8 @@ function StaffNotebookGate({ need }: { need: string }) {
     <div className="mx-auto flex min-h-[60dvh] w-full max-w-content flex-col items-center justify-center gap-3 px-6 py-16 text-center">
       <PadlockDoodle className="h-20 w-20" />
       <h2 className="font-display text-4xl text-ink">
-        This page lives in the staff notebook
+        
+        {say("This page lives in the staff notebook")}
       </h2>
       <p className="max-w-sm text-sm text-ink-soft">
         {need === 'admin'

@@ -44,6 +44,7 @@ import { useLessonGeneration } from '@/providers/lesson-generation';
 import { TemplateBadges } from '@/components/templates/TemplatePicker';
 import SketchButton from '../sketch/SketchButton';
 import WashiTape from '../sketch/WashiTape';
+import { say } from '@/lib/i18n';
 
 export interface CreateToolModalProps {
   open: boolean;
@@ -315,7 +316,7 @@ export default function CreateToolModal({
       await utils.slideTools.list.invalidate();
       runOn(slug);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(say(err.message)),
   });
 
   /* ---- the repo-lesson path: hand the work off and get out of the way ---- */
@@ -541,7 +542,7 @@ export default function CreateToolModal({
           <motion.div
             role="dialog"
             aria-modal="true"
-            aria-label="New slide tool"
+            aria-label={say("New slide tool")}
             className="relative flex max-h-[92vh] w-full max-w-[480px] flex-col rounded-wobble-2 border-2 border-ink bg-paper-3 p-6 pt-9 shadow-offset sm:p-8 sm:pt-10"
             initial={{ scale: 0.96, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -552,9 +553,10 @@ export default function CreateToolModal({
             <WashiTape rotate={3} color="blue" className="left-auto right-8" />
 
             <div className="flex items-start justify-between gap-3">
-              <h2 className="font-display text-4xl font-bold text-ink">New slide tool</h2>
+              <h2 className="font-display text-4xl font-bold text-ink">{say("New slide tool")}</h2>
               <span className="micro mt-2 shrink-0 text-ink-faint">
-                Step {STEPS.indexOf(step) + 1} of {STEPS.length}
+                
+                {say("Step")} {STEPS.indexOf(step) + 1}  {say("of")} {STEPS.length}
               </span>
             </div>
             <p className="mt-1 text-sm text-ink-soft">
@@ -586,7 +588,8 @@ export default function CreateToolModal({
                     transition={{ duration: 0.18 }}
                   >
                     <label htmlFor="wizard-topic" className="micro mb-1.5 block text-ink-soft">
-                      Topic / prompt
+                      
+                      {say("Topic / prompt")}
                     </label>
                     <textarea
                       id="wizard-topic"
@@ -595,13 +598,12 @@ export default function CreateToolModal({
                       onChange={(e) => setTopic(e.target.value)}
                       rows={4}
                       maxLength={2000}
-                      placeholder="e.g. how photosynthesis works, the fall of Constantinople, React hooks for beginners"
+                      placeholder={say("e.g. how photosynthesis works, the fall of Constantinople, React hooks for beginners")}
                       className="w-full resize-y rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-3 px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
                     />
                     <p className="mt-1.5 text-xs text-ink-faint">
-                      A sentence is plenty — the AI writes the deck from this, and names the tool
-                      after it. When a lesson is opened from a repository, that lesson's title is
-                      used instead and this becomes the fallback.
+                      
+                      {say("A sentence is plenty — the AI writes the deck from this, and names the tool after it. When a lesson is opened from a repository, that lesson's title is used instead and this becomes the fallback.")}
                     </p>
                   </motion.div>
                 ) : step === 'kind' ? (
@@ -612,14 +614,14 @@ export default function CreateToolModal({
                     exit={{ opacity: 0, x: -12 }}
                     transition={{ duration: 0.18 }}
                   >
-                    <span className="micro mb-1.5 block text-ink-soft">What is it?</span>
+                    <span className="micro mb-1.5 block text-ink-soft">{say("What is it?")}</span>
                     <div className="grid grid-cols-2 gap-2">
                       {CATEGORIES.map((c) => (
                         <button
                           key={c.id}
                           type="button"
                           onClick={() => setTemplate(c.id)}
-                          title={c.hint}
+                          title={say(c.hint)}
                           aria-pressed={template === c.id}
                           className={cn(
                             'flex items-center gap-2 rounded-wobble-sm border-2 px-3 py-2.5 text-left transition-all',
@@ -631,10 +633,10 @@ export default function CreateToolModal({
                           <TemplateIcon template={c.id} className="h-4 w-4 shrink-0 text-ink" />
                           <span className="min-w-0">
                             <span className="block font-heading text-sm font-bold text-ink">
-                              {c.label}
+                              {say(c.label)}
                             </span>
                             <span className="micro block truncate text-[0.56rem] text-ink-faint">
-                              {c.hint}
+                              {say(c.hint)}
                             </span>
                           </span>
                         </button>
@@ -652,7 +654,8 @@ export default function CreateToolModal({
                   >
                     <div>
                       <span className="micro mb-1.5 flex items-center justify-between text-ink-soft">
-                        Slides
+                        
+                        {say("Slides")}
                         <span className="font-mono text-sm font-bold normal-case tracking-normal text-ink">
                           {slideCount}
                         </span>
@@ -664,17 +667,17 @@ export default function CreateToolModal({
                         value={slideCount}
                         onChange={(e) => setSlideCount(Number(e.target.value))}
                         className="w-full accent-[#2E2820]"
-                        aria-label="Slide count"
+                        aria-label={say("Slide count")}
                       />
                       {slideCount === SLIDE_COUNT_MAX && (
                         <p className="mt-1 font-display text-lg text-ink-soft">
-                          {SLIDE_COUNT_MAX} slides max — notebooks have edges too.
+                          {SLIDE_COUNT_MAX}  {say("slides max — notebooks have edges too.")}
                         </p>
                       )}
                     </div>
 
                     <div>
-                      <span className="micro mb-1.5 block text-ink-soft">Image style</span>
+                      <span className="micro mb-1.5 block text-ink-soft">{say("Image style")}</span>
                       <div className="flex flex-wrap gap-2.5">
                         {STYLE_PRESETS.map((s) => (
                           <button
@@ -721,11 +724,13 @@ export default function CreateToolModal({
                               : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
                           )}
                         >
-                          No images
+                          
+                          {say("No images")}
                         </button>
                       </div>
                       <p className="mt-2 text-xs text-ink-faint">
-                        You can change any of this on the tool's page before generating.
+                        
+                        {say("You can change any of this on the tool's page before generating.")}
                       </p>
                     </div>
                   </motion.div>
@@ -739,7 +744,7 @@ export default function CreateToolModal({
                     className="flex flex-col gap-5"
                   >
                     <div>
-                      <span className="micro mb-1.5 block text-ink-soft">Slides type</span>
+                      <span className="micro mb-1.5 block text-ink-soft">{say("Slides type")}</span>
                       <div className="grid grid-cols-2 gap-3">
                         {SLIDE_TYPES.map((t) => {
                           const chosen = (t.id === 'quiz') === includeQuiz;
@@ -768,7 +773,7 @@ export default function CreateToolModal({
                               <span className="block border-t-2 border-inherit bg-paper-3 px-2.5 py-1.5">
                                 <span className="flex items-center gap-1.5">
                                   <span className="font-heading text-sm font-bold text-ink">
-                                    {t.label}
+                                    {say(t.label)}
                                   </span>
                                   {chosen && !blocked && (
                                     <span className="flex h-4 w-4 items-center justify-center rounded-full border-2 border-ink bg-yellow text-[9px] font-bold text-ink">
@@ -788,7 +793,8 @@ export default function CreateToolModal({
 
                     <div>
                       <span className="micro mb-1.5 block text-ink-soft">
-                        Level (CEFR) — language and exercise difficulty
+                        
+                        {say("Level (CEFR) — language and exercise difficulty")}
                       </span>
                       <div className="flex flex-wrap gap-2">
                         {LEVELS.map((l) => (
@@ -814,8 +820,7 @@ export default function CreateToolModal({
                         ))}
                       </div>
                       <p className="mt-2 text-xs text-ink-faint">
-                        {LEVEL_LABEL[level]} — sets vocabulary and sentence complexity, and how hard
-                        the problems and worked examples get.
+                        {LEVEL_LABEL[level]}  {say("— sets vocabulary and sentence complexity, and how hard the problems and worked examples get.")}
                       </p>
                     </div>
                   </motion.div>
@@ -827,7 +832,7 @@ export default function CreateToolModal({
                     exit={{ opacity: 0, x: 12 }}
                     transition={{ duration: 0.18 }}
                   >
-                    <span className="micro mb-1.5 block text-ink-soft">Field</span>
+                    <span className="micro mb-1.5 block text-ink-soft">{say("Field")}</span>
                     <div className="grid grid-cols-2 gap-3">
                       {SUBJECTS.map((sub) => (
                         <button
@@ -852,7 +857,7 @@ export default function CreateToolModal({
                           <span className="block border-t-2 border-inherit bg-paper-3 px-2.5 py-1.5">
                             <span className="flex items-center gap-1.5">
                               <span className="font-heading text-sm font-bold text-ink">
-                                {sub.label}
+                                {say(sub.label)}
                               </span>
                               {subject === sub.id && (
                                 <span className="flex h-4 w-4 items-center justify-center rounded-full border-2 border-ink bg-yellow text-[9px] font-bold text-ink">
@@ -861,14 +866,15 @@ export default function CreateToolModal({
                               )}
                             </span>
                             <span className="micro block text-[0.56rem] leading-tight text-ink-faint">
-                              {sub.hint}
+                              {say(sub.hint)}
                             </span>
                           </span>
                         </button>
                       ))}
                     </div>
                     <p className="mt-2 text-xs text-ink-faint">
-                      This decides which half of the layout catalog the next steps draw from.
+                      
+                      {say("This decides which half of the layout catalog the next steps draw from.")}
                     </p>
                   </motion.div>
                 ) : step === 'focus' ? (
@@ -880,7 +886,8 @@ export default function CreateToolModal({
                     transition={{ duration: 0.18 }}
                   >
                     <span className="micro mb-1.5 block text-ink-soft">
-                      Focus — narrows the layouts on offer
+                      
+                      {say("Focus — narrows the layouts on offer")}
                     </span>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -897,7 +904,8 @@ export default function CreateToolModal({
                             : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
                         )}
                       >
-                        Everything
+                        
+                        {say("Everything")}
                       </button>
                       {flavors.map((f) => (
                         <button
@@ -926,7 +934,7 @@ export default function CreateToolModal({
                         ? TEMPLATE_FLAVORS.find((f) => f.id === flavor)?.hint
                         : 'Every layout for this field stays on offer.'}{' '}
                       <span className="font-bold text-ink-soft">
-                        {available.length} layout{available.length === 1 ? '' : 's'} available.
+                        {available.length}  {say("layout")}{available.length === 1 ? '' : 's'}  {say("available.")}
                       </span>
                     </p>
                   </motion.div>
@@ -941,7 +949,8 @@ export default function CreateToolModal({
                   >
                     <div className="flex items-center justify-between">
                       <span className="micro block text-ink-soft">
-                        Layouts — {assigned} of {slideCount} slides
+                        
+                        {say("Layouts —")} {assigned}  {say("of")} {slideCount}  {say("slides")}
                       </span>
                       <span className="flex shrink-0 items-center gap-1">
                         <SketchButton
@@ -950,7 +959,8 @@ export default function CreateToolModal({
                           onClick={clearAll}
                           disabled={assigned === 0}
                         >
-                          Clear all
+                          
+                          {say("Clear all")}
                         </SketchButton>
                         <SketchButton
                           variant="ghost"
@@ -959,7 +969,8 @@ export default function CreateToolModal({
                           disabled={assigned < 2}
                         >
                           <Shuffle className="mr-1 h-3.5 w-3.5" />
-                          Shuffle
+                          
+                          {say("Shuffle")}
                         </SketchButton>
                       </span>
                     </div>
@@ -986,7 +997,7 @@ export default function CreateToolModal({
                             key={i}
                             className="rounded-wobble-sm border-2 border-dotted border-pencil px-2 py-1 text-[0.62rem] font-bold text-ink-faint"
                           >
-                            {i + 1}. AI picks
+                            {i + 1}{say(". AI picks")}
                           </span>
                         ),
                       )}
@@ -994,7 +1005,7 @@ export default function CreateToolModal({
 
                     <div className="flex flex-col gap-1.5">
                       {templatesQuery.isLoading && (
-                        <p className="text-sm text-ink-faint">Fetching layouts…</p>
+                        <p className="text-sm text-ink-faint">{say("Fetching layouts…")}</p>
                       )}
                       {available.map((t) => {
                         const n = counts[t.name] ?? 0;
@@ -1043,7 +1054,8 @@ export default function CreateToolModal({
                       })}
                     </div>
                     <p className="text-xs text-ink-faint">
-                      Showing {available.length} layout{available.length === 1 ? '' : 's'} for{' '}
+                      
+                      {say("Showing")} {available.length}  {say("layout")}{available.length === 1 ? '' : 's'}  {say("for")}{' '}
                       {template === 'course' ? `${subject === 'stem' ? 'STEM' : 'humanities'} · ` : ''}
                       {wantsQuiz ? 'with questions' : 'no questions'}
                       {flavor ? ` · ${TEMPLATE_FLAVORS.find((f) => f.id === flavor)?.label}` : ''}.
@@ -1063,7 +1075,8 @@ export default function CreateToolModal({
                     transition={{ duration: 0.18 }}
                   >
                     <span className="micro mb-1.5 block text-ink-soft">
-                      Text amount — per slide
+                      
+                      {say("Text amount — per slide")}
                     </span>
                     <div className="flex flex-col gap-1.5">
                       {TEXT_DENSITIES.map((d) => {
@@ -1103,24 +1116,24 @@ export default function CreateToolModal({
                     </div>
                     {densities.length < TEXT_DENSITIES.length && (
                       <p className="mt-2 text-xs text-ink-faint">
-                        {LEVEL_LABEL[level]} reads a few short sentences at a time, so only the
-                        short amounts are offered. Raise the level on the previous step for longer
-                        writing.
+                        {LEVEL_LABEL[level]}  {say("reads a few short sentences at a time, so only the short amounts are offered. Raise the level on the previous step for longer writing.")}
                       </p>
                     )}
                     <p className="mt-2.5 text-xs text-ink-faint">
-                      About{' '}
+                      
+                      {say("About")}{' '}
                       <span className="font-bold text-ink-soft">
                         {(TEXT_DENSITY_META[textDensity].charsPerSlide * slideCount).toLocaleString()}{' '}
-                        characters
+                        
+                        {say("characters")}
                       </span>{' '}
-                      across {slideCount} slides.
+                      
+                      {say("across")} {slideCount}  {say("slides.")}
                     </p>
                     {TEXT_DENSITY_META[textDensity].charsPerSlide * slideCount > 26_000 && (
                       <p className="mt-1.5 rounded-wobble-sm border-2 border-dashed border-orange bg-yellow-soft px-2.5 py-1.5 text-xs text-ink">
-                        That is a lot of writing for one request — a deck this big can run past the
-                        server's time limit. Fewer slides, or a lighter text amount, generates more
-                        reliably.
+                        
+                        {say("That is a lot of writing for one request — a deck this big can run past the server's time limit. Fewer slides, or a lighter text amount, generates more reliably.")}
                       </p>
                     )}
 
@@ -1129,7 +1142,8 @@ export default function CreateToolModal({
                         htmlFor="wizard-instructions"
                         className="micro mb-1.5 block text-ink-soft"
                       >
-                        Anything else? — optional
+                        
+                        {say("Anything else? — optional")}
                       </label>
                       <textarea
                         id="wizard-instructions"
@@ -1137,12 +1151,12 @@ export default function CreateToolModal({
                         onChange={(e) => setInstructions(e.target.value)}
                         rows={3}
                         maxLength={4000}
-                        placeholder="e.g. focus on the Krebs cycle, use metric units, avoid analogies with sport"
+                        placeholder={say("e.g. focus on the Krebs cycle, use metric units, avoid analogies with sport")}
                         className="w-full resize-y rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-3 px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
                       />
                       <p className="mt-1 text-xs text-ink-faint">
-                        Steers the writing on every slide. It is saved with the tool, so a later
-                        regeneration keeps it.
+                        
+                        {say("Steers the writing on every slide. It is saved with the tool, so a later regeneration keeps it.")}
                       </p>
                     </div>
                   </motion.div>
@@ -1153,12 +1167,14 @@ export default function CreateToolModal({
             <div className="mt-6 flex items-center justify-end gap-3">
               {stepIdx === 0 ? (
                 <SketchButton variant="ghost" onClick={guardedClose}>
-                  Cancel
+                  
+                  {say("Cancel")}
                 </SketchButton>
               ) : (
                 <SketchButton variant="ghost" onClick={() => setStep(STEPS[stepIdx - 1])}>
                   <ArrowLeft className="mr-1 h-4 w-4" />
-                  Back
+                  
+                  {say("Back")}
                 </SketchButton>
               )}
               {isLastStep ? (
@@ -1176,7 +1192,8 @@ export default function CreateToolModal({
                   disabled={step === 'topic' && topic.trim().length < 3}
                   onClick={() => setStep(STEPS[stepIdx + 1])}
                 >
-                  Next
+                  
+                  {say("Next")}
                   <ArrowRight className="ml-1 h-4 w-4" />
                 </SketchButton>
               )}

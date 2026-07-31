@@ -6,6 +6,7 @@ import EmptyState from '@/components/sketch/EmptyState';
 import { trpc } from '@/providers/trpc';
 import type { LessonRunRow } from '@contracts/types';
 import { ScoreBar, formatElapsed, relTime } from './shared';
+import { say } from '@/lib/i18n';
 
 export interface LessonRunsTableProps {
   slug: string;
@@ -58,12 +59,12 @@ export default function LessonRunsTable({ slug, repoRef, unitByLessonId }: Lesso
         row.lessonTitle ? (
           <span className="font-heading font-semibold text-ink">
             {row.lessonSeq != null && (
-              <span className="mr-1 font-mono text-xs text-ink-faint">L{row.lessonSeq}</span>
+              <span className="mr-1 font-mono text-xs text-ink-faint">{say("L")}{row.lessonSeq}</span>
             )}
             {row.lessonTitle}
           </span>
         ) : (
-          <span className="text-ink-faint">free play</span>
+          <span className="text-ink-faint">{say("free play")}</span>
         ),
       sortValue: (row) => row.lessonTitle ?? '',
     },
@@ -98,35 +99,38 @@ export default function LessonRunsTable({ slug, repoRef, unitByLessonId }: Lesso
   return (
     <section>
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <h2 className="font-heading text-2xl font-bold text-ink">Lesson runs</h2>
+        <h2 className="font-heading text-2xl font-bold text-ink">{say("Lesson runs")}</h2>
         {rows.length > 0 && (
           <Chip kind="neutral" className="font-mono">
             {rows.length}
           </Chip>
         )}
         <Link to={`/runs?repo=${repoRef}`} className="micro text-blue hover:squiggle">
-          View all runs →
+          
+          {say("View all runs →")}
         </Link>
       </div>
 
       {runs.isLoading && (
-        <div className="flex flex-col gap-2" aria-label="Loading lesson runs">
+        <div className="flex flex-col gap-2" aria-label={say("Loading lesson runs")}>
           <div className="skeleton-stroke h-9 w-full" />
           <div className="skeleton-stroke h-9 w-full" />
           <div className="skeleton-stroke h-9 w-4/5" />
-          <p className="text-sm text-ink-faint">Grading the quizzes…</p>
+          <p className="text-sm text-ink-faint">{say("Grading the quizzes…")}</p>
         </div>
       )}
 
       {runs.isError && (
         <div className="rounded-wobble-sm border-2 border-dashed border-red bg-red-soft/60 px-4 py-3 text-sm text-ink">
-          Couldn't load the runs for this notebook.{' '}
+          
+          {say("Couldn't load the runs for this notebook.")}{' '}
           <button
             type="button"
             className="squiggle-red font-bold text-red"
             onClick={() => void runs.refetch()}
           >
-            Try again
+            
+            {say("Try again")}
           </button>
         </div>
       )}

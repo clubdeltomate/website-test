@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { trpc } from '@/providers/trpc';
 import DeckPlayer from '@/components/player/DeckPlayer';
 import SketchButton from '@/components/sketch/SketchButton';
+import { say } from '@/lib/i18n';
 
 /**
  * Play a slide tool's hand-built presentation (source = "human"). Plays the
@@ -22,30 +23,31 @@ export default function ManualSlidePlay() {
   const utils = trpc.useUtils();
   const saveDeck = trpc.slideTools.saveDeck.useMutation({
     onSuccess: () => {
-      toast.success('Saved ✓');
+      toast.success(say("Saved ✓"));
       void utils.slideTools.deck.invalidate({ slug });
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   if (query.isLoading) {
-    return <div className="mx-auto max-w-[720px] px-4 py-16 text-center text-ink-faint">Opening…</div>;
+    return <div className="mx-auto max-w-[720px] px-4 py-16 text-center text-ink-faint">{say("Opening…")}</div>;
   }
   if (query.isError) {
     // transient load failure — offer a retry and the road back to settings
     return (
       <div className="mx-auto max-w-[720px] px-4 py-16 text-center">
-        <p className="font-display text-3xl text-ink">The presentation didn't load</p>
+        <p className="font-display text-3xl text-ink">{say("The presentation didn't load")}</p>
         <p className="mt-2 text-ink-soft">
-          Usually a hiccup — try again, or head back to the tool's settings and reopen it from
-          there.
+          
+          {say("Usually a hiccup — try again, or head back to the tool's settings and reopen it from there.")}
         </p>
         <div className="mt-4 flex items-center justify-center gap-2">
           <SketchButton variant="accent" onClick={() => void query.refetch()}>
-            Try again
+            
+            {say("Try again")}
           </SketchButton>
           <SketchButton variant="secondary" onClick={() => navigate(`/slides/${slug}`)}>
-            <ChevronLeft className="h-4 w-4" /> Tool settings
+            <ChevronLeft className="h-4 w-4" />  {say("Tool settings")}
           </SketchButton>
         </div>
       </div>
@@ -54,10 +56,10 @@ export default function ManualSlidePlay() {
   if (!query.data) {
     return (
       <div className="mx-auto max-w-[720px] px-4 py-16 text-center">
-        <p className="font-display text-3xl text-ink">Nothing to show</p>
-        <p className="mt-2 text-ink-soft">This tool doesn't have a hand-built presentation.</p>
+        <p className="font-display text-3xl text-ink">{say("Nothing to show")}</p>
+        <p className="mt-2 text-ink-soft">{say("This tool doesn't have a hand-built presentation.")}</p>
         <SketchButton variant="secondary" className="mt-4" onClick={back}>
-          <ChevronLeft className="h-4 w-4" /> Back
+          <ChevronLeft className="h-4 w-4" />  {say("Back")}
         </SketchButton>
       </div>
     );

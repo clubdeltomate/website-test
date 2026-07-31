@@ -36,6 +36,7 @@ import CreateToolModal from '@/components/slides/CreateToolModal';
 import { SketchModal } from '@/components/admin/overlays';
 import { CardBanner, OwnerAvatar, SourceBadge, TemplateIcon, TEMPLATE_META, VerifiedBadge } from '@/components/repo/shared';
 import AssignModal from '@/components/repo/AssignModal';
+import { say } from '@/lib/i18n';
 
 type SortKey = 'recent' | 'name' | 'plays';
 type ViewMode = 'cards' | 'table';
@@ -123,7 +124,7 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
       void utils.slideTools.list.invalidate();
       void utils.auth.me.invalidate();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const openPlay = (tool: SlideToolSummary) => {
     if (!tool.hasDeck && tool.runCount === 0) {
@@ -151,21 +152,21 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
 
   const favMutation = trpc.slideTools.toggleFavorite.useMutation({
     onSuccess: () => utils.slideTools.list.invalidate(),
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(say(err.message)),
   });
   const deleteMutation = trpc.slideTools.delete.useMutation({
     onSuccess: () => {
-      toast.success('Slide tool deleted.');
+      toast.success(say("Slide tool deleted."));
       utils.slideTools.list.invalidate();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(say(err.message)),
   });
   const duplicateMutation = trpc.slideTools.create.useMutation({
     onSuccess: () => {
-      toast.success('Duplicated — find the copy at the top of the drawer.');
+      toast.success(say("Duplicated — find the copy at the top of the drawer."));
       utils.slideTools.list.invalidate();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(say(err.message)),
   });
 
   const requireAuth = (fn: () => void) => () => {
@@ -206,10 +207,10 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
     utils.client.slideTools.update
       .mutate({ slug: tool.slug, name: name.trim() })
       .then(() => {
-        toast.success('Renamed.');
+        toast.success(say("Renamed."));
         utils.slideTools.list.invalidate();
       })
-      .catch((err: Error) => toast.error(err.message));
+      .catch((err: Error) => toast.error(say(err.message)));
   };
 
   const duplicateTool = (tool: SlideToolSummary) => {
@@ -252,8 +253,9 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
             <span className="flex items-center gap-1.5 font-heading font-semibold text-ink">
               {t.name}
               {t.assigned && (
-                <Chip kind="neutral" className="border-blue bg-blue-soft text-[0.55rem]" title="A moderator put this on your shelf">
-                  assigned
+                <Chip kind="neutral" className="border-blue bg-blue-soft text-[0.55rem]" title={say("A moderator put this on your shelf")}>
+                  
+                  {say("assigned")}
                 </Chip>
               )}
             </span>
@@ -270,7 +272,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
           <Chip kind="repo-ref">#{repoLinkByTool.get(t.slug)!.ref}</Chip>
         ) : (
           <Chip kind="neutral" className="border-dashed">
-            Direct
+            
+            {say("Direct")}
           </Chip>
         ),
     },
@@ -285,7 +288,7 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
       header: 'Style',
       render: (t) =>
         t.defaultImageStyle === 'none' ? (
-          <span className="text-xs text-ink-faint">none</span>
+          <span className="text-xs text-ink-faint">{say("none")}</span>
         ) : (
           <img
             src={`/style-${t.defaultImageStyle}.svg`}
@@ -331,7 +334,7 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
       header: 'Actions',
       render: (t) => (
         <span className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <Link to={`/slides/${t.slug}`} title="New presentation">
+          <Link to={`/slides/${t.slug}`} title={say("New presentation")}>
             <SketchButton variant="accent" size="sm">
               <Play className="h-3.5 w-3.5" strokeWidth={2.5} />
             </SketchButton>
@@ -339,7 +342,7 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
           <span className="relative">
             <button
               className="rounded-wobble-sm p-2 text-ink-soft hover:bg-paper-2 hover:text-ink"
-              aria-label="More actions"
+              aria-label={say("More actions")}
               onClick={() => setMenuFor((m) => (m === t.slug ? null : t.slug))}
             >
               <MoreHorizontal className="h-4 w-4" />
@@ -353,7 +356,7 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                     renameTool(t);
                   })}
                 >
-                  <Pencil className="h-3.5 w-3.5" /> Rename
+                  <Pencil className="h-3.5 w-3.5" />  {say("Rename")}
                 </button>
                 <button
                   className="flex w-full items-center gap-2 rounded-wobble-sm px-2.5 py-1.5 text-left text-sm font-bold text-ink hover:bg-paper-2"
@@ -362,7 +365,7 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                     duplicateTool(t);
                   })}
                 >
-                  <Copy className="h-3.5 w-3.5" /> Duplicate
+                  <Copy className="h-3.5 w-3.5" />  {say("Duplicate")}
                 </button>
                 <button
                   className="flex w-full items-center gap-2 rounded-wobble-sm px-2.5 py-1.5 text-left text-sm font-bold text-red hover:bg-red-soft"
@@ -371,7 +374,7 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                     deleteTool(t);
                   })}
                 >
-                  <Trash2 className="h-3.5 w-3.5" /> Delete
+                  <Trash2 className="h-3.5 w-3.5" />  {say("Delete")}
                 </button>
               </span>
             )}
@@ -390,7 +393,7 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
           {mine ? 'My slide tools' : 'Community slides'}
         </h1>
         {!toolsQuery.isLoading && (
-          <Chip kind="slide-tool">{tools.length} in the drawer</Chip>
+          <Chip kind="slide-tool">{tools.length}  {say("in the drawer")}</Chip>
         )}
       </div>
 
@@ -401,9 +404,11 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
             ? 'This shelf shows only YOUR slide tools — browse everyone\u2019s work in the Gallery.'
             : "Browsing the community gallery — you can play any tool's demo deck."}{' '}
           <Link to="/auth" className="squiggle font-bold">
-            Sign in
+            
+            {say("Sign in")}
           </Link>{' '}
-          to create your own.
+          
+          {say("to create your own.")}
         </p>
       )}
 
@@ -423,8 +428,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
               setSearch(e.target.value);
               setPage(0);
             }}
-            placeholder="Search slide tools…"
-            aria-label="Search slide tools"
+            placeholder={say("Search slide tools…")}
+            aria-label={say("Search slide tools")}
             className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
           />
         </label>
@@ -438,7 +443,7 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
             setPage(0);
           })}
           aria-pressed={favOnly}
-          title="Favorites only"
+          title={say("Favorites only")}
           className={cn(
             'flex items-center gap-1.5 rounded-wobble-sm border-2 px-3 py-2 text-sm font-bold transition-colors',
             favOnly
@@ -447,7 +452,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
           )}
         >
           <Star className={cn('h-4 w-4', favOnly && 'fill-ink')} strokeWidth={2} />
-          Favorites
+          
+          {say("Favorites")}
         </motion.button>
 
         {/* Following — gallery only. On your own shelf every item is yours, so
@@ -461,7 +467,7 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
               setPage(0);
             })}
             aria-pressed={followingOnly}
-            title="Only work by people you follow"
+            title={say("Only work by people you follow")}
             className={cn(
               'flex items-center gap-1.5 rounded-wobble-sm border-2 px-3 py-2 text-sm font-bold transition-colors',
               followingOnly
@@ -470,30 +476,31 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
             )}
           >
             <UserCheck className="h-4 w-4" strokeWidth={2} />
-            Following
+            
+            {say("Following")}
           </motion.button>
         )}
 
         {/* sort */}
         <label className="flex items-center gap-1.5 text-sm text-ink-soft">
-          <span className="micro hidden text-[0.6rem] sm:inline">Sort</span>
+          <span className="micro hidden text-[0.6rem] sm:inline">{say("Sort")}</span>
           <select
             value={sort}
             onChange={(e) => {
               setSort(e.target.value as SortKey);
               setPage(0);
             }}
-            aria-label="Sort slide tools"
+            aria-label={say("Sort slide tools")}
             className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-2.5 py-1.5 text-sm font-bold text-ink outline-none"
           >
-            <option value="recent">Recent</option>
-            <option value="name">Name</option>
-            <option value="plays">Most played</option>
+            <option value="recent">{say("Recent")}</option>
+            <option value="name">{say("Name")}</option>
+            <option value="plays">{say("Most played")}</option>
           </select>
         </label>
 
         {/* view toggle */}
-        <div className="flex overflow-hidden rounded-wobble-sm border-2 border-ink" role="group" aria-label="View">
+        <div className="flex overflow-hidden rounded-wobble-sm border-2 border-ink" role="group" aria-label={say("View")}>
           {(
             [
               { key: 'cards', icon: LayoutGrid, label: 'Cards' },
@@ -522,10 +529,11 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
             variant="secondary"
             size="sm"
             onClick={requireAuth(() => navigate('/slides/build'))}
-            title="Build a presentation by hand — no AI"
+            title={say("Build a presentation by hand — no AI")}
           >
             <PencilRuler className="h-4 w-4" strokeWidth={2.5} />
-            By hand
+            
+            {say("By hand")}
           </SketchButton>
           <SketchButton
             variant="accent"
@@ -533,7 +541,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
             onClick={requireAuth(() => setCreateOpen(true))}
           >
             <Plus className="h-4 w-4" strokeWidth={2.5} />
-            New slide tool
+            
+            {say("New slide tool")}
           </SketchButton>
         </div>
 
@@ -578,7 +587,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
               </div>
             ))}
             <p className="col-span-full text-center font-display text-2xl text-ink-faint">
-              Sharpening pencils…
+              
+              {say("Sharpening pencils…")}
             </p>
           </div>
         ) : tools.length === 0 ? (
@@ -606,7 +616,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
               <Link to="/lesson-path" className="mt-1">
                 <SketchButton variant="ghost">
                   <Route className="h-4 w-4" />
-                  Open Lesson Path
+                  
+                  {say("Open Lesson Path")}
                 </SketchButton>
               </Link>
             </EmptyState>
@@ -651,14 +662,16 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                           />
                           {isDraft && (
                             <span
-                              title="Only you (and admins) can see this draft"
+                              title={say("Only you (and admins) can see this draft")}
                               className="rounded-wobble-sm border-2 border-dashed border-green bg-green-soft px-2 py-0.5 text-xs font-bold text-ink"
                             >
-                              Draft
+                              
+                              {say("Draft")}
                             </span>
                           )}
                           <span className="micro flex min-w-0 items-center gap-1 truncate text-ink-faint">
-                            by {tool.ownerName}
+                            
+                            {say("by")} {tool.ownerName}
                             {tool.ownerVerified && <VerifiedBadge />}
                           </span>
                         </span>
@@ -666,7 +679,7 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                           {repo && (
                             <Sparkles
                               className="h-4 w-4 text-purple"
-                              aria-label="AI-linked to a repo"
+                              aria-label={say("AI-linked to a repo")}
                             />
                           )}
                           <StarButton
@@ -682,8 +695,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                                 e.preventDefault();
                                 deleteTool(tool);
                               }}
-                              aria-label="Delete slide tool"
-                              title="Delete this slide tool"
+                              aria-label={say("Delete slide tool")}
+                              title={say("Delete this slide tool")}
                               className="rounded-wobble-sm p-1.5 text-ink-faint transition-colors hover:bg-red-soft hover:text-red"
                             >
                               <Trash2 className="h-4 w-4" strokeWidth={2} />
@@ -730,7 +743,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                             kind="repo-ref"
                             title={`From notebook #${tool.repoRef} — this presentation lives in that repo`}
                           >
-                            R{tool.repoRef}
+                            
+                            {say("R")}{tool.repoRef}
                           </Chip>
                         )}
                         <SourceBadge source={tool.source} compact />
@@ -738,9 +752,10 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                           <Chip
                             kind="neutral"
                             className="border-blue bg-blue-soft"
-                            title="A moderator put this on your shelf"
+                            title={say("A moderator put this on your shelf")}
                           >
-                            assigned
+                            
+                            {say("assigned")}
                           </Chip>
                         )}
                         {!isDraft &&
@@ -753,17 +768,18 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                             </span>
                           ) : (
                             <span
-                              title="Every question here is checked on your device — playing costs nothing"
+                              title={say("Every question here is checked on your device — playing costs nothing")}
                               className="inline-flex items-center gap-1 rounded-wobble-sm border-2 border-green bg-green-soft px-1.5 py-0.5 font-heading text-[0.6rem] font-bold text-green"
                             >
-                              Free
+                              
+                              {say("Free")}
                             </span>
                           ))}
                       </div>
 
                       <p className="micro text-ink-faint">
                         {tool.runCount} {tool.runCount === 1 ? 'play' : 'plays'} ·{' '}
-                        {tool.deckSlideCount ?? tool.defaultSlideCount} slides ·{' '}
+                        {tool.deckSlideCount ?? tool.defaultSlideCount}  {say("slides ·")}{' '}
                         {relTime(tool.createdAt)}
                       </p>
 
@@ -777,12 +793,14 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                             <Link to={`/slides/${tool.slug}`} className="no-underline">
                               <span className="flex w-40 items-center justify-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-green px-3 py-1.5 text-sm font-bold text-paper-3 shadow-offset transition-colors hover:bg-[#3f8850]">
                                 <Sparkles className="h-3.5 w-3.5" strokeWidth={2.5} />
-                                Generate
+                                
+                                {say("Generate")}
                               </span>
                             </Link>
                             <Link to={`/slides/${tool.slug}`}>
                               <SketchButton variant="ghost" size="sm">
-                                Open
+                                
+                                {say("Open")}
                               </SketchButton>
                             </Link>
                           </>
@@ -804,7 +822,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                               onClick={() => openPlay(tool)}
                             >
                               <Play className="h-3.5 w-3.5" strokeWidth={2.5} />
-                              Play
+                              
+                              {say("Play")}
                             </SketchButton>
                             {/* Icon-only from here on: the words made the row
                                 overflow. The hover title carries the words —
@@ -814,8 +833,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                                 <SketchButton
                                   variant="ghost"
                                   size="sm"
-                                  aria-label="Best run"
-                                  title="Best run — scroll every slide with its answers, no credits"
+                                  aria-label={say("Best run")}
+                                  title={say("Best run — scroll every slide with its answers, no credits")}
                                 >
                                   <Eye className="h-4 w-4" strokeWidth={2} />
                                 </SketchButton>
@@ -825,8 +844,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                                 variant="ghost"
                                 size="sm"
                                 disabled
-                                aria-label="Best run"
-                                title="Best run — play it once (or write the answer key) and it opens here"
+                                aria-label={say("Best run")}
+                                title={say("Best run — play it once (or write the answer key) and it opens here")}
                               >
                                 <Eye className="h-4 w-4" strokeWidth={2} />
                               </SketchButton>
@@ -840,8 +859,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                                 <SketchButton
                                   variant="ghost"
                                   size="sm"
-                                  aria-label="Edit"
-                                  title="Edit — every slide, text, questions, answers"
+                                  aria-label={say("Edit")}
+                                  title={say("Edit — every slide, text, questions, answers")}
                                 >
                                   <Pencil className="h-4 w-4" strokeWidth={2} />
                                 </SketchButton>
@@ -855,7 +874,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                             <Link to={`/slides/show/${tool.slug}`}>
                               <SketchButton variant="accent" size="sm" className="w-40 justify-center">
                                 <Play className="h-3.5 w-3.5" strokeWidth={2.5} />
-                                Play
+                                
+                                {say("Play")}
                               </SketchButton>
                             </Link>
                             {canDeleteTool(tool) && (
@@ -863,8 +883,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                                 <SketchButton
                                   variant="ghost"
                                   size="sm"
-                                  aria-label="Edit"
-                                  title="Edit — every slide, text, questions, answers"
+                                  aria-label={say("Edit")}
+                                  title={say("Edit — every slide, text, questions, answers")}
                                 >
                                   <Pencil className="h-4 w-4" strokeWidth={2} />
                                 </SketchButton>
@@ -877,19 +897,20 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                               variant="accent"
                               size="sm"
                               className="w-40 justify-center"
-                              title="Play the latest generation of this presentation — free"
+                              title={say("Play the latest generation of this presentation — free")}
                               onClick={() => openPlay(tool)}
                             >
                               <Play className="h-3.5 w-3.5" strokeWidth={2.5} />
-                              Play
+                              
+                              {say("Play")}
                             </SketchButton>
                             {canDeleteTool(tool) && (
                               <Link to={`/slides/build/${tool.slug}`}>
                                 <SketchButton
                                   variant="ghost"
                                   size="sm"
-                                  aria-label="Edit"
-                                  title="Edit — every slide, text, questions, answers"
+                                  aria-label={say("Edit")}
+                                  title={say("Edit — every slide, text, questions, answers")}
                                 >
                                   <Pencil className="h-4 w-4" strokeWidth={2} />
                                 </SketchButton>
@@ -897,7 +918,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                             )}
                             <Link to={`/slides/${tool.slug}`}>
                               <SketchButton variant="ghost" size="sm">
-                                Open
+                                
+                                {say("Open")}
                               </SketchButton>
                             </Link>
                           </>
@@ -912,8 +934,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                           <button
                             type="button"
                             onClick={() => setAssignFor(tool)}
-                            aria-label="Assign to a user"
-                            title="Assign — put this presentation on another user's shelf"
+                            aria-label={say("Assign to a user")}
+                            title={say("Assign — put this presentation on another user's shelf")}
                             className="ml-auto rounded-wobble-sm border-2 border-dashed border-pencil p-1.5 text-ink-faint transition-colors hover:border-ink hover:text-ink"
                           >
                             <UserRoundPlus className="h-4 w-4" strokeWidth={2} />
@@ -946,13 +968,13 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
         {tools.length > PAGE_SIZE && (
           <nav
             className="mt-8 flex items-center justify-center gap-2 font-display text-2xl"
-            aria-label="Pagination"
+            aria-label={say("Pagination")}
           >
             <button
               disabled={safePage === 0}
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               className="px-2 text-ink disabled:text-pencil"
-              aria-label="Previous page"
+              aria-label={say("Previous page")}
             >
               ←
             </button>
@@ -975,7 +997,7 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
               disabled={safePage >= pageCount - 1}
               onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
               className="px-2 text-ink disabled:text-pencil"
-              aria-label="Next page"
+              aria-label={say("Next page")}
             >
               →
             </button>
@@ -987,7 +1009,8 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
       {!toolsQuery.isLoading && tools.length > 0 && (
         <p className="mt-10 flex items-center justify-center gap-2 text-center text-sm text-ink-faint">
           <Presentation className="h-4 w-4" />
-          Hover a card to warm it up — the tool page opens instantly.
+          
+          {say("Hover a card to warm it up — the tool page opens instantly.")}
         </p>
       )}
 
@@ -996,19 +1019,15 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
       <SketchModal
         open={costGate != null}
         onClose={() => setCostGate(null)}
-        title="This lesson checks answers with AI"
+        title={say("This lesson checks answers with AI")}
         maxWidth="max-w-[480px]"
       >
         {costGate && (
           <div className="space-y-4">
             <p className="text-sm text-ink-soft">
-              <strong className="text-ink">{costGate.name}</strong> has{' '}
-              {costGate.aiCheckCount} typed question{costGate.aiCheckCount === 1 ? '' : 's'} graded
-              by AI at {TEXT_GRADE_COST} 🪙 per check — about{' '}
-              <strong className="text-ink">{costGate.aiCheckCount * TEXT_GRADE_COST} 🪙</strong> for
-              a clean run (extra tries cost too). Multiple-choice questions are checked on your
-              device and stay free. Without enough coins a simpler checker grades your typed
-              answers instead.
+              <strong className="text-ink">{costGate.name}</strong>  {say("has")}{' '}
+              {costGate.aiCheckCount}  {say("typed question")}{costGate.aiCheckCount === 1 ? '' : 's'}  {say("graded by AI at")} {TEXT_GRADE_COST}  {say("🪙 per check — about")}{' '}
+              <strong className="text-ink">{costGate.aiCheckCount * TEXT_GRADE_COST} 🪙</strong>  {say("for a clean run (extra tries cost too). Multiple-choice questions are checked on your device and stay free. Without enough coins a simpler checker grades your typed answers instead.")}
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <SketchButton
@@ -1019,17 +1038,18 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
                   navigate(`/slides/show/${slug}`);
                 }}
               >
-                <Play className="h-4 w-4" strokeWidth={2.5} /> Play anyway
+                <Play className="h-4 w-4" strokeWidth={2.5} />  {say("Play anyway")}
               </SketchButton>
               {costGate.bestRunId != null && (
                 <Link to={`/runs/${costGate.bestRunId}/replay`} onClick={() => setCostGate(null)}>
                   <SketchButton variant="secondary">
-                    <Eye className="h-4 w-4" strokeWidth={2} /> Read the best run — free
+                    <Eye className="h-4 w-4" strokeWidth={2} />  {say("Read the best run — free")}
                   </SketchButton>
                 </Link>
               )}
               <SketchButton variant="ghost" onClick={() => setCostGate(null)}>
-                Cancel
+                
+                {say("Cancel")}
               </SketchButton>
             </div>
           </div>

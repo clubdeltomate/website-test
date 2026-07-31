@@ -64,6 +64,7 @@ import {
 import { templatesForContext, packetsForPurpose, GRADABLE_TYPES } from '@contracts/slide-templates';
 import { repoPurpose, templateFilterPurpose, type RepoTemplate } from '@contracts/types';
 import { TemplateIcon } from '@/components/repo/shared';
+import { say } from '@/lib/i18n';
 
 const CATEGORY_OPTS: { id: RepoTemplate; label: string; hint: string }[] = [
   { id: 'course', label: 'Lesson', hint: 'Teach a topic — quizzes & evaluations allowed' },
@@ -178,11 +179,11 @@ function GenerationErrorBanner({
     <section
       className="relative mb-6 rounded-wobble-2 border-2 border-ink bg-red-soft p-5 shadow-offset"
       role="alert"
-      aria-label="Generation failed"
+      aria-label={say("Generation failed")}
     >
       <button
         onClick={onDismiss}
-        aria-label="Dismiss error"
+        aria-label={say("Dismiss error")}
         className="absolute right-3 top-3 rounded-wobble-sm p-1 text-ink-soft transition-colors hover:bg-paper-3 hover:text-ink"
       >
         <X className="h-4 w-4" />
@@ -228,13 +229,13 @@ function SeedBanner({
       exit={{ opacity: 0, height: 0, marginBottom: 0 }}
       transition={{ duration: 0.3 }}
       className="relative mb-6 overflow-visible rounded-wobble-2 border-2 border-ink bg-blue-soft p-5 pt-6 shadow-offset"
-      aria-label="Lesson seed"
+      aria-label={say("Lesson seed")}
     >
       <WashiTape color="yellow" rotate={-3} />
       <button
         onClick={onDismiss}
-        aria-label="Dismiss seed — run as Direct"
-        title="Convert to a Direct run"
+        aria-label={say("Dismiss seed — run as Direct")}
+        title={say("Convert to a Direct run")}
         className="absolute right-3 top-3 rounded-wobble-sm p-1 text-ink-soft transition-colors hover:bg-paper-3 hover:text-ink"
       >
         <X className="h-4 w-4" />
@@ -247,11 +248,13 @@ function SeedBanner({
             {repoTitle ?? seed.repoSlug}
           </span>
           <span className="text-sm text-ink-soft">
-            Unit: {seed.unitTitle} → Lesson: {seed.lessonTitle}
+            
+            {say("Unit:")} {seed.unitTitle}  {say("→ Lesson:")} {seed.lessonTitle}
           </span>
         </div>
         <Chip kind="slide-tool" className="ml-auto">
-          Lesson {seed.lessonSeq} of {seed.lessonSeqTotal}
+          
+          {say("Lesson")} {seed.lessonSeq}  {say("of")} {seed.lessonSeqTotal}
         </Chip>
       </div>
 
@@ -263,8 +266,10 @@ function SeedBanner({
             className="flex items-center gap-1.5 text-sm font-bold text-ink"
           >
             <DoodleSparkle className="h-4 w-4 text-purple" />
-            Building on {taught.length > 0 ? taught.length : seed.lessonSeq - 1}{' '}
-            completed {taught.length === 1 ? 'lesson' : 'lessons'}
+            
+            {say("Building on")} {taught.length > 0 ? taught.length : seed.lessonSeq - 1}{' '}
+            
+            {say("completed")} {taught.length === 1 ? 'lesson' : 'lessons'}
             <ChevronDown
               className={cn('h-4 w-4 transition-transform', memoryOpen && 'rotate-180')}
             />
@@ -286,16 +291,17 @@ function SeedBanner({
                         className="rounded-wobble-sm border-2 border-dashed border-ink/25 bg-paper-3 px-3 py-1.5 text-xs leading-relaxed text-ink"
                       >
                         <span className="font-bold">
-                          L{e.lessonSeq} taught:
+                          
+                          {say("L")}{e.lessonSeq}  {say("taught:")}
                         </span>{' '}
-                        {e.summaries.slice(0, 3).join(' · ') || e.lessonTitle} —
-                        best quiz {e.bestScoreCorrect}/{e.bestScoreTotal}
+                        {e.summaries.slice(0, 3).join(' · ') || e.lessonTitle}  {say("— best quiz")} {e.bestScoreCorrect}/{e.bestScoreTotal}
                       </li>
                     ))
                   ) : (
                     <li className="text-xs text-ink-soft">
-                      No lesson logs yet — this deck will still assume Lessons 1–
-                      {seed.lessonSeq - 1} and skip re-teaching them.
+                      
+                      {say("No lesson logs yet — this deck will still assume Lessons 1–")}
+                      {seed.lessonSeq - 1}  {say("and skip re-teaching them.")}
                     </li>
                   )}
                 </ul>
@@ -303,7 +309,8 @@ function SeedBanner({
             )}
           </AnimatePresence>
           <p className="micro mt-2 text-ink-soft">
-            This deck will reference that material, not re-teach it.
+            
+            {say("This deck will reference that material, not re-teach it.")}
           </p>
         </div>
       )}
@@ -576,12 +583,12 @@ function ToolStudio({
           : 'Settings preset for this category — no AI reply, used smart defaults.',
       );
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(say(err.message)),
   });
   const runTune = () => {
     const t = (purpose === 'news' && !seed ? `${newsType} news` : topic).trim();
     if (t.length < 3) {
-      toast.error('Write your prompt first — then I can tune the settings to it.');
+      toast.error(say("Write your prompt first — then I can tune the settings to it."));
       return;
     }
     tune.mutate({
@@ -647,7 +654,7 @@ function ToolStudio({
           setTheaterDone(true);
           if (!isGuest) void utils.auth.me.invalidate();
           if (res.usedMock) {
-            toast('Demo mode — no AI key configured, so a mock deck was sketched.', {
+            toast(say("Demo mode — no AI key configured, so a mock deck was sketched."), {
               icon: <Sparkles className="h-4 w-4 text-purple" />,
             });
           }
@@ -733,11 +740,11 @@ function ToolStudio({
       {
         onSuccess: () => {
           setPresetSaved(true);
-          toast.success('Saved as preset — viewers can now watch it ✓');
+          toast.success(say("Saved as preset — viewers can now watch it ✓"));
           void utils.repos.getBySlug.invalidate({ slug: seed.repoSlug });
           autoBanner.mutate({ slug: `preset-${seed.repoSlug}-l${seed.lessonSeq}`, onlyIfMissing: true });
         },
-        onError: (e) => toast.error(e.message),
+        onError: (e) => toast.error(say(e.message)),
       },
     );
   };
@@ -761,10 +768,10 @@ function ToolStudio({
             void utils.repos.getBySlug.invalidate({ slug: seed.repoSlug });
             autoBanner.mutate({ slug: `preset-${seed.repoSlug}-l${seed.lessonSeq}`, onlyIfMissing: true });
           },
-          onError: (e) => toast.error(`Preset didn't save: ${e.message}`),
+          onError: (e) => toast.error(say(`Preset didn't save: ${e.message}`)),
         },
       );
-      toast.success('Preset saved — now free for anyone to play ✓');
+      toast.success(say("Preset saved — now free for anyone to play ✓"));
       navigate(`/repos/${seed.repoSlug}`);
       return;
     }
@@ -793,7 +800,7 @@ function ToolStudio({
             void utils.slideTools.getBySlug.invalidate({ slug: tool.slug });
             autoBanner.mutate({ slug: tool.slug, onlyIfMissing: true });
           },
-          onError: (e) => toast.error(`Couldn't save this presentation: ${e.message}`),
+          onError: (e) => toast.error(say(`Couldn't save this presentation: ${e.message}`)),
         },
       );
     }
@@ -875,7 +882,7 @@ function ToolStudio({
                 setEditingTitle(false);
               }
             }}
-            aria-label="Tool name"
+            aria-label={say("Tool name")}
             className="min-w-0 flex-1 rounded-wobble-sm border-2 border-blue bg-paper px-2 py-1 font-display text-[30px] font-bold leading-none text-ink outline-none"
           />
         ) : (
@@ -920,22 +927,23 @@ function ToolStudio({
             className="mb-5 rounded-wobble-sm border-2 border-dashed border-pencil px-3.5 py-2.5"
           >
             <summary className="micro cursor-pointer select-none text-ink-soft">
-              Name &amp; description — optional · leave it and the AI writes them from your prompt
+              
+              {say("Name & description — optional · leave it and the AI writes them from your prompt")}
             </summary>
             <div className="mt-3 flex flex-col gap-3">
               <label className="block">
-                <span className="micro mb-1 block text-ink-soft">Custom name</span>
+                <span className="micro mb-1 block text-ink-soft">{say("Custom name")}</span>
                 <input
                   className={cn(inputCls)}
                   value={title}
                   maxLength={120}
                   onChange={(e) => setTitle(e.target.value)}
                   onBlur={commitTitle}
-                  placeholder="Leave as Untitled — the AI names it on first generation"
+                  placeholder={say("Leave as Untitled — the AI names it on first generation")}
                 />
               </label>
               <label className="block">
-                <span className="micro mb-1 block text-ink-soft">Custom description</span>
+                <span className="micro mb-1 block text-ink-soft">{say("Custom description")}</span>
                 <textarea
                   className={cn(inputCls, 'min-h-[56px] resize-y')}
                   value={descDraft}
@@ -950,7 +958,7 @@ function ToolStudio({
                       );
                     }
                   }}
-                  placeholder="Leave empty — the AI describes it from the generated deck"
+                  placeholder={say("Leave empty — the AI describes it from the generated deck")}
                 />
               </label>
             </div>
@@ -965,14 +973,14 @@ function ToolStudio({
             variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}
             className="mb-5"
           >
-            <span className="micro mb-1.5 block text-ink-soft">What is this a presentation of?</span>
+            <span className="micro mb-1.5 block text-ink-soft">{say("What is this a presentation of?")}</span>
             <div className="flex flex-wrap gap-2">
               {CATEGORY_OPTS.map((c) => (
                 <button
                   key={c.id}
                   type="button"
                   onClick={() => changeCategory(c.id)}
-                  title={c.hint}
+                  title={say(c.hint)}
                   className={cn(
                     'flex items-center gap-1.5 rounded-wobble-sm border-2 px-3 py-1.5 text-sm font-bold transition-all',
                     category === c.id
@@ -981,7 +989,7 @@ function ToolStudio({
                   )}
                 >
                   <TemplateIcon template={c.id} className="h-4 w-4" />
-                  {c.label}
+                  {say(c.label)}
                 </button>
               ))}
             </div>
@@ -1001,7 +1009,8 @@ function ToolStudio({
           /* AI time news: pick a beat + moment in time, the AI picks the stories */
           <motion.div variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}>
             <span className="micro mb-1.5 block text-ink-soft">
-              News beat — the AI picks the stories
+              
+              {say("News beat — the AI picks the stories")}
             </span>
             <div className="flex flex-wrap gap-2">
               {NEWS_TYPES.map((t) => (
@@ -1022,21 +1031,22 @@ function ToolStudio({
               ))}
             </div>
             <p className="mt-1.5 text-xs text-ink-faint">
-              You don't write a prompt — pick a beat and a moment in time, and the AI briefs you on
-              that.
+              
+              {say("You don't write a prompt — pick a beat and a moment in time, and the AI briefs you on that.")}
             </p>
           </motion.div>
         ) : (
           <motion.div variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}>
             <span className="micro mb-1 flex items-center justify-between text-ink-soft">
               <span className="flex items-center gap-2">
-                Topic / prompt
+                
+                {say("Topic / prompt")}
                 <button
                   type="button"
                   onClick={runTune}
                   disabled={aiEntryDisabled || tune.isPending}
-                  title="Tune all settings to this prompt — the AI picks level, slides, style, text amount and a layout for every slide"
-                  aria-label="Auto-tune settings from prompt"
+                  title={say("Tune all settings to this prompt — the AI picks level, slides, style, text amount and a layout for every slide")}
+                  aria-label={say("Auto-tune settings from prompt")}
                   className={cn(
                     'flex h-6 w-6 items-center justify-center rounded-full border-2 border-ink bg-yellow text-ink shadow-offset transition-transform hover:-translate-y-0.5',
                     tune.isPending && 'animate-pulse cursor-wait',
@@ -1052,7 +1062,7 @@ function ToolStudio({
               value={topic}
               maxLength={2000}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="What should this presentation teach?"
+              placeholder={say("What should this presentation teach?")}
             />
           </motion.div>
         )}
@@ -1063,16 +1073,17 @@ function ToolStudio({
             variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}
           >
             <span className="micro mb-1 block text-ink-soft">
-              Time period — scroll through the eras
+              
+              {say("Time period — scroll through the eras")}
             </span>
             {!customEra ? (
               <div className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-4 pb-3 pt-2.5">
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="micro shrink-0 text-ink-faint">🦖 Jurassic</span>
+                  <span className="micro shrink-0 text-ink-faint">{say("🦖 Jurassic")}</span>
                   <span className="truncate text-center font-heading text-base font-semibold text-ink">
                     {NEWS_ERAS[eraIdx]}
                   </span>
-                  <span className="micro shrink-0 text-ink-faint">Year 3000 🚀</span>
+                  <span className="micro shrink-0 text-ink-faint">{say("Year 3000 🚀")}</span>
                 </div>
                 <input
                   type="range"
@@ -1085,13 +1096,13 @@ function ToolStudio({
                     setEraIdx(i);
                     setNewsPeriod(NEWS_ERAS[i]);
                   }}
-                  aria-label="Era in time to report from"
+                  aria-label={say("Era in time to report from")}
                   aria-valuetext={NEWS_ERAS[eraIdx]}
                   className="mt-2 w-full accent-[var(--color-ink,#2b2b2b)]"
                 />
                 <div className="mt-0.5 flex justify-between">
-                  <span className="micro text-ink-faint">← further back in time</span>
-                  <span className="micro text-ink-faint">into the future →</span>
+                  <span className="micro text-ink-faint">{say("← further back in time")}</span>
+                  <span className="micro text-ink-faint">{say("into the future →")}</span>
                 </div>
               </div>
             ) : (
@@ -1100,15 +1111,14 @@ function ToolStudio({
                 value={newsPeriod}
                 maxLength={200}
                 onChange={(e) => setNewsPeriod(e.target.value)}
-                placeholder="e.g. July 2020 · the week the Titanic sank · the year 2777"
+                placeholder={say("e.g. July 2020 · the week the Titanic sank · the year 2777")}
                 autoFocus
               />
             )}
             <div className="mt-1.5 flex items-start justify-between gap-3">
               <p className="text-xs text-ink-faint">
-                Past eras report the news as it stood then; future eras are the AI's forecast of
-                that time. If the topic didn't exist yet, the stories adapt to what that era had.
-                Turn on “Search the web” for better accuracy on recent periods.
+                
+                {say("Past eras report the news as it stood then; future eras are the AI's forecast of that time. If the topic didn't exist yet, the stories adapt to what that era had. Turn on “Search the web” for better accuracy on recent periods.")}
               </p>
               <button
                 type="button"
@@ -1132,7 +1142,7 @@ function ToolStudio({
           className="mt-4"
           variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}
         >
-          <span className="micro mb-1 block text-ink-soft">Custom instructions</span>
+          <span className="micro mb-1 block text-ink-soft">{say("Custom instructions")}</span>
           <textarea
             className={cn(inputCls, 'min-h-[64px] resize-y')}
             value={instructions}
@@ -1141,7 +1151,7 @@ function ToolStudio({
               setInstructions(e.target.value);
               setInstructionsTouched(true);
             }}
-            placeholder="Tone, must-cover points, things to avoid…"
+            placeholder={say("Tone, must-cover points, things to avoid…")}
           />
         </motion.div>
 
@@ -1150,7 +1160,8 @@ function ToolStudio({
           variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}
         >
           <span className="micro mb-1.5 block text-ink-soft">
-            Level (CEFR) — language and exercise difficulty
+            
+            {say("Level (CEFR) — language and exercise difficulty")}
           </span>
           <div className="flex flex-wrap gap-2">
             {LEVELS.map((l) => (
@@ -1182,7 +1193,8 @@ function ToolStudio({
           variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}
         >
           <span className="micro mb-1.5 flex items-center justify-between text-ink-soft">
-            Slides
+            
+            {say("Slides")}
             <span className="font-mono text-sm font-bold normal-case tracking-normal text-ink">
               {slideCount}
             </span>
@@ -1194,20 +1206,24 @@ function ToolStudio({
             value={slideCount}
             onChange={(e) => setSlideCount(Number(e.target.value))}
             className="w-full accent-[#2E2820]"
-            aria-label="Slide count"
+            aria-label={say("Slide count")}
           />
           {slideCount === SLIDE_COUNT_MAX && (
             <p className="mt-1 font-display text-lg text-ink-soft">
-              15 slides max — notebooks have edges too.
+              
+              {say("15 slides max — notebooks have edges too.")}
             </p>
           )}
           {isGuest && slideCount > 6 && (
             <p className="mt-1 text-xs font-bold text-orange">
-              Guests play free — your deck will be capped at 6 slides.{' '}
+              
+              {say("Guests play free — your deck will be capped at 6 slides.")}{' '}
               <Link to="/auth" className="squiggle">
-                Sign in
+                
+                {say("Sign in")}
               </Link>{' '}
-              for up to 15.
+              
+              {say("for up to 15.")}
             </p>
           )}
         </motion.div>
@@ -1216,7 +1232,7 @@ function ToolStudio({
           className="mt-5"
           variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}
         >
-          <span className="micro mb-1.5 block text-ink-soft">Image style</span>
+          <span className="micro mb-1.5 block text-ink-soft">{say("Image style")}</span>
           <div className="flex flex-wrap gap-2.5">
             {STYLE_PRESETS.map((s) => (
               <button
@@ -1263,7 +1279,8 @@ function ToolStudio({
                   : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
               )}
             >
-              No images
+              
+              {say("No images")}
             </button>
           </div>
         </motion.div>
@@ -1280,9 +1297,9 @@ function ToolStudio({
                 value={voiceURI ?? ''}
                 onChange={(e) => setVoiceURI(e.target.value || null)}
                 className="max-w-[180px] bg-transparent text-sm font-bold text-ink focus:outline-none"
-                aria-label="Read-aloud voice"
+                aria-label={say("Read-aloud voice")}
               >
-                <option value="">Default voice</option>
+                <option value="">{say("Default voice")}</option>
                 {voices.slice(0, 20).map((v) => (
                   <option key={v.voiceURI} value={v.voiceURI}>
                     {v.name}
@@ -1315,7 +1332,8 @@ function ToolStudio({
                   transition={{ type: 'spring', stiffness: 400, damping: 28 }}
                 />
               </span>
-              Include quiz on most slides
+              
+              {say("Include quiz on most slides")}
             </button>
           )}
 
@@ -1324,7 +1342,7 @@ function ToolStudio({
             role="switch"
             aria-checked={webSearch}
             onClick={() => setWebSearch((w) => !w)}
-            title="Look up current facts on the web before writing — great for real products, news, anything time-sensitive"
+            title={say("Look up current facts on the web before writing — great for real products, news, anything time-sensitive")}
             className="flex items-center gap-2 rounded-wobble-sm border-2 border-dashed border-pencil px-2.5 py-1.5 text-sm font-bold text-ink"
           >
             <span
@@ -1340,11 +1358,11 @@ function ToolStudio({
                 transition={{ type: 'spring', stiffness: 400, damping: 28 }}
               />
             </span>
-            <Globe className="h-4 w-4" strokeWidth={2} /> Search the web for current info
+            <Globe className="h-4 w-4" strokeWidth={2} />  {say("Search the web for current info")}
           </button>
 
           {topic.trim() && (
-            <span className="flex items-center gap-1.5" role="group" aria-label="Template subject filter">
+            <span className="flex items-center gap-1.5" role="group" aria-label={say("Template subject filter")}>
               <DoodleSparkle className="h-3.5 w-3.5 text-purple" />
               {(
                 [
@@ -1384,7 +1402,8 @@ function ToolStudio({
           <ChevronDown
             className={cn('h-4 w-4 transition-transform', advancedOpen && 'rotate-180')}
           />
-          Advanced — teaching tone &amp; per-slide layout
+          
+          {say("Advanced — teaching tone & per-slide layout")}
         </button>
 
         <AnimatePresence initial={false}>
@@ -1400,12 +1419,12 @@ function ToolStudio({
                 {/* Teaching tone — voice/register for the whole deck */}
                 <div className="mb-4">
                   <span className="micro mb-1 block font-semibold text-ink-soft">
-                    Teaching tone — the voice used to teach this subject
+                    
+                    {say("Teaching tone — the voice used to teach this subject")}
                   </span>
                   <p className="micro mb-2 text-ink-faint">
-                    Sets how casual or technical the writing is, independent of the reading level.
-                    Scholarly leans into the field's terminology; casual keeps it plain and
-                    jargon-light.
+                    
+                    {say("Sets how casual or technical the writing is, independent of the reading level. Scholarly leans into the field's terminology; casual keeps it plain and jargon-light.")}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {TONES.map((t) => (
@@ -1434,11 +1453,12 @@ function ToolStudio({
                 {/* Text amount — how much explanation each slide carries */}
                 <div className="mb-4">
                   <span className="micro mb-1 block font-semibold text-ink-soft">
-                    Text amount — how much explanation each slide carries
+                    
+                    {say("Text amount — how much explanation each slide carries")}
                   </span>
                   <p className="micro mb-2 text-ink-faint">
-                    Same ideas, more or fewer words — the figure is roughly how much prose each
-                    slide carries. Every amount still shows a real explanation.
+                    
+                    {say("Same ideas, more or fewer words — the figure is roughly how much prose each slide carries. Every amount still shows a real explanation.")}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {TEXT_DENSITIES.map((d) => {
@@ -1470,8 +1490,7 @@ function ToolStudio({
                   </div>
                   {allowedDensities(level).length < TEXT_DENSITIES.length && (
                     <p className="micro mt-1.5 text-ink-faint">
-                      {level} reads a few short sentences at a time — the longer amounts are off
-                      until the level is raised.
+                      {level}  {say("reads a few short sentences at a time — the longer amounts are off until the level is raised.")}
                     </p>
                   )}
                 </div>
@@ -1503,7 +1522,7 @@ function ToolStudio({
                       >
                         <span className="font-bold text-ink">{p.name}</span>
                         <span className="ml-1 text-[0.68rem] text-ink-faint">
-                          · {p.templates.length} layouts
+                          · {p.templates.length}  {say("layouts")}
                         </span>
                       </button>
                     ))}
@@ -1511,7 +1530,7 @@ function ToolStudio({
                       type="button"
                       onClick={() => setAiGradableOnly((v) => !v)}
                       aria-pressed={aiGradableOnly}
-                      title="Show only layouts whose evaluation is graded by the AI (typed answer or worked solve)"
+                      title={say("Show only layouts whose evaluation is graded by the AI (typed answer or worked solve)")}
                       className={cn(
                         'rounded-wobble-sm border-2 px-3 py-1.5 font-heading text-sm font-bold transition-colors',
                         aiGradableOnly
@@ -1519,13 +1538,14 @@ function ToolStudio({
                           : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
                       )}
                     >
-                      ✓ AI-graded only
+                      
+                      {say("✓ AI-graded only")}
                     </button>
                     <button
                       type="button"
                       onClick={() => setWolframFilter((v) => (v === 'explain' ? null : 'explain'))}
                       aria-pressed={wolframFilter === 'explain'}
-                      title="Only Wolfram|Alpha explanation layouts (read-throughs, no evaluation)"
+                      title={say("Only Wolfram|Alpha explanation layouts (read-throughs, no evaluation)")}
                       className={cn(
                         'rounded-wobble-sm border-2 px-3 py-1.5 font-heading text-sm font-bold transition-colors',
                         wolframFilter === 'explain'
@@ -1533,13 +1553,14 @@ function ToolStudio({
                           : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
                       )}
                     >
-                      W⍺ explanations
+                      
+                      {say("W⍺ explanations")}
                     </button>
                     <button
                       type="button"
                       onClick={() => setWolframFilter((v) => (v === 'eval' ? null : 'eval'))}
                       aria-pressed={wolframFilter === 'eval'}
-                      title="Wolfram|Alpha layouts that END on an evaluation (solve box, typed answer, or multiple choice)"
+                      title={say("Wolfram|Alpha layouts that END on an evaluation (solve box, typed answer, or multiple choice)")}
                       className={cn(
                         'rounded-wobble-sm border-2 px-3 py-1.5 font-heading text-sm font-bold transition-colors',
                         wolframFilter === 'eval'
@@ -1547,13 +1568,14 @@ function ToolStudio({
                           : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
                       )}
                     >
-                      W⍺ evaluated
+                      
+                      {say("W⍺ evaluated")}
                     </button>
                     <button
                       type="button"
                       onClick={() => setAnatomyOnly((v) => !v)}
                       aria-pressed={anatomyOnly}
-                      title="Only anatomy & health layouts — atlas sketches, hormone tables, behavior graphs"
+                      title={say("Only anatomy & health layouts — atlas sketches, hormone tables, behavior graphs")}
                       className={cn(
                         'rounded-wobble-sm border-2 px-3 py-1.5 font-heading text-sm font-bold transition-colors',
                         anatomyOnly
@@ -1561,13 +1583,13 @@ function ToolStudio({
                           : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
                       )}
                     >
-                      ✚ Anatomy
+                      
+                      {say("✚ Anatomy")}
                     </button>
                   </div>
                   <p className="micro mt-1.5 text-ink-faint">
-                    Selecting a packet filters the per-slide template pickers below to just its
-                    layouts (click again to clear) — nothing is pinned until you choose a template
-                    on a slide yourself.
+                    
+                    {say("Selecting a packet filters the per-slide template pickers below to just its layouts (click again to clear) — nothing is pinned until you choose a template on a slide yourself.")}
                   </p>
                 </div>
 
@@ -1583,11 +1605,12 @@ function ToolStudio({
                   />
                   <span className="text-sm">
                     <span className="font-heading font-semibold text-ink">
-                      Annotation scratchpad on solve slides
+                      
+                      {say("Annotation scratchpad on solve slides")}
                     </span>
                     <span className="micro block text-ink-faint">
-                      On: learners work the problem out on a paginated blank scratchpad. Off: they get
-                      a plain answer box instead. Either way they type a final answer that's checked.
+                      
+                      {say("On: learners work the problem out on a paginated blank scratchpad. Off: they get a plain answer box instead. Either way they type a final answer that's checked.")}
                     </span>
                   </span>
                 </label>
@@ -1595,13 +1618,15 @@ function ToolStudio({
                 <div className="mb-3 border-t-2 border-dashed border-pencil" />
 
                 <p className="micro mb-3 text-ink-faint">
-                  Pin a template so the AI drafts that slide in exactly that shape. Leave a slide on{' '}
-                  <span className="font-semibold">Auto</span> to let it choose. Templates shown match
-                  this deck's subject &amp; level — manage the full set on the{' '}
+                  
+                  {say("Pin a template so the AI drafts that slide in exactly that shape. Leave a slide on")}{' '}
+                  <span className="font-semibold">{say("Auto")}</span>  {say("to let it choose. Templates shown match this deck's subject & level — manage the full set on the")}{' '}
                   <Link to="/templates" className="squiggle font-semibold">
-                    Slide templates
+                    
+                    {say("Slide templates")}
                   </Link>{' '}
-                  page.
+                  
+                  {say("page.")}
                 </p>
                 <div className="flex flex-col gap-2">
                   {Array.from({ length: slideCount }, (_, i) => {
@@ -1619,7 +1644,8 @@ function ToolStudio({
                         className="flex flex-wrap items-start gap-2 rounded-wobble-sm border-2 border-pencil bg-paper-3 px-3 py-2"
                       >
                         <span className="micro mt-1.5 w-14 shrink-0 font-mono text-ink-faint">
-                          Slide {i + 1}
+                          
+                          {say("Slide")} {i + 1}
                         </span>
                         <TemplatePicker
                           value={chosenName}
@@ -1645,7 +1671,8 @@ function ToolStudio({
                     onClick={() => setTemplatePlan([])}
                     className="micro mt-3 text-ink-faint hover:text-ink"
                   >
-                    Reset all to Auto
+                    
+                    {say("Reset all to Auto")}
                   </button>
                 )}
               </div>
@@ -1659,10 +1686,11 @@ function ToolStudio({
         <StickyNote rotate={-1.5} className="h-fit">
           <p className="flex items-center gap-1.5 font-heading text-lg font-bold">
             <Coins className="h-4 w-4 text-orange" />
-            Cost estimate
+            
+            {say("Cost estimate")}
           </p>
           {estimateQuery.isLoading ? (
-            <p className="mt-1 animate-pulse text-sm">Counting coins…</p>
+            <p className="mt-1 animate-pulse text-sm">{say("Counting coins…")}</p>
           ) : estimate ? (
             <>
               <p className="mt-1 font-mono text-2xl font-bold">
@@ -1677,13 +1705,14 @@ function ToolStudio({
                 ))}
                 {estimate.usingOwnKey && (
                   <li className="text-purple">
-                    · Using your key — 0 🪙 for text ✦
+                    
+                    {say("· Using your key — 0 🪙 for text ✦")}
                   </li>
                 )}
               </ul>
             </>
           ) : (
-            <p className="mt-1 text-sm">Estimate unavailable.</p>
+            <p className="mt-1 text-sm">{say("Estimate unavailable.")}</p>
           )}
         </StickyNote>
 
@@ -1691,9 +1720,11 @@ function ToolStudio({
           {insufficient && (
             <p className="flex items-center gap-2 rounded-wobble-sm border-2 border-red bg-red-soft px-3 py-2 text-sm font-bold text-ink">
               <TriangleAlert className="h-4 w-4 shrink-0 text-red" />
-              Not enough tokens for this deck.{' '}
+              
+              {say("Not enough tokens for this deck.")}{' '}
               <Link to="/settings" className="squiggle">
-                Top up
+                
+                {say("Top up")}
               </Link>
             </p>
           )}
@@ -1713,32 +1744,38 @@ function ToolStudio({
           </SketchButton>
           {aiEntryDisabled && (
             <p className="text-center text-xs text-ink-faint">
-              Generating starts from{' '}
+              
+              {say("Generating starts from")}{' '}
               <Link to="/slides" className="squiggle font-bold">
-                New slide tool
+                
+                {say("New slide tool")}
               </Link>{' '}
-              now — it asks all of this and runs it in one go.
+              
+              {say("now — it asks all of this and runs it in one go.")}
             </p>
           )}
           {canPublishPreset && (
             <p className="text-center text-xs text-ink-faint">
-              Saves the free version and returns to the repo — no AI-graded activities are included,
-              so anyone can play it for free.
+              
+              {say("Saves the free version and returns to the repo — no AI-graded activities are included, so anyone can play it for free.")}
             </p>
           )}
           {configureIntent && seed && (
             <p className="text-center text-xs text-ink-faint">
-              Generates your own configured version and saves it to this lesson — play it anytime
-              from the repo.
+              
+              {say("Generates your own configured version and saves it to this lesson — play it anytime from the repo.")}
             </p>
           )}
           {isGuest && (
             <p className="text-center text-xs text-ink-faint">
-              Guests generate for free (6 slides max) —{' '}
+              
+              {say("Guests generate for free (6 slides max) —")}{' '}
               <Link to="/auth" className="squiggle">
-                sign in
+                
+                {say("sign in")}
               </Link>{' '}
-              for full decks and saved runs.
+              
+              {say("for full decks and saved runs.")}
             </p>
           )}
         </div>
@@ -1815,7 +1852,8 @@ export default function SlideTool() {
           <div className="skeleton-stroke h-4 w-3/5" />
           <div className="skeleton-stroke mt-4 h-64 w-full rounded-wobble-2" />
           <p className="text-center font-display text-2xl text-ink-faint">
-            Sharpening pencils…
+            
+            {say("Sharpening pencils…")}
           </p>
         </div>
       </div>

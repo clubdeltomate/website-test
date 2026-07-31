@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 import SketchButton from '@/components/sketch/SketchButton';
+import { say } from '@/lib/i18n';
 
 /**
  * Owner-only panel (education repos): hand out customization tickets to a
@@ -26,7 +27,7 @@ export default function RepoTicketsPanel({ slug }: { slug: string }) {
       setCount(1);
       refetch();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   const incoming = trpc.tickets.incoming.useQuery();
@@ -36,7 +37,7 @@ export default function RepoTicketsPanel({ slug }: { slug: string }) {
       void incoming.refetch();
       refetch();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   const pool = user?.ticketBalance ?? 0;
@@ -50,9 +51,9 @@ export default function RepoTicketsPanel({ slug }: { slug: string }) {
         aria-expanded={open}
       >
         <Ticket className="h-4 w-4 text-ink" />
-        <span className="font-heading font-bold text-ink">Customization tickets</span>
+        <span className="font-heading font-bold text-ink">{say("Customization tickets")}</span>
         <span className="micro rounded-full border-2 border-ink bg-green-soft px-2 text-[0.6rem] font-bold text-green">
-          {pool} in pool
+          {pool}  {say("in pool")}
         </span>
         <ChevronDown
           className={cn('ml-auto h-4 w-4 text-ink-soft transition-transform', open && 'rotate-180')}
@@ -61,22 +62,22 @@ export default function RepoTicketsPanel({ slug }: { slug: string }) {
       {open && (
         <div className="border-t-2 border-dashed border-pencil p-4">
           <p className="mb-3 text-sm text-ink-soft">
-            Give a student tickets so they can generate their own custom version of this repo. One
-            ticket covers one customization. Buy more tickets from the admin when your pool runs low.
+            
+            {say("Give a student tickets so they can generate their own custom version of this repo. One ticket covers one customization. Buy more tickets from the admin when your pool runs low.")}
           </p>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <label className="flex flex-1 flex-col gap-1">
-              <span className="micro text-[0.6rem] text-ink-faint">Student's account email</span>
+              <span className="micro text-[0.6rem] text-ink-faint">{say("Student's account email")}</span>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="student@example.com"
+                placeholder={say("student@example.com")}
                 className="rounded-wobble-sm border-2 border-ink bg-paper px-2.5 py-1.5 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="micro text-[0.6rem] text-ink-faint">Tickets</span>
+              <span className="micro text-[0.6rem] text-ink-faint">{say("Tickets")}</span>
               <input
                 type="number"
                 min={1}
@@ -93,12 +94,13 @@ export default function RepoTicketsPanel({ slug }: { slug: string }) {
               disabled={!email.trim() || count > pool}
               onClick={() => grant.mutate({ repoSlug: slug, userEmail: email.trim(), count })}
             >
-              <Send className="h-4 w-4" /> Give
+              <Send className="h-4 w-4" />  {say("Give")}
             </SketchButton>
           </div>
           {count > pool && (
             <p className="mt-2 text-xs text-red">
-              Your pool only has {pool} ticket{pool === 1 ? '' : 's'} — buy more from the admin first.
+              
+              {say("Your pool only has")} {pool}  {say("ticket")}{pool === 1 ? '' : 's'}  {say("— buy more from the admin first.")}
             </p>
           )}
 
@@ -106,7 +108,8 @@ export default function RepoTicketsPanel({ slug }: { slug: string }) {
           {requestsForRepo.length > 0 && (
             <div className="mt-4 border-t-2 border-dashed border-pencil pt-3">
               <p className="micro mb-2 text-[0.6rem] uppercase tracking-wider text-ink-faint">
-                Requests ({requestsForRepo.length})
+                
+                {say("Requests (")}{requestsForRepo.length})
               </p>
               <ul className="flex flex-col gap-2">
                 {requestsForRepo.map((r) => (
@@ -118,7 +121,8 @@ export default function RepoTicketsPanel({ slug }: { slug: string }) {
                       <span className="font-heading text-sm font-bold text-ink">{r.requesterName}</span>
                       <span className="text-sm text-ink-soft">
                         {' '}
-                        wants {r.count} ticket{r.count === 1 ? '' : 's'}
+                        
+                        {say("wants")} {r.count}  {say("ticket")}{r.count === 1 ? '' : 's'}
                       </span>
                       <span className="micro block truncate text-[0.6rem] text-ink-faint">
                         {r.requesterEmail}
@@ -131,7 +135,7 @@ export default function RepoTicketsPanel({ slug }: { slug: string }) {
                       disabled={resolve.isPending || r.count > pool}
                       title={r.count > pool ? 'Not enough tickets in your pool' : 'Grant'}
                       className="rounded-wobble-sm border-2 border-green bg-green-soft p-1.5 text-green transition-colors hover:bg-green/20 disabled:opacity-40"
-                      aria-label="Grant"
+                      aria-label={say("Grant")}
                     >
                       <Check className="h-4 w-4" strokeWidth={2.5} />
                     </button>
@@ -139,9 +143,9 @@ export default function RepoTicketsPanel({ slug }: { slug: string }) {
                       type="button"
                       onClick={() => resolve.mutate({ requestId: r.id, approve: false })}
                       disabled={resolve.isPending}
-                      title="Decline"
+                      title={say("Decline")}
                       className="rounded-wobble-sm border-2 border-pencil p-1.5 text-ink-faint transition-colors hover:border-red hover:text-red"
-                      aria-label="Decline"
+                      aria-label={say("Decline")}
                     >
                       <X className="h-4 w-4" strokeWidth={2.5} />
                     </button>

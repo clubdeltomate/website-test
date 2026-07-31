@@ -9,6 +9,7 @@ import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 import Chip from '@/components/sketch/Chip';
 import type { DirectoryUser, RepoTemplate } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 function useDebounced<T>(value: T, ms: number): T {
   const [d, setD] = useState(value);
@@ -45,7 +46,7 @@ export default function Users() {
     },
     onError: (e, _v, ctx) => {
       if (ctx?.prev) utils.users.directory.setData({ q: debouncedQ || undefined }, ctx.prev);
-      toast.error(e.message);
+      toast.error(say(e.message));
     },
     onSettled: () => void utils.users.directory.invalidate(),
   });
@@ -60,7 +61,7 @@ export default function Users() {
 
   const onFollow = (u: DirectoryUser) => {
     if (isGuest) {
-      toast.error('Sign in to favorite creators');
+      toast.error(say("Sign in to favorite creators"));
       return;
     }
     toggleFollow.mutate({ userId: u.id });
@@ -69,12 +70,12 @@ export default function Users() {
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6 px-4 py-8 lg:px-8">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="font-display text-4xl font-bold text-ink">Users</h2>
+        <h2 className="font-display text-4xl font-bold text-ink">{say("Users")}</h2>
         <Chip kind="neutral">{rows.length}</Chip>
       </div>
       <p className="-mt-3 max-w-2xl text-ink-soft">
-        Browse everyone on SketchLearn. Open a profile to see what they've published, request
-        tickets or coins, and follow the ones whose work you want to keep up with.
+        
+        {say("Browse everyone on SketchLearn. Open a profile to see what they've published, request tickets or coins, and follow the ones whose work you want to keep up with.")}
       </p>
 
       {/* toolbar */}
@@ -85,8 +86,8 @@ export default function Users() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search by name…"
-              aria-label="Search users"
+              placeholder={say("Search by name…")}
+              aria-label={say("Search users")}
               className="w-full rounded-wobble-sm border-2 border-ink bg-paper py-2 pl-9 pr-3 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
             />
           </div>
@@ -100,7 +101,7 @@ export default function Users() {
                 : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
             )}
           >
-            <LibraryBig className="h-4 w-4" strokeWidth={2} /> Has repos
+            <LibraryBig className="h-4 w-4" strokeWidth={2} />  {say("Has repos")}
           </button>
           <button
             type="button"
@@ -112,7 +113,7 @@ export default function Users() {
                 : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
             )}
           >
-            <UserCheck className="h-4 w-4" strokeWidth={2} /> Following
+            <UserCheck className="h-4 w-4" strokeWidth={2} />  {say("Following")}
           </button>
         </div>
         {/* topic (category) chips */}
@@ -138,7 +139,8 @@ export default function Users() {
       {/* grid */}
       {list.isLoading ? (
         <div className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-2/50 p-10 text-center text-ink-faint">
-          Gathering the class photo…
+          
+          {say("Gathering the class photo…")}
         </div>
       ) : rows.length === 0 ? (
         <div className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-2/50 p-10 text-center text-ink-faint">
@@ -173,11 +175,11 @@ export default function Users() {
               >
                 {u.following ? (
                   <>
-                    <UserCheck className="h-3.5 w-3.5" strokeWidth={2.5} /> Following
+                    <UserCheck className="h-3.5 w-3.5" strokeWidth={2.5} />  {say("Following")}
                   </>
                 ) : (
                   <>
-                    <UserPlus className="h-3.5 w-3.5" strokeWidth={2.5} /> Follow
+                    <UserPlus className="h-3.5 w-3.5" strokeWidth={2.5} />  {say("Follow")}
                   </>
                 )}
               </button>
@@ -197,7 +199,7 @@ export default function Users() {
                   <span className="mt-1 flex items-center gap-2">
                     <Chip kind={u.role}>{u.role}</Chip>
                     <span className="micro flex items-center gap-1 text-[0.62rem] text-ink-faint">
-                      <LibraryBig className="h-3 w-3" /> {u.repoCount} repo{u.repoCount === 1 ? '' : 's'}
+                      <LibraryBig className="h-3 w-3" /> {u.repoCount}  {say("repo")}{u.repoCount === 1 ? '' : 's'}
                     </span>
                   </span>
                 </span>

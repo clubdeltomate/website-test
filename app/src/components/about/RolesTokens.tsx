@@ -5,6 +5,7 @@ import SketchCard from '@/components/sketch/SketchCard';
 import WashiTape from '@/components/sketch/WashiTape';
 import { DoodleCheck } from '@/components/sketch/DoodleIcons';
 import { usePrefersReducedMotion } from './usePrefersReducedMotion';
+import { say } from '@/lib/i18n';
 
 /**
  * About §5 — Roles ladder + honest tokens. Framer Motion only.
@@ -63,7 +64,7 @@ export default function RolesTokens() {
       {/* roles ladder */}
       <div className="relative pl-14">
         <StaircaseDoodle />
-        <h3 className="font-heading text-2xl text-ink">Who gets what</h3>
+        <h3 className="font-heading text-2xl text-ink">{say("Who gets what")}</h3>
         <ol className="mt-4 flex flex-col gap-3">
           {ROLES.map((r, i) => (
             <motion.li
@@ -76,7 +77,7 @@ export default function RolesTokens() {
               style={{ marginLeft: `${i * 14}px` }}
             >
               <Chip kind={r.kind} className="mt-0.5 shrink-0 capitalize">
-                {r.label}
+                {say(r.label)}
               </Chip>
               <p className="text-sm text-ink-soft">{r.power}</p>
             </motion.li>
@@ -94,7 +95,8 @@ export default function RolesTokens() {
         <SketchCard index={2} className="relative h-full pt-7">
           <WashiTape rotate={-3} />
           <h3 className="flex items-center gap-2 font-heading text-2xl text-ink">
-            Generation runs on tokens
+            
+            {say("Generation runs on tokens")}
             <motion.span
               initial={reduced ? false : { rotate: 0 }}
               whileInView={{ rotate: 360 }}
@@ -114,7 +116,8 @@ export default function RolesTokens() {
             ))}
           </ul>
           <p className="mt-5 border-t-2 border-dashed border-pencil pt-3 text-xs text-ink-faint">
-            Simple on purpose. No card forms, no lock-in.
+            
+            {say("Simple on purpose. No card forms, no lock-in.")}
           </p>
         </SketchCard>
       </motion.div>

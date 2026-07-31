@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import SketchButton from '../sketch/SketchButton';
 import { DoodleCheck } from '../sketch/DoodleIcons';
+import { say } from '@/lib/i18n';
 
 export interface GenerationTheaterProps {
   slideCount: number;
@@ -82,10 +83,11 @@ export default function GenerationTheater({
       aria-live="polite"
     >
       <h1 className="text-center font-display text-4xl font-bold text-ink">
-        Dealing your deck…
+        
+        {say("Dealing your deck…")}
       </h1>
       <p className="mx-auto mt-1 max-w-md truncate text-center text-sm text-ink-soft">
-        {topic} · {slideCount} slides
+        {topic} · {slideCount}  {say("slides")}
       </p>
 
       <div className="mt-8 flex items-start gap-6">
@@ -153,7 +155,7 @@ export default function GenerationTheater({
               animate={{ scale: 1, opacity: 1, rotate: -8 }}
               transition={{ type: 'spring', stiffness: 260, damping: 14 }}
               className="flex h-14 w-14 items-center justify-center rounded-full border-4 border-green bg-green-soft text-green"
-              aria-label="Deck ready"
+              aria-label={say("Deck ready")}
             >
               <DoodleCheck className="h-7 w-7" />
             </motion.span>
@@ -177,7 +179,8 @@ export default function GenerationTheater({
       {!done && (
         <div className="mt-6 text-center">
           <SketchButton variant="ghost" onClick={onCancel}>
-            Cancel (refund &amp; back)
+            
+            {say("Cancel (refund & back)")}
           </SketchButton>
         </div>
       )}

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SlideAnnotation, AnnStroke, AnnText } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 export type AnnTool = 'pen' | 'eraser' | 'text';
 
@@ -225,7 +226,7 @@ export default function AnnotationLayer({
                   rows={2}
                   className="min-w-[160px] resize rounded-wobble-sm border-2 border-dashed border-ink bg-paper/95 px-2 py-1 font-heading text-sm shadow-offset outline-none"
                   style={{ color: a.color, fontSize: a.size }}
-                  placeholder="Type a note…"
+                  placeholder={say("Type a note…")}
                 />
               </div>
             ) : (
@@ -241,7 +242,7 @@ export default function AnnotationLayer({
                   <button
                     type="button"
                     onClick={() => commit(annotations.filter((_, j) => j !== i))}
-                    aria-label="Delete note"
+                    aria-label={say("Delete note")}
                     className="absolute -right-5 -top-2 rounded-full border border-ink bg-paper p-0.5 text-ink-soft opacity-0 transition-opacity group-hover:opacity-100 hover:text-red"
                   >
                     <X className="h-3 w-3" />

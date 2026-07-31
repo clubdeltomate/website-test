@@ -4,6 +4,7 @@ import { SketchModal } from '@/components/admin/overlays';
 import SketchButton from '@/components/sketch/SketchButton';
 import { useAuth } from '@/hooks/useAuth';
 import { type CostConfirm, CostConfirmContext } from './cost-confirm';
+import { say } from '@/lib/i18n';
 
 /* Ask before spending.
  *
@@ -76,7 +77,7 @@ export default function CostConfirmProvider({ children }: { children: React.Reac
       <SketchModal
         open={pending !== null}
         onClose={() => settle(false)}
-        title="This costs credits"
+        title={say("This costs credits")}
         maxWidth="max-w-[430px]"
       >
         <div className="flex flex-col gap-4">
@@ -86,28 +87,32 @@ export default function CostConfirmProvider({ children }: { children: React.Reac
             </span>
             <div>
               <p className="text-[0.95rem] text-ink">
-                {pending?.what} costs <span className="font-bold">{pending?.cost} 🪙</span>.
+                {pending?.what}  {say("costs")} <span className="font-bold">{pending?.cost} 🪙</span>.
               </p>
               {balance != null && pending && (
                 <p className="micro mt-1 text-[0.6rem] text-ink-soft">
-                  You have {balance} 🪙 — {Math.max(0, balance - pending.cost)} left afterwards.
+                  
+                  {say("You have")} {balance} 🪙 — {Math.max(0, balance - pending.cost)}  {say("left afterwards.")}
                 </p>
               )}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 border-t-2 border-dashed border-pencil pt-3">
             <SketchButton variant="accent" onClick={() => settle(true)}>
-              Yes, spend it
+              
+              {say("Yes, spend it")}
             </SketchButton>
             <SketchButton variant="secondary" onClick={() => settle(false)}>
-              Cancel
+              
+              {say("Cancel")}
             </SketchButton>
             <button
               type="button"
               onClick={() => settle(true, true)}
               className="micro ml-auto rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink"
             >
-              Don&apos;t remind me
+              
+              {say("Don't remind me")}
             </button>
           </div>
         </div>

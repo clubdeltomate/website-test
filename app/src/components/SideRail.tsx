@@ -18,6 +18,8 @@ import { cn } from '@/lib/utils';
 import TokenMeter from './sketch/TokenMeter';
 import { DoodleArrow } from './sketch/DoodleIcons';
 import { useAuth } from '@/hooks/useAuth';
+import { say } from '@/lib/i18n';
+import LanguagePicker from '@/components/LanguagePicker';
 
 const ROLE_CHIP: Record<string, string> = {
   user: 'bg-blue-soft text-ink',
@@ -84,7 +86,7 @@ function RailLink({
             className="h-[18px] w-[18px] shrink-0 transition-transform duration-300 group-hover:rotate-2"
             strokeWidth={2}
           />
-          <span className="flex-1">{label}</span>
+          <span className="flex-1">{say(label)}</span>
           {isActive && (
             <DoodleArrow className="h-4 w-6 -scale-x-100 text-ink" />
           )}
@@ -104,15 +106,16 @@ function RailContent({ onClose }: { onClose?: () => void }) {
       {/* logo */}
       <div className="mb-3 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 no-underline">
-          <img src="/logo.svg" alt="SketchLearn logo" className="h-10 w-10" />
+          <img src="/logo.svg" alt={say("SketchLearn logo")} className="h-10 w-10" />
           <span className="font-display text-3xl font-bold text-ink">
-            SketchLearn
+            
+            {say("SketchLearn")}
           </span>
         </Link>
         {onClose && (
           <button
             onClick={onClose}
-            aria-label="Close menu"
+            aria-label={say("Close menu")}
             className="rounded-wobble-sm p-1.5 text-ink-soft hover:bg-paper-2 hover:text-ink lg:hidden"
           >
             <X className="h-5 w-5" />
@@ -131,7 +134,7 @@ function RailContent({ onClose }: { onClose?: () => void }) {
       {isStaff && (
         <>
           <p className="micro mt-4 px-3 text-ink-faint">
-            {role === 'admin' ? 'Admin' : 'Moderation'}
+            {role === 'admin' ? say('Admin') : say('Moderation')}
           </p>
           <nav className="flex flex-col gap-1">
             {staffItems.map((item) => (
@@ -141,8 +144,9 @@ function RailContent({ onClose }: { onClose?: () => void }) {
         </>
       )}
 
-      {/* bottom: token meter + settings + auth */}
+      {/* bottom: language + token meter + settings + auth */}
       <div className="mt-auto flex flex-col gap-3 border-t-2 border-dashed border-pencil pt-4">
+        <LanguagePicker full />
         {user && <TokenMeter tokens={user.tokenBalance} />}
         <NavLink
           to="/settings"
@@ -156,7 +160,8 @@ function RailContent({ onClose }: { onClose?: () => void }) {
           }
         >
           <Settings className="h-[18px] w-[18px]" strokeWidth={2} />
-          Settings
+          
+          {say("Settings")}
         </NavLink>
         {user ? (
           <div className="flex items-center gap-2.5 rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 shadow-offset">
@@ -176,8 +181,8 @@ function RailContent({ onClose }: { onClose?: () => void }) {
             </span>
             <button
               onClick={() => void logout()}
-              aria-label="Sign out"
-              title="Sign out"
+              aria-label={say("Sign out")}
+              title={say("Sign out")}
               className="rounded-wobble-sm p-1.5 text-ink-soft transition-colors hover:bg-paper-2 hover:text-red"
             >
               <LogOut className="h-4 w-4" strokeWidth={2} />
@@ -191,7 +196,7 @@ function RailContent({ onClose }: { onClose?: () => void }) {
             <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-ink bg-purple-soft font-display text-lg text-ink">
               ?
             </span>
-            <span className="text-ink">Sign in</span>
+            <span className="text-ink">{say("Sign in")}</span>
           </Link>
         )}
       </div>

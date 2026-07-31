@@ -14,6 +14,7 @@ import {
   type TemplateFlavor,
   type TemplateSection,
 } from '@contracts/slide-templates';
+import { say } from '@/lib/i18n';
 
 /** Render a template's content sequence, colouring the Image step brown so
  *  slides that carry a picture stand out. */
@@ -99,15 +100,15 @@ function OptionLabel({ t, withSequence }: { t: SlideTemplate; withSequence: bool
       {t.name}
       {evalFree && (
         <span
-          title="No evaluation — read-through slide"
-          aria-label="No evaluation"
+          title={say("No evaluation — read-through slide")}
+          aria-label={say("No evaluation")}
           className="mx-1 inline-block h-2 w-2 rounded-full border border-ink bg-green align-middle"
         />
       )}{' '}
       · <SectionTag t={t} />
       {t.tags.includes('wolfram') && (
         <>
-          {' '}· <span className="font-bold text-red">W⍺ Wolfram</span>
+          {' '}· <span className="font-bold text-red">{say("W⍺ Wolfram")}</span>
         </>
       )}{' '}
       ({t.level})
@@ -220,7 +221,8 @@ export default function TemplatePicker({
               <li role="option" aria-selected={!value}>
                 <button type="button" onClick={() => pick(null)} className={optionClasses(!value)}>
                   <Check className={cn('h-3.5 w-3.5 shrink-0', !value ? 'text-ink' : 'opacity-0')} />
-                  Auto (AI chooses)
+                  
+                  {say("Auto (AI chooses)")}
                 </button>
               </li>
               {templates.map((t) => (

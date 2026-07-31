@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { trpc } from '@/providers/trpc';
 import Chip from '@/components/sketch/Chip';
 import type { RepoUnit } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 export interface SavedPresentationsTableProps {
   slug: string;
@@ -29,11 +30,11 @@ export default function SavedPresentationsTable({
 
   const del = trpc.repos.deleteLessonPreset.useMutation({
     onSuccess: () => {
-      toast.success('Preset deleted');
+      toast.success(say("Preset deleted"));
       void utils.repos.getBySlug.invalidate({ slug });
       setPendingDelete(null);
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   const rows = useMemo(
@@ -49,19 +50,19 @@ export default function SavedPresentationsTable({
   return (
     <section>
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <h2 className="font-heading text-2xl font-bold text-ink">Saved presentations</h2>
+        <h2 className="font-heading text-2xl font-bold text-ink">{say("Saved presentations")}</h2>
         {rows.length > 0 && (
           <Chip kind="neutral" className="font-mono">
             {rows.length}
           </Chip>
         )}
-        <span className="micro text-ink-faint">free to play — no credits needed</span>
+        <span className="micro text-ink-faint">{say("free to play — no credits needed")}</span>
       </div>
 
       {rows.length === 0 ? (
         <div className="rounded-wobble-2 border-2 border-dashed border-pencil bg-paper-2/40 px-4 py-10 text-center">
           <MonitorPlay className="mx-auto h-8 w-8 text-ink-faint" />
-          <p className="mt-2 font-display text-xl text-ink-soft">No presentations set yet</p>
+          <p className="mt-2 font-display text-xl text-ink-soft">{say("No presentations set yet")}</p>
           <p className="mt-1 text-sm text-ink-faint">
             {canEdit
               ? 'Press a Set button above to generate and publish a free presentation.'
@@ -73,10 +74,10 @@ export default function SavedPresentationsTable({
           <table className="w-full border-collapse text-left text-sm">
             <thead>
               <tr className="bg-yellow">
-                <th className="micro border-b-2 border-ink px-4 py-2 text-ink">Unit</th>
-                <th className="micro border-b-2 border-ink px-4 py-2 text-ink">Presentation</th>
-                <th className="micro border-b-2 border-ink px-4 py-2 text-center text-ink">Order</th>
-                <th className="micro border-b-2 border-ink px-4 py-2 text-right text-ink">Access</th>
+                <th className="micro border-b-2 border-ink px-4 py-2 text-ink">{say("Unit")}</th>
+                <th className="micro border-b-2 border-ink px-4 py-2 text-ink">{say("Presentation")}</th>
+                <th className="micro border-b-2 border-ink px-4 py-2 text-center text-ink">{say("Order")}</th>
+                <th className="micro border-b-2 border-ink px-4 py-2 text-right text-ink">{say("Access")}</th>
               </tr>
             </thead>
             <tbody>
@@ -103,11 +104,11 @@ export default function SavedPresentationsTable({
                         </Link>
                         {canEdit && (
                           <>
-                            <Link to={editHref} title="Edit this preset" className="no-underline">
+                            <Link to={editHref} title={say("Edit this preset")} className="no-underline">
                               <button
                                 type="button"
                                 className="rounded-wobble-sm border-2 border-pencil p-1.5 text-ink-soft transition-colors hover:border-ink hover:text-ink"
-                                aria-label="Edit preset"
+                                aria-label={say("Edit preset")}
                               >
                                 <Pencil className="h-4 w-4" strokeWidth={2} />
                               </button>
@@ -122,22 +123,24 @@ export default function SavedPresentationsTable({
                                   disabled={del.isPending}
                                   className="rounded-wobble-sm border-2 border-red bg-red-soft px-2 py-1 text-xs font-bold text-red"
                                 >
-                                  delete
+                                  
+                                  {say("delete")}
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setPendingDelete(null)}
                                   className="rounded-wobble-sm px-1.5 py-1 text-xs text-ink-faint hover:text-ink"
                                 >
-                                  cancel
+                                  
+                                  {say("cancel")}
                                 </button>
                               </span>
                             ) : (
                               <button
                                 type="button"
                                 onClick={() => setPendingDelete(lesson.id)}
-                                title="Delete this preset"
-                                aria-label="Delete preset"
+                                title={say("Delete this preset")}
+                                aria-label={say("Delete preset")}
                                 className="rounded-wobble-sm border-2 border-transparent p-1.5 text-ink-faint transition-colors hover:border-dashed hover:border-red hover:text-red"
                               >
                                 <Trash2 className="h-4 w-4" strokeWidth={2} />

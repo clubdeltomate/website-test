@@ -18,6 +18,7 @@ import { PencilSpinner } from '@/components/sketch/SketchButton';
 import { Toaster } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { ContentSource, LessonSeed, RepoTemplate } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 /* ------------------------------------------------------------------ */
 /* Template meta — one engine, four label skins (lesson-path.md §1)    */
@@ -230,7 +231,7 @@ export function CardBanner({
           e.preventDefault();
           onDraw();
         }}
-        title="Have the AI draw a banner strip from this item's own content (costs credits)"
+        title={say("Have the AI draw a banner strip from this item's own content (costs credits)")}
         className={cn(
           'micro flex h-11 w-full items-center justify-center gap-1.5 rounded-wobble-sm border-2 border-dashed border-pencil text-[0.6rem] font-bold text-ink-faint transition-colors hover:border-ink hover:text-ink disabled:cursor-wait',
           className,
@@ -258,8 +259,8 @@ export function CardBanner({
             e.preventDefault();
             onDraw();
           }}
-          aria-label="Redraw banner"
-          title="Draw a fresh banner from the same prompt (costs credits)"
+          aria-label={say("Redraw banner")}
+          title={say("Draw a fresh banner from the same prompt (costs credits)")}
           className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-wobble-sm border-2 border-transparent bg-paper-3/85 p-1 text-ink-soft transition-colors hover:border-dashed hover:border-ink hover:text-ink disabled:cursor-wait"
         >
           {busy ? <PencilSpinner /> : <RefreshCw className="h-3.5 w-3.5" strokeWidth={2} />}
@@ -278,7 +279,7 @@ export function CardBanner({
 export function VerifiedBadge({ className }: { className?: string }) {
   return (
     <BadgeCheck
-      aria-label="Verified"
+      aria-label={say("Verified")}
       className={cn('inline h-3.5 w-3.5 shrink-0 align-[-2px] text-blue', className)}
       strokeWidth={2.5}
     />
@@ -293,7 +294,7 @@ export function SourceBadge({ source, compact = false }: { source: ContentSource
   if (source === 'ai') {
     return (
       <span
-        title="Generated with AI"
+        title={say("Generated with AI")}
         className="inline-flex items-center gap-1 rounded-wobble-sm border-2 border-purple bg-purple-soft px-1.5 py-0.5 font-heading text-[0.6rem] font-bold text-purple"
       >
         <Sparkles className="h-3 w-3" strokeWidth={2.5} />
@@ -303,7 +304,7 @@ export function SourceBadge({ source, compact = false }: { source: ContentSource
   }
   return (
     <span
-      title="Hand-built by a person"
+      title={say("Hand-built by a person")}
       className="inline-flex items-center gap-1 rounded-wobble-sm border-2 border-green bg-green-soft px-1.5 py-0.5 font-heading text-[0.6rem] font-bold text-green"
     >
       <Hand className="h-3 w-3" strokeWidth={2.5} />

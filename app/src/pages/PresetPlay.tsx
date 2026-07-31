@@ -4,6 +4,7 @@ import { trpc } from '@/providers/trpc';
 import DeckPlayer from '@/components/player/DeckPlayer';
 import SketchButton from '@/components/sketch/SketchButton';
 import { ChevronLeft } from 'lucide-react';
+import { say } from '@/lib/i18n';
 
 /**
  * Watch a saved PRESET presentation — the deck the owner generated once, so a
@@ -25,26 +26,27 @@ export default function PresetPlay() {
   const utils = trpc.useUtils();
   const setPreset = trpc.repos.setLessonPreset.useMutation({
     onSuccess: () => {
-      toast.success('Saved to the preset ✓');
+      toast.success(say("Saved to the preset ✓"));
       void utils.repos.lessonPreset.invalidate({ repoSlug: slug, lessonSeq });
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   if (query.isLoading) {
-    return <div className="mx-auto max-w-[720px] px-4 py-16 text-center text-ink-faint">Opening…</div>;
+    return <div className="mx-auto max-w-[720px] px-4 py-16 text-center text-ink-faint">{say("Opening…")}</div>;
   }
   if (query.isError) {
     return (
       <div className="mx-auto max-w-[720px] px-4 py-16 text-center">
-        <p className="font-display text-3xl text-ink">The presentation didn't load</p>
-        <p className="mt-2 text-ink-soft">Usually a hiccup — try again, or go back and reopen it.</p>
+        <p className="font-display text-3xl text-ink">{say("The presentation didn't load")}</p>
+        <p className="mt-2 text-ink-soft">{say("Usually a hiccup — try again, or go back and reopen it.")}</p>
         <div className="mt-4 flex items-center justify-center gap-2">
           <SketchButton variant="accent" onClick={() => void query.refetch()}>
-            Try again
+            
+            {say("Try again")}
           </SketchButton>
           <SketchButton variant="secondary" onClick={back}>
-            <ChevronLeft className="h-4 w-4" /> Back
+            <ChevronLeft className="h-4 w-4" />  {say("Back")}
           </SketchButton>
         </div>
       </div>
@@ -53,12 +55,13 @@ export default function PresetPlay() {
   if (!query.data) {
     return (
       <div className="mx-auto max-w-[720px] px-4 py-16 text-center">
-        <p className="font-display text-3xl text-ink">Nothing to show yet</p>
+        <p className="font-display text-3xl text-ink">{say("Nothing to show yet")}</p>
         <p className="mt-2 text-ink-soft">
-          This item doesn't have a saved presentation, or it isn't available.
+          
+          {say("This item doesn't have a saved presentation, or it isn't available.")}
         </p>
         <SketchButton variant="secondary" className="mt-4" onClick={back}>
-          <ChevronLeft className="h-4 w-4" /> Back
+          <ChevronLeft className="h-4 w-4" />  {say("Back")}
         </SketchButton>
       </div>
     );

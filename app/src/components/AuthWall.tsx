@@ -2,6 +2,7 @@ import { Link } from 'react-router';
 import { AnimatePresence, motion } from 'framer-motion';
 import SketchButton from './sketch/SketchButton';
 import WashiTape from './sketch/WashiTape';
+import { say } from '@/lib/i18n';
 
 export interface AuthWallProps {
   open: boolean;
@@ -49,7 +50,7 @@ export default function AuthWall({ open, onClose, message }: AuthWallProps) {
           <motion.div
             role="dialog"
             aria-modal="true"
-            aria-label="Sign in required"
+            aria-label={say("Sign in required")}
             className="relative w-full max-w-[560px] rounded-wobble-2 border-2 border-ink bg-paper-3 p-8 pt-10 text-center shadow-offset"
             initial={{ scale: 0.96, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -62,7 +63,8 @@ export default function AuthWall({ open, onClose, message }: AuthWallProps) {
               <PadlockDoodle />
             </div>
             <h2 className="mt-3 font-display text-4xl text-ink">
-              This page lives in a signed-in notebook
+              
+              {say("This page lives in a signed-in notebook")}
             </h2>
             <p className="mx-auto mt-2 max-w-sm text-sm text-ink-soft">
               {message ??
@@ -70,17 +72,18 @@ export default function AuthWall({ open, onClose, message }: AuthWallProps) {
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <Link to="/auth">
-                <SketchButton variant="accent">Sign in</SketchButton>
+                <SketchButton variant="accent">{say("Sign in")}</SketchButton>
               </Link>
               <Link to="/auth">
-                <SketchButton variant="secondary">Create account</SketchButton>
+                <SketchButton variant="secondary">{say("Create account")}</SketchButton>
               </Link>
             </div>
             <button
               onClick={onClose}
               className="micro mt-5 text-ink-faint hover:text-ink"
             >
-              keep browsing as guest
+              
+              {say("keep browsing as guest")}
             </button>
           </motion.div>
         </motion.div>

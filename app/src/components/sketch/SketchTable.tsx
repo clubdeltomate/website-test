@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { say } from '@/lib/i18n';
 
 export interface SketchColumn<T> {
   key: string;
@@ -112,7 +113,8 @@ export default function SketchTable<T>({
               <td colSpan={columns.length} className="px-3 py-10 text-center">
                 {emptyState ?? (
                   <span className="font-display text-2xl text-ink-faint">
-                    Nothing here yet — let's sketch something!
+                    
+                    {say("Nothing here yet — let's sketch something!")}
                   </span>
                 )}
               </td>

@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import PostShelf from '@/components/feed/PostShelf';
 import Slides from './Slides';
 import Repos from './Repos';
+import { say } from '@/lib/i18n';
 
 /**
  * Community gallery — everything EVERYONE has made, in the same layouts as
@@ -18,7 +19,7 @@ export default function Gallery() {
   return (
     <div>
       <div className="mx-auto w-full max-w-content px-4 pt-6 lg:px-8">
-        <div className="flex items-center gap-2" role="tablist" aria-label="Gallery type">
+        <div className="flex items-center gap-2" role="tablist" aria-label={say("Gallery type")}>
           {(
             [
               { id: 'slides', label: 'Slides', icon: Presentation },
@@ -43,7 +44,8 @@ export default function Gallery() {
             </button>
           ))}
           <p className="micro ml-2 text-ink-faint">
-            Everyone's work — filter to the people you follow; your own shelves stay just yours.
+            
+            {say("Everyone's work — filter to the people you follow; your own shelves stay just yours.")}
           </p>
         </div>
       </div>

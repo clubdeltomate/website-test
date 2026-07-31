@@ -5,6 +5,7 @@ import { ChefHat, GraduationCap, Repeat, Store, Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DoodleSparkle } from '@/components/sketch/DoodleIcons';
 import { usePrefersReducedMotion } from './usePrefersReducedMotion';
+import { say } from '@/lib/i18n';
 
 /**
  * About §4 — "One engine, many worlds" persona flip cards.
@@ -84,11 +85,13 @@ function FlipCard({ persona, index }: { persona: Persona; index: number }) {
           </span>
           <h3 className="mt-3 font-heading text-xl text-ink">{persona.name}</h3>
           <p className="mt-2 font-mono text-sm text-ink-soft">
-            Unit → Lesson → Objective
+            
+            {say("Unit → Lesson → Objective")}
           </p>
           <span className="micro mt-auto inline-flex items-center gap-1.5 text-ink-faint">
             <Repeat className="h-3.5 w-3.5 transition-transform duration-300 group-hover:rotate-180" />
-            flip me
+            
+            {say("flip me")}
           </span>
           {/* ✦ at the flip axis */}
           <DoodleSparkle className="absolute -right-2 top-1/2 h-5 w-5 -translate-y-1/2 text-purple opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
@@ -102,7 +105,7 @@ function FlipCard({ persona, index }: { persona: Persona; index: number }) {
             '[transform:rotateY(180deg)]',
           )}
         >
-          <p className="micro text-ink-faint">{persona.name}'s world</p>
+          <p className="micro text-ink-faint">{persona.name}{say("'s world")}</p>
           <p className="mt-2 font-heading text-[1.05rem] leading-snug text-ink">
             {persona.world}
           </p>

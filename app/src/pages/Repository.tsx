@@ -36,6 +36,7 @@ import {
   relTime,
   studyUrl,
 } from '@/components/repo/shared';
+import { say } from '@/lib/i18n';
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -115,25 +116,25 @@ export default function Repository() {
       void utils.repos.getBySlug.invalidate({ slug });
       void utils.repos.list.invalidate();
     },
-    onError: () => toast.error("Couldn't update favorites — try again"),
+    onError: () => toast.error(say("Couldn't update favorites — try again")),
   });
 
   const rename = trpc.repos.update.useMutation({
     onSuccess: () => {
-      toast.success('Saved ✓');
+      toast.success(say("Saved ✓"));
       void utils.repos.getBySlug.invalidate({ slug });
       void utils.repos.list.invalidate();
     },
-    onError: (err) => toast.error(err.message || 'Could not rename — try again'),
+    onError: (err) => toast.error(say(err.message || 'Could not rename — try again')),
   });
 
   const deleteRepo = trpc.repos.delete.useMutation({
     onSuccess: () => {
-      toast.success('Notebook recycled 📒');
+      toast.success(say("Notebook recycled 📒"));
       void utils.repos.list.invalidate();
       navigate('/repos');
     },
-    onError: (err) => toast.error(err.message || 'Could not delete — try again'),
+    onError: (err) => toast.error(say(err.message || 'Could not delete — try again')),
   });
 
   /* ---------------- sticky sub-header on scroll ---------------------------- */
@@ -181,18 +182,18 @@ export default function Repository() {
   const onShare = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      toast.success('Public link copied — anyone can view this notebook');
+      toast.success(say("Public link copied — anyone can view this notebook"));
     } catch {
-      toast.error("Couldn't copy the link");
+      toast.error(say("Couldn't copy the link"));
     }
   };
 
   const onCopyRef = async () => {
     try {
       await navigator.clipboard.writeText(`#${data.ref}`);
-      toast.success('Ref copied');
+      toast.success(say("Ref copied"));
     } catch {
-      toast.error("Couldn't copy the ref");
+      toast.error(say("Couldn't copy the ref"));
     }
   };
 
@@ -224,14 +225,16 @@ export default function Repository() {
                 <Link to={nextUpUrl} className="no-underline">
                   <SketchButton variant="accent" size="sm">
                     <Clapperboard className="h-4 w-4" />
-                    Continue course
+                    
+                    {say("Continue course")}
                   </SketchButton>
                 </Link>
               )}
               {isGuest && (
                 <SketchButton variant="accent" size="sm" onClick={() => setAuthWallOpen(true)}>
                   <Clapperboard className="h-4 w-4" />
-                  Study
+                  
+                  {say("Study")}
                 </SketchButton>
               )}
             </div>
@@ -240,9 +243,10 @@ export default function Repository() {
       </AnimatePresence>
 
       {/* breadcrumb */}
-      <nav aria-label="Breadcrumb" className="micro flex items-center gap-1.5 text-[0.65rem] text-ink-faint">
+      <nav aria-label={say("Breadcrumb")} className="micro flex items-center gap-1.5 text-[0.65rem] text-ink-faint">
         <Link to="/repos" className="text-blue no-underline hover:squiggle">
-          Repos
+          
+          {say("Repos")}
         </Link>
         <span>/</span>
         <span className="text-ink-soft">{data.title}</span>
@@ -264,7 +268,7 @@ export default function Repository() {
               onSave={(title) => rename.mutate({ slug: data.slug, title })}
             />
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <button type="button" onClick={() => void onCopyRef()} title="Click to copy" className="no-underline">
+              <button type="button" onClick={() => void onCopyRef()} title={say("Click to copy")} className="no-underline">
                 <Chip kind="repo-ref" className="cursor-copy">
                   #{data.ref}
                 </Chip>
@@ -283,13 +287,15 @@ export default function Repository() {
                 </Link>
               )}
               <span className="micro text-[0.6rem] text-ink-faint">
-                sketched {relTime(data.createdAt)}
+                
+                {say("sketched")} {relTime(data.createdAt)}
                 {data.ownerName ? ` · by ${data.ownerName}` : ''}
               </span>
             </div>
             {canEdit && (
               <p className="mt-1.5 text-xs text-ink-faint">
-                Renaming never breaks links — slug and <span className="font-mono">#{data.ref}</span> stay the same.
+                
+                {say("Renaming never breaks links — slug and")} <span className="font-mono">#{data.ref}</span>  {say("stay the same.")}
               </p>
             )}
           </div>
@@ -311,7 +317,7 @@ export default function Repository() {
             <button
               type="button"
               onClick={() => void onShare()}
-              aria-label="Share"
+              aria-label={say("Share")}
               className="flex h-10 w-10 items-center justify-center rounded-wobble-sm border-2 border-ink bg-paper-3 shadow-offset transition-all hover:-translate-y-0.5 hover:shadow-offset-hover"
             >
               <Share2 className="h-5 w-5 text-ink" strokeWidth={2} />
@@ -320,7 +326,7 @@ export default function Repository() {
               <button
                 type="button"
                 onClick={() => setDeleteOpen(true)}
-                aria-label="Delete repository"
+                aria-label={say("Delete repository")}
                 className="flex h-10 w-10 items-center justify-center rounded-wobble-sm border-2 border-ink bg-red-soft text-red shadow-offset transition-all hover:-translate-y-0.5 hover:bg-red hover:text-paper-3"
               >
                 <Trash2 className="h-5 w-5" strokeWidth={2} />
@@ -331,7 +337,7 @@ export default function Repository() {
       </motion.header>
 
       {/* stats strip */}
-      <section aria-label="Stats" className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <section aria-label={say("Stats")} className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard index={0} value={data.unitCount} label={meta.unitNoun + 's'} />
         <StatCard index={1} value={data.lessonCount} label={meta.lessonNoun + 's'} />
         <StatCard index={2} value={data.runCount} label="Runs" />
@@ -364,10 +370,11 @@ export default function Repository() {
       </div>
 
       {/* units */}
-      <section aria-label="Units and lessons" className="mt-8 flex flex-col gap-8">
+      <section aria-label={say("Units and lessons")} className="mt-8 flex flex-col gap-8">
         {data.units.length === 0 && (
           <div className="rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-3/60 px-4 py-10 text-center text-ink-faint">
-            This notebook has no {meta.unitNoun.toLowerCase()}s yet.
+            
+            {say("This notebook has no")} {meta.unitNoun.toLowerCase()}{say("s yet.")}
           </div>
         )}
         {data.units.map((unit, i) => (
@@ -432,7 +439,7 @@ function AddUnitCard({ slug, unitNoun }: { slug: string; unitNoun: string }) {
       setTitle('');
       setOpen(false);
     },
-    onError: (err) => toast.error(err.message || 'Could not add — try again'),
+    onError: (err) => toast.error(say(err.message || 'Could not add — try again')),
   });
 
   const submit = () => {
@@ -452,7 +459,8 @@ function AddUnitCard({ slug, unitNoun }: { slug: string; unitNoun: string }) {
         className="flex items-center justify-center gap-2 rounded-wobble-2 border-2 border-dashed border-pencil bg-paper-3/40 px-4 py-4 font-heading text-base font-semibold text-ink-faint transition-colors hover:border-ink hover:text-ink"
       >
         <Plus className="h-5 w-5" strokeWidth={2} />
-        Add {unitNoun.toLowerCase()}
+        
+        {say("Add")} {unitNoun.toLowerCase()}
       </button>
     );
   }
@@ -461,7 +469,8 @@ function AddUnitCard({ slug, unitNoun }: { slug: string; unitNoun: string }) {
     <div className="relative rounded-wobble-2 border-2 border-dashed border-blue bg-paper-3/60 p-5 pt-7 shadow-offset">
       <WashiTape rotate={2} color="blue" className="left-1/2 -translate-x-1/2" />
       <label className="micro block text-[0.62rem] text-ink-faint" htmlFor="new-unit-title">
-        New {unitNoun.toLowerCase()} — appended at the end
+        
+        {say("New")} {unitNoun.toLowerCase()}  {say("— appended at the end")}
       </label>
       <input
         id="new-unit-title"
@@ -477,11 +486,13 @@ function AddUnitCard({ slug, unitNoun }: { slug: string; unitNoun: string }) {
       />
       <div className="mt-3 flex items-center justify-end gap-2">
         <SketchButton variant="ghost" size="sm" onClick={() => setOpen(false)}>
-          Cancel
+          
+          {say("Cancel")}
         </SketchButton>
         <SketchButton variant="accent" size="sm" loading={createUnit.isPending} onClick={submit}>
           <Plus className="h-4 w-4" />
-          Add {unitNoun.toLowerCase()}
+          
+          {say("Add")} {unitNoun.toLowerCase()}
         </SketchButton>
       </div>
     </div>
@@ -542,7 +553,7 @@ function EditableTitle({
             }
           }}
           disabled={saving}
-          aria-label="Repository title"
+          aria-label={say("Repository title")}
           className="w-full rounded-wobble-sm border-2 border-blue bg-paper-3 px-2 py-1 font-display text-[40px] font-bold leading-tight text-ink shadow-[4px_4px_0_#DDE9FB] outline-none"
         />
       ) : (
@@ -556,8 +567,8 @@ function EditableTitle({
               setDraft(title);
               setEditing(true);
             }}
-            aria-label="Rename repository"
-            title="Rename (links never break)"
+            aria-label={say("Rename repository")}
+            title={say("Rename (links never break)")}
             className="mt-2 rounded-wobble-sm p-1.5 text-ink-faint opacity-0 transition-all hover:bg-paper-2 hover:text-ink focus:opacity-100 group-hover:opacity-100"
           >
             <Pencil className="h-5 w-5" strokeWidth={2} />
@@ -650,7 +661,7 @@ function DeleteModal({
           <motion.div
             role="dialog"
             aria-modal="true"
-            aria-label="Delete repository"
+            aria-label={say("Delete repository")}
             className="relative w-full max-w-[560px] rounded-wobble-2 border-2 border-ink bg-paper-3 p-8 pt-10 shadow-offset"
             initial={{ scale: 0.96, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -659,13 +670,15 @@ function DeleteModal({
           >
             <WashiTape rotate={-4} className="left-8" />
             <WashiTape rotate={3} color="blue" className="left-auto right-8" />
-            <h2 className="font-display text-4xl text-ink">Recycle this notebook?</h2>
+            <h2 className="font-display text-4xl text-ink">{say("Recycle this notebook?")}</h2>
             <p className="mt-2 text-sm text-ink-soft">
-              This tears out <span className="font-bold text-ink">{title}</span> and its{' '}
-              {lessonCount} lessons for good. The linked slide tool stays on your shelf.
+              
+              {say("This tears out")} <span className="font-bold text-ink">{title}</span>  {say("and its")}{' '}
+              {lessonCount}  {say("lessons for good. The linked slide tool stays on your shelf.")}
             </p>
             <label className="micro mt-4 block text-ink-soft" htmlFor="delete-confirm">
-              Type the title to confirm
+              
+              {say("Type the title to confirm")}
             </label>
             <input
               id="delete-confirm"
@@ -676,7 +689,8 @@ function DeleteModal({
             />
             <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
               <SketchButton variant="ghost" onClick={onClose}>
-                Keep it
+                
+                {say("Keep it")}
               </SketchButton>
               <SketchButton
                 variant="danger"
@@ -685,12 +699,13 @@ function DeleteModal({
                 onClick={onConfirm}
               >
                 <Trash2 className="h-4 w-4" />
-                Delete forever
+                
+                {say("Delete forever")}
               </SketchButton>
             </div>
             {matches && (
               <p className="mt-2 flex items-center gap-1 text-xs text-green">
-                <Check className="h-3.5 w-3.5" /> title matches
+                <Check className="h-3.5 w-3.5" />  {say("title matches")}
               </p>
             )}
           </motion.div>
@@ -706,7 +721,7 @@ function DeleteModal({
 
 function RepoSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-[1080px] px-4 py-8 lg:px-8" aria-label="Loading repository">
+    <div className="mx-auto w-full max-w-[1080px] px-4 py-8 lg:px-8" aria-label={say("Loading repository")}>
       <div className="skeleton-stroke h-4 w-40" />
       <div className="skeleton-stroke mt-4 h-12 w-2/3" />
       <div className="mt-3 flex gap-2">
@@ -721,7 +736,7 @@ function RepoSkeleton() {
       </div>
       <div className="skeleton-stroke mt-6 h-40 w-full" />
       <div className="skeleton-stroke mt-4 h-40 w-full" />
-      <p className="mt-4 text-center text-sm text-ink-faint">Opening the notebook…</p>
+      <p className="mt-4 text-center text-sm text-ink-faint">{say("Opening the notebook…")}</p>
     </div>
   );
 }

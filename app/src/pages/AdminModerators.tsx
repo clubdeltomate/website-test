@@ -16,6 +16,7 @@ import { SketchModal } from '@/components/admin/overlays';
 import { LabeledField, SketchInput, SkeletonBlock } from '@/components/admin/controls';
 import { errMsg, formatDate } from '@/components/admin/utils';
 import type { AdminUserRow } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 const MOD_PERMISSIONS = ['Credit tokens', 'Review flags', 'View all runs', 'Suspend users'];
 
@@ -56,7 +57,7 @@ function ModeratorCard({
               <Chip kind={user.role}>{user.role}</Chip>
             </p>
             <p className="truncate text-xs text-ink-soft">{user.email}</p>
-            <p className="micro mt-0.5 text-ink-faint">since {formatDate(user.createdAt)}</p>
+            <p className="micro mt-0.5 text-ink-faint">{say("since")} {formatDate(user.createdAt)}</p>
           </div>
         </div>
 
@@ -68,14 +69,16 @@ function ModeratorCard({
             </p>
           ))}
           <p className="mt-1 text-xs italic text-ink-faint">
-            Fixed permission set; granularity comes later.
+            
+            {say("Fixed permission set; granularity comes later.")}
           </p>
         </div>
 
         <div className="mt-auto flex items-center gap-2 border-t-2 border-dashed border-pencil pt-3">
           {isSelf ? (
-            <p className="text-xs text-ink-faint" title="You can't revoke yourself">
-              That's you — self-revoking is how notebooks get locked. 🔒
+            <p className="text-xs text-ink-faint" title={say("You can't revoke yourself")}>
+              
+              {say("That's you — self-revoking is how notebooks get locked. 🔒")}
             </p>
           ) : (
             <SketchButton
@@ -118,7 +121,7 @@ function ModeratorsBody() {
       if (vars.role === 'moderator') {
         toast.success(`Welcome to the desk, ${promoting?.name ?? 'moderator'} ✦`);
       } else {
-        toast.success('Role updated');
+        toast.success(say("Role updated"));
       }
       setPromoting(null);
       setRevoking(null);
@@ -140,9 +143,9 @@ function ModeratorsBody() {
   return (
     <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-8 px-4 py-8 lg:px-8">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="font-display text-4xl font-bold text-ink">Moderators</h2>
+        <h2 className="font-display text-4xl font-bold text-ink">{say("Moderators")}</h2>
         <Chip kind="neutral">{staff.length}</Chip>
-        <Chip kind="admin">admin only</Chip>
+        <Chip kind="admin">{say("admin only")}</Chip>
       </div>
 
       {/* explainer notes */}
@@ -153,12 +156,12 @@ function ModeratorsBody() {
           transition={{ duration: 0.4 }}
         >
           <StickyNote rotate={0} className="h-full">
-            <p className="mb-2 font-heading text-lg font-semibold">Moderators can</p>
+            <p className="mb-2 font-heading text-lg font-semibold">{say("Moderators can")}</p>
             <ul className="flex flex-col gap-1 text-[0.95rem]">
-              <li>· credit tokens after manual payments</li>
-              <li>· review &amp; clear flagged runs</li>
-              <li>· view all users and runs</li>
-              <li>· suspend regular users</li>
+              <li>{say("· credit tokens after manual payments")}</li>
+              <li>{say("· review & clear flagged runs")}</li>
+              <li>{say("· view all users and runs")}</li>
+              <li>{say("· suspend regular users")}</li>
             </ul>
           </StickyNote>
         </motion.div>
@@ -168,12 +171,12 @@ function ModeratorsBody() {
           transition={{ duration: 0.4, delay: 0.15 }}
         >
           <div className="h-full -rotate-1 rounded-wobble-2 border-2 border-ink bg-purple-soft p-4 pt-5 font-heading text-[1.05rem] leading-snug text-ink shadow-offset">
-            <p className="mb-2 font-heading text-lg font-semibold">Only admins can</p>
+            <p className="mb-2 font-heading text-lg font-semibold">{say("Only admins can")}</p>
             <ul className="flex flex-col gap-1 text-[0.95rem]">
-              <li>· appoint &amp; revoke moderators</li>
-              <li>· change token prices &amp; packs</li>
-              <li>· manage system AI keys &amp; feature flags</li>
-              <li>· edit the payment sheet link</li>
+              <li>{say("· appoint & revoke moderators")}</li>
+              <li>{say("· change token prices & packs")}</li>
+              <li>{say("· manage system AI keys & feature flags")}</li>
+              <li>{say("· edit the payment sheet link")}</li>
             </ul>
           </div>
         </motion.div>
@@ -187,7 +190,7 @@ function ModeratorsBody() {
           </span>
           <div>
             <p className="font-display text-2xl font-bold text-ink">{totals?.pendingPayments ?? 0}</p>
-            <p className="micro text-ink-faint">payments awaiting credit</p>
+            <p className="micro text-ink-faint">{say("payments awaiting credit")}</p>
           </div>
         </SketchCard>
         <SketchCard borderStyle="dashed" index={1} className="flex items-center gap-3 p-4">
@@ -196,7 +199,7 @@ function ModeratorsBody() {
           </span>
           <div>
             <p className="font-display text-2xl font-bold text-ink">{totals?.flaggedRuns ?? 0}</p>
-            <p className="micro text-ink-faint">runs flagged</p>
+            <p className="micro text-ink-faint">{say("runs flagged")}</p>
           </div>
         </SketchCard>
         <SketchCard borderStyle="dashed" index={2} className="flex items-center gap-3 p-4">
@@ -205,7 +208,7 @@ function ModeratorsBody() {
           </span>
           <div>
             <p className="font-display text-2xl font-bold text-ink">{totals?.runs ?? 0}</p>
-            <p className="micro text-ink-faint">runs overseen</p>
+            <p className="micro text-ink-faint">{say("runs overseen")}</p>
           </div>
         </SketchCard>
       </div>
@@ -213,7 +216,7 @@ function ModeratorsBody() {
       {/* moderator cards */}
       <section>
         <h3 className="mb-3 flex items-center gap-2 font-heading text-xl font-semibold text-ink">
-          <ShieldCheck className="h-5 w-5 text-purple" strokeWidth={2} /> The desk
+          <ShieldCheck className="h-5 w-5 text-purple" strokeWidth={2} />  {say("The desk")}
         </h3>
         {loading ? (
           <SkeletonBlock lines={3} status="Gathering the staff…" />
@@ -238,15 +241,16 @@ function ModeratorsBody() {
       {/* appoint a moderator */}
       <SketchCard borderStyle="dashed" className="relative">
         <WashiTape rotate={-2} />
-        <h3 className="mb-1 font-heading text-lg font-semibold text-ink">Appoint a moderator</h3>
+        <h3 className="mb-1 font-heading text-lg font-semibold text-ink">{say("Appoint a moderator")}</h3>
         <p className="mb-4 text-sm text-ink-soft">
-          Search active users; promoting hands them the fixed permission set above.
+          
+          {say("Search active users; promoting hands them the fixed permission set above.")}
         </p>
         <LabeledField label="Find a user">
           <SketchInput
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Type a name or email…"
+            placeholder={say("Type a name or email…")}
           />
         </LabeledField>
         {search.trim() && (
@@ -268,13 +272,14 @@ function ModeratorsBody() {
                     <span className="block truncate text-xs text-ink-faint">{c.email}</span>
                   </span>
                   <SketchButton variant="accent" size="sm" onClick={() => setPromoting(c)}>
-                    <UserPlus className="h-4 w-4" strokeWidth={2} /> Promote
+                    <UserPlus className="h-4 w-4" strokeWidth={2} />  {say("Promote")}
                   </SketchButton>
                 </motion.div>
               ))}
             {candidates.data?.filter((c) => c.role === 'user').length === 0 && (
               <p className="py-2 font-display text-xl text-ink-faint">
-                No plain users match that search.
+                
+                {say("No plain users match that search.")}
               </p>
             )}
           </div>
@@ -289,8 +294,8 @@ function ModeratorsBody() {
         maxWidth="max-w-[440px]"
       >
         <p className="mb-3 text-sm text-ink-soft">
-          They'll be able to credit tokens, review flags, view all runs, and suspend
-          regular users — effective immediately.
+          
+          {say("They'll be able to credit tokens, review flags, view all runs, and suspend regular users — effective immediately.")}
         </p>
         <div className="flex flex-col gap-1 pb-3">
           {MOD_PERMISSIONS.map((perm) => (
@@ -306,10 +311,12 @@ function ModeratorsBody() {
             loading={setRole.isPending}
             onClick={() => promoting && setRole.mutate({ userId: promoting.id, role: 'moderator' })}
           >
-            Promote to moderator
+            
+            {say("Promote to moderator")}
           </SketchButton>
           <SketchButton variant="ghost" onClick={() => setPromoting(null)}>
-            Cancel
+            
+            {say("Cancel")}
           </SketchButton>
         </div>
       </SketchModal>
@@ -345,7 +352,8 @@ function ModeratorsBody() {
             {revoking?.role === 'admin' ? 'Demote' : 'Revoke access'}
           </SketchButton>
           <SketchButton variant="ghost" onClick={() => setRevoking(null)}>
-            Keep them
+            
+            {say("Keep them")}
           </SketchButton>
         </div>
       </SketchModal>

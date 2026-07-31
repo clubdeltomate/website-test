@@ -6,6 +6,7 @@ import StatCard from '@/components/admin/StatCard';
 import { HubHeader } from '@/components/admin/PanelTiles';
 import { SkeletonBlock } from '@/components/admin/controls';
 import { errMsg } from '@/components/admin/utils';
+import { say } from '@/lib/i18n';
 
 /* Statistics: just the headline numbers, on their own page — room to
  * grow more cards later. */
@@ -24,10 +25,11 @@ function StatsBody() {
   if (dashboard.isError || !dashboard.data) {
     return (
       <div className="mx-auto w-full max-w-content px-4 py-16 text-center lg:px-8">
-        <p className="font-display text-3xl text-ink">The numbers smudged themselves.</p>
+        <p className="font-display text-3xl text-ink">{say("The numbers smudged themselves.")}</p>
         <p className="mt-1 text-sm text-ink-soft">{errMsg(dashboard.error)}</p>
         <SketchButton className="mt-4" onClick={() => dashboard.refetch()}>
-          Try again
+          
+          {say("Try again")}
         </SketchButton>
       </div>
     );
@@ -40,7 +42,7 @@ function StatsBody() {
       <HubHeader
         backTo="/admin"
         backLabel="Home"
-        title="Statistics"
+        title={say("Statistics")}
         blurb="The platform's headline numbers."
       />
 

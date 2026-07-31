@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import { ArrowLeft, UserRound } from 'lucide-react';
 import SketchButton from '../sketch/SketchButton';
+import { say } from '@/lib/i18n';
 
 /**
  * The closing actions every deck ends on, whatever it was: one big "Back to
@@ -54,7 +55,8 @@ export function AuthorProfileLink({
       className="inline-flex items-center gap-1.5 font-heading text-sm font-semibold text-ink-soft underline underline-offset-4 transition-colors hover:text-ink"
     >
       <UserRound className="h-4 w-4" strokeWidth={2} />
-      Visit {ownerName ? `${ownerName}'s` : 'the author’s'} profile
+      
+      {say("Visit")} {ownerName ? `${ownerName}'s` : 'the author’s'}  {say("profile")}
     </Link>
   );
 }

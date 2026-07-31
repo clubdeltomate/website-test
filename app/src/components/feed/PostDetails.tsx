@@ -9,6 +9,7 @@ import { type ZipEntry, makeZip } from '@/lib/zip';
 import { TEMPLATE_META, VerifiedBadge } from '@/components/repo/shared';
 import PostAudience from '@/components/feed/PostAudience';
 import type { PostCategory, PostSummary } from '@contracts/post';
+import { say } from '@/lib/i18n';
 
 /* Everything about a post that is not the picture: who posted it, what they
  * said, when, and the room held for the conversation.
@@ -45,7 +46,7 @@ export default function PostDetails({
       void utils.posts.bySlug.invalidate({ slug: post.slug });
       toast.success(r.saved ? 'Saved ♥' : 'Removed from saved');
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const [zipping, setZipping] = useState(false);
   const when = new Date(post.createdAt);
@@ -72,7 +73,7 @@ export default function PostDetails({
       URL.revokeObjectURL(a.href);
       toast.success(`${entries.length} slide${entries.length === 1 ? '' : 's'} zipped ✓`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Those images couldn't be downloaded");
+      toast.error(say(err instanceof Error ? err.message : "Those images couldn't be downloaded"));
     } finally {
       setZipping(false);
     }
@@ -183,7 +184,7 @@ export default function PostDetails({
             {post.caption}
           </p>
         ) : (
-          <p className="micro text-[0.6rem] text-ink-faint">No caption.</p>
+          <p className="micro text-[0.6rem] text-ink-faint">{say("No caption.")}</p>
         )}
       </div>
 
@@ -191,14 +192,14 @@ export default function PostDetails({
         <p className="micro min-w-0 flex-1 text-[0.55rem] text-ink-faint">
           {when.toLocaleDateString()} ·{' '}
           {when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} ·{' '}
-          {post.imageUrls.length} slide{post.imageUrls.length === 1 ? '' : 's'}
+          {post.imageUrls.length}  {say("slide")}{post.imageUrls.length === 1 ? '' : 's'}
         </p>
         <button
           type="button"
           onClick={() => void downloadZip()}
           disabled={zipping || post.imageUrls.length === 0}
-          aria-label="Download the images as a zip"
-          title="Download the images as a zip"
+          aria-label={say("Download the images as a zip")}
+          title={say("Download the images as a zip")}
           className="micro flex shrink-0 items-center gap-1 rounded-wobble-sm border-2 border-dashed border-pencil px-1.5 py-0.5 text-[0.55rem] font-bold text-ink-soft transition-colors hover:border-ink hover:text-ink disabled:opacity-40"
         >
           <Download className="h-3 w-3" strokeWidth={2} />
@@ -209,7 +210,7 @@ export default function PostDetails({
           panel does not need rearranging when it arrives. */}
       <div className="flex items-center gap-2 border-t-2 border-dashed border-pencil px-4 py-3 text-ink-faint">
         <MessageCircle className="h-4 w-4" strokeWidth={2} />
-        <span className="micro text-[0.6rem]">Comments are coming here.</span>
+        <span className="micro text-[0.6rem]">{say("Comments are coming here.")}</span>
       </div>
     </div>
   );

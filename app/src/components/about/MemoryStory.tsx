@@ -5,6 +5,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { DoodleCheck, DoodleSparkle } from '@/components/sketch/DoodleIcons';
 import StickyNote from '@/components/sketch/StickyNote';
 import { cn } from '@/lib/utils';
+import { say } from '@/lib/i18n';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -66,25 +67,26 @@ function LogCard({ className }: { className?: string }) {
     >
       <p className="micro flex items-center gap-1.5 text-ink">
         <DoodleSparkle className="h-3.5 w-3.5 text-purple" />
-        Lesson log · L1
+        
+        {say("Lesson log · L1")}
       </p>
       <ul className="mt-2 space-y-1.5 text-xs text-ink">
         <li className="flex items-start gap-1.5">
           <DoodleCheck className="mt-0.5 h-3 w-3 shrink-0 text-green" />
           <span>
-            <b>Speed vs. velocity</b> — taught with a bus-stop analogy · quiz ✓
+            <b>{say("Speed vs. velocity")}</b>  {say("— taught with a bus-stop analogy · quiz ✓")}
           </span>
         </li>
         <li className="flex items-start gap-1.5">
           <DoodleCheck className="mt-0.5 h-3 w-3 shrink-0 text-green" />
           <span>
-            <b>Acceleration</b> — taught with a slope chart · quiz ✓
+            <b>{say("Acceleration")}</b>  {say("— taught with a slope chart · quiz ✓")}
           </span>
         </li>
         <li className="flex items-start gap-1.5">
           <DoodleCheck className="mt-0.5 h-3 w-3 shrink-0 text-green" />
           <span>
-            <b>Reading x–t graphs</b> — taught with a sketch diagram · quiz ✓
+            <b>{say("Reading x–t graphs")}</b>  {say("— taught with a sketch diagram · quiz ✓")}
           </span>
         </li>
       </ul>
@@ -101,8 +103,8 @@ function TaughtStrip({ className }: { className?: string }) {
       )}
     >
       <DoodleSparkle className="h-4 w-4 shrink-0 text-purple" />
-      <span className="micro text-ink">Previously taught</span>
-      <span className="text-xs text-ink-soft">L1 · describing motion</span>
+      <span className="micro text-ink">{say("Previously taught")}</span>
+      <span className="text-xs text-ink-soft">{say("L1 · describing motion")}</span>
     </div>
   );
 }
@@ -113,7 +115,8 @@ function DeckReveal() {
     <div className="deck-reveal mt-3 border-t-2 border-dashed border-pencil pt-3">
       <p className="relative inline-block text-xs text-ink-faint">
         <span className="strike-text opacity-70">
-          “Let's start from scratch: velocity is distance over time…”
+          
+          {say("“Let's start from scratch: velocity is distance over time…”")}
         </span>
         <svg
           viewBox="0 0 220 10"
@@ -134,8 +137,9 @@ function DeckReveal() {
       </p>
       <p className="green-stitch mt-2 rounded-wobble-sm border-2 border-dotted border-green bg-green-soft px-2 py-1 text-xs text-ink">
         <DoodleCheck className="mr-1 inline h-3 w-3 text-green" />
-        “With velocity &amp; acceleration from Lesson 1 in hand, a{' '}
-        <b>force</b> is whatever changes them…”
+        
+        {say("“With velocity & acceleration from Lesson 1 in hand, a")}{' '}
+        <b>{say("force")}</b>  {say("is whatever changes them…”")}
       </p>
     </div>
   );
@@ -224,16 +228,17 @@ export default function MemoryStory() {
   return (
     <section
       ref={rootRef}
-      aria-label="Cross-lesson memory"
+      aria-label={say("Cross-lesson memory")}
       className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden px-6 py-16"
     >
       <div className="mx-auto w-full max-w-5xl">
         <h2 className="text-center font-heading text-3xl text-ink md:text-4xl">
-          Lesson 2 <span className="squiggle-red">never re-teaches</span> Lesson 1
+          
+          {say("Lesson 2")} <span className="squiggle-red">{say("never re-teaches")}</span>  {say("Lesson 1")}
         </h2>
         <p className="mx-auto mt-2 max-w-xl text-center text-ink-soft">
-          Finished plays write lesson logs back to the repo. The next generation
-          reads them — and builds on them.
+          
+          {say("Finished plays write lesson logs back to the repo. The next generation reads them — and builds on them.")}
         </p>
 
         {/* ---------------- pinned scrubbed stage (desktop, no-preference) ---------------- */}
@@ -242,7 +247,7 @@ export default function MemoryStory() {
             {/* lesson stack */}
             <LessonCard
               seq="Lesson 1 of 9 · Unit 1"
-              title="Describing motion"
+              title={say("Describing motion")}
               lines="position · velocity · acceleration"
               className="mem-l1 absolute left-0 top-0"
             />
@@ -250,7 +255,7 @@ export default function MemoryStory() {
               <TaughtStrip className="mem-strip absolute -top-11 left-0" />
               <LessonCard
                 seq="Lesson 2 of 9 · Unit 1"
-                title="Forces & Newton's laws"
+                title={say("Forces & Newton's laws")}
                 lines="what changes motion, and why"
               >
                 <DeckReveal />
@@ -258,7 +263,7 @@ export default function MemoryStory() {
             </div>
             <LessonCard
               seq="Lesson 3 of 9 · Unit 2"
-              title="Energy & work"
+              title={say("Energy & work")}
               lines="generated after L2 — memory intact"
               dim
               className="mem-l3 absolute left-0 top-[420px]"
@@ -275,8 +280,8 @@ export default function MemoryStory() {
 
             {/* sticky side note */}
             <StickyNote rotate={2} className="absolute right-0 top-6 w-52 text-sm">
-              Same for restaurants: the “Dinner” decks never re-introduce your
-              café's story that “Breakfast” already told.
+              
+              {say("Same for restaurants: the “Dinner” decks never re-introduce your café's story that “Breakfast” already told.")}
             </StickyNote>
 
             {/* captions */}
@@ -302,7 +307,7 @@ export default function MemoryStory() {
             <div className="mem-panel">
               <LessonCard
                 seq="Lesson 1 of 9 · Unit 1"
-                title="Describing motion"
+                title={say("Describing motion")}
                 lines="position · velocity · acceleration"
                 className="w-full"
               />
@@ -316,7 +321,7 @@ export default function MemoryStory() {
             <div className="mem-panel">
               <LessonCard
                 seq="Lesson 2 of 9 · Unit 1"
-                title="Forces & Newton's laws"
+                title={say("Forces & Newton's laws")}
                 lines="what changes motion, and why"
                 className="w-full"
               >
@@ -324,8 +329,8 @@ export default function MemoryStory() {
               </LessonCard>
               <p className="mt-3 text-center font-display text-2xl text-ink">{CAPTIONS[2]}</p>
               <StickyNote rotate={-1.5} className="mt-4 text-sm">
-                Same for restaurants: the “Dinner” decks never re-introduce your
-                café's story that “Breakfast” already told.
+                
+                {say("Same for restaurants: the “Dinner” decks never re-introduce your café's story that “Breakfast” already told.")}
               </StickyNote>
             </div>
           </div>

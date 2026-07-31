@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import SketchButton from '@/components/sketch/SketchButton';
 import { TemplateIcon } from '@/components/repo/shared';
 import type { RepoTemplate } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 interface DraftLesson {
   title: string;
@@ -76,7 +77,7 @@ export default function RepoBuilder() {
 
   const publish = async () => {
     if (title.trim().length < 3) {
-      toast.error('Give the repo a title (at least 3 characters)');
+      toast.error(say("Give the repo a title (at least 3 characters)"));
       return;
     }
     setPublishing(true);
@@ -102,10 +103,10 @@ export default function RepoBuilder() {
         }
       }
       await utils.repos.list.invalidate();
-      toast.success('Repository published ✓');
+      toast.success(say("Repository published ✓"));
       navigate(`/repos/${slug}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not publish');
+      toast.error(say(e instanceof Error ? e.message : 'Could not publish'));
       setPublishing(false);
     }
   };
@@ -113,9 +114,10 @@ export default function RepoBuilder() {
   if (isGuest) {
     return (
       <div className="mx-auto max-w-content px-4 py-10 text-center">
-        <p className="text-ink-soft">Sign in to build a repository.</p>
+        <p className="text-ink-soft">{say("Sign in to build a repository.")}</p>
         <Link to="/auth" className="mt-3 inline-block font-heading font-bold text-blue underline">
-          Sign in
+          
+          {say("Sign in")}
         </Link>
       </div>
     );
@@ -128,11 +130,12 @@ export default function RepoBuilder() {
           to="/repos"
           className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft no-underline hover:text-ink"
         >
-          <ArrowLeft className="h-4 w-4" /> Repos
+          <ArrowLeft className="h-4 w-4" />  {say("Repos")}
         </Link>
-        <h2 className="font-display text-3xl font-bold text-ink">New repository — by hand</h2>
+        <h2 className="font-display text-3xl font-bold text-ink">{say("New repository — by hand")}</h2>
         <span className="micro rounded-full border-2 border-ink bg-green-soft px-2 text-[0.6rem] font-bold text-green">
-          human-made
+          
+          {say("human-made")}
         </span>
         <SketchButton
           variant="accent"
@@ -141,35 +144,36 @@ export default function RepoBuilder() {
           loading={publishing}
           onClick={publish}
         >
-          <Save className="h-4 w-4" /> Publish
+          <Save className="h-4 w-4" />  {say("Publish")}
         </SketchButton>
       </div>
 
       {/* repo meta */}
       <section className="flex flex-col gap-3 rounded-wobble-2 border-2 border-ink bg-paper-3 p-5 shadow-offset">
         <div>
-          <span className="micro mb-1 block text-[0.6rem] uppercase tracking-wider text-ink-faint">Title</span>
+          <span className="micro mb-1 block text-[0.6rem] uppercase tracking-wider text-ink-faint">{say("Title")}</span>
           <input
             autoFocus
             className={cn(inputCls, 'font-heading text-lg font-bold')}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Introduction to Climate Science"
+            placeholder={say("e.g. Introduction to Climate Science")}
           />
         </div>
         <div>
           <span className="micro mb-1 block text-[0.6rem] uppercase tracking-wider text-ink-faint">
-            Subtitle / description
+            
+            {say("Subtitle / description")}
           </span>
           <textarea
             className={cn(inputCls, 'min-h-[56px] resize-y')}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="A short line about what this repo covers"
+            placeholder={say("A short line about what this repo covers")}
           />
         </div>
         <div>
-          <span className="micro mb-1.5 block text-[0.6rem] uppercase tracking-wider text-ink-faint">Category</span>
+          <span className="micro mb-1.5 block text-[0.6rem] uppercase tracking-wider text-ink-faint">{say("Category")}</span>
           <div className="flex flex-wrap gap-2">
             {CATEGORIES.map((c) => (
               <button
@@ -184,7 +188,7 @@ export default function RepoBuilder() {
                 )}
               >
                 <TemplateIcon template={c.id} className="h-3.5 w-3.5" />
-                {c.label}
+                {say(c.label)}
               </button>
             ))}
           </div>
@@ -208,8 +212,8 @@ export default function RepoBuilder() {
               <button
                 type="button"
                 onClick={() => removeUnit(ui)}
-                title="Remove unit"
-                aria-label="Remove unit"
+                title={say("Remove unit")}
+                aria-label={say("Remove unit")}
                 className="rounded-wobble-sm border-2 border-transparent p-1.5 text-ink-faint transition-colors hover:border-dashed hover:border-red hover:text-red"
               >
                 <Trash2 className="h-4 w-4" strokeWidth={2} />
@@ -224,27 +228,28 @@ export default function RepoBuilder() {
                   <button
                     type="button"
                     onClick={() => removeLesson(ui, li)}
-                    title="Remove lesson"
-                    aria-label="Remove lesson"
+                    title={say("Remove lesson")}
+                    aria-label={say("Remove lesson")}
                     className="absolute right-2 top-2 rounded-wobble-sm p-1 text-ink-faint transition-colors hover:bg-red-soft hover:text-red"
                   >
                     <X className="h-3.5 w-3.5" strokeWidth={2} />
                   </button>
                 )}
                 <span className="micro mb-1 block text-[0.58rem] uppercase tracking-wider text-ink-faint">
-                  Lesson {ui + 1}.{li + 1}
+                  
+                  {say("Lesson")} {ui + 1}.{li + 1}
                 </span>
                 <input
                   className={cn(inputCls, 'mb-2 font-heading font-semibold')}
                   value={lesson.title}
                   onChange={(e) => patchLesson(ui, li, { title: e.target.value })}
-                  placeholder="Lesson title"
+                  placeholder={say("Lesson title")}
                 />
                 <textarea
                   className={cn(inputCls, 'min-h-[56px] resize-y font-mono text-[0.8rem]')}
                   value={lesson.objective}
                   onChange={(e) => patchLesson(ui, li, { objective: e.target.value })}
-                  placeholder="Objective / prompt — what should this lesson teach or show?"
+                  placeholder={say("Objective / prompt — what should this lesson teach or show?")}
                 />
               </div>
             ))}
@@ -253,7 +258,7 @@ export default function RepoBuilder() {
               onClick={() => addLesson(ui)}
               className="micro flex items-center justify-center gap-1 rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1.5 text-[0.62rem] font-semibold text-ink-soft hover:border-ink hover:text-ink"
             >
-              <Plus className="h-3 w-3" /> Add lesson
+              <Plus className="h-3 w-3" />  {say("Add lesson")}
             </button>
           </div>
         </section>
@@ -264,12 +269,12 @@ export default function RepoBuilder() {
         onClick={addUnit}
         className="flex items-center justify-center gap-1.5 rounded-wobble-2 border-2 border-dashed border-pencil bg-paper-2/40 px-3 py-3 font-heading font-semibold text-ink-soft transition-colors hover:border-ink hover:text-ink"
       >
-        <Plus className="h-4 w-4" strokeWidth={2} /> Add unit
+        <Plus className="h-4 w-4" strokeWidth={2} />  {say("Add unit")}
       </button>
 
       <div className="flex justify-end">
         <SketchButton variant="accent" loading={publishing} onClick={publish}>
-          <Save className="h-4 w-4" /> Publish repository
+          <Save className="h-4 w-4" />  {say("Publish repository")}
         </SketchButton>
       </div>
     </div>

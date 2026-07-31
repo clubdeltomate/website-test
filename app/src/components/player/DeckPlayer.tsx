@@ -21,6 +21,7 @@ import AnnotationToolbar from './AnnotationToolbar';
 import { buildNarration } from './narration';
 import { useReadAloud } from './useReadAloud';
 import { TtsReaderProvider } from './TtsReader';
+import { say } from '@/lib/i18n';
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -340,7 +341,7 @@ export default function DeckPlayer({
             if (role === 'moderator') void utils.auth.me.invalidate();
             toast.success(direction === 'longer' ? 'A little more detail ✎' : 'A little shorter ✎');
           },
-          onError: (e) => toast.error(e.message),
+          onError: (e) => toast.error(say(e.message)),
         },
       );
     },
@@ -376,7 +377,7 @@ export default function DeckPlayer({
             if (role === 'moderator') void utils.auth.me.invalidate();
             toast.success(`Re-timed to ${period} ✎`);
           },
-          onError: (e) => toast.error(e.message),
+          onError: (e) => toast.error(say(e.message)),
         },
       );
     },
@@ -712,7 +713,7 @@ export default function DeckPlayer({
             onClick={onSavePreset}
             disabled={savingPreset || presetSaved}
             className="pointer-events-auto flex items-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-yellow px-3 py-1.5 font-heading text-sm font-bold text-ink shadow-offset transition-transform hover:-translate-y-0.5 disabled:opacity-60"
-            title="Save this presentation so viewers can watch it without regenerating"
+            title={say("Save this presentation so viewers can watch it without regenerating")}
           >
             <Save className="h-4 w-4" strokeWidth={2} />
             {presetSaved ? 'Saved ✓' : savingPreset ? 'Saving…' : 'Save as preset'}
@@ -728,11 +729,12 @@ export default function DeckPlayer({
               type="button"
               onClick={() => setSettingsOpen((o) => !o)}
               aria-expanded={settingsOpen}
-              title="Adjust this slide's length (and time period for news)"
+              title={say("Adjust this slide's length (and time period for news)")}
               className="flex items-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-1.5 font-heading text-sm font-semibold text-ink shadow-offset transition-transform hover:-translate-y-0.5"
             >
               <SlidersHorizontal className="h-4 w-4" strokeWidth={2} />
-              Length{isNews ? ' & time' : ''}
+              
+              {say("Length")}{isNews ? ' & time' : ''}
               {lenLevel !== 0 && (
                 <span className="rounded-full bg-blue-soft px-1.5 text-[0.6rem] font-bold text-ink">
                   {lenLevel > 0 ? `+${lenLevel}` : lenLevel}
@@ -744,9 +746,10 @@ export default function DeckPlayer({
             {settingsOpen && (
               <div className="mt-1.5 w-64 rounded-wobble-sm border-2 border-ink bg-paper-3 p-3 shadow-offset">
                 {/* Length — gentle ~20% steps, cached both ways */}
-                <p className="micro mb-1 font-semibold text-ink-soft">Explanation length</p>
+                <p className="micro mb-1 font-semibold text-ink-soft">{say("Explanation length")}</p>
                 <p className="mb-2 text-[0.6rem] leading-tight text-ink-faint">
-                  Steep deeper for more detail, or trim — same idea, ~20% per step.
+                  
+                  {say("Steep deeper for more detail, or trim — same idea, ~20% per step.")}
                   {role === 'moderator' ? ' 2 🪙 per new step.' : ''}
                 </p>
                 <div className="flex items-center gap-2">
@@ -754,7 +757,7 @@ export default function DeckPlayer({
                     type="button"
                     onClick={() => calibrate('shorter')}
                     disabled={calibrating}
-                    aria-label="Shorter"
+                    aria-label={say("Shorter")}
                     className="flex h-8 w-8 items-center justify-center rounded-wobble-sm border-2 border-ink bg-paper-3 text-ink transition-transform hover:-translate-y-0.5 disabled:opacity-50"
                   >
                     <Minus className="h-4 w-4" strokeWidth={2.5} />
@@ -766,7 +769,7 @@ export default function DeckPlayer({
                     type="button"
                     onClick={() => calibrate('longer')}
                     disabled={calibrating}
-                    aria-label="Longer"
+                    aria-label={say("Longer")}
                     className="flex h-8 w-8 items-center justify-center rounded-wobble-sm border-2 border-ink bg-paper-3 text-ink transition-transform hover:-translate-y-0.5 disabled:opacity-50"
                   >
                     <Plus className="h-4 w-4" strokeWidth={2.5} />
@@ -776,9 +779,10 @@ export default function DeckPlayer({
                 {/* Time period — news decks only */}
                 {isNews && (
                   <div className="mt-3 border-t-2 border-dashed border-pencil pt-3">
-                    <p className="micro mb-1 font-semibold text-ink-soft">Time period</p>
+                    <p className="micro mb-1 font-semibold text-ink-soft">{say("Time period")}</p>
                     <p className="mb-2 text-[0.6rem] leading-tight text-ink-faint">
-                      Re-report this story as it stood at another time.
+                      
+                      {say("Re-report this story as it stood at another time.")}
                       {role === 'moderator' ? ' 2 🪙 per change.' : ''}
                     </p>
                     <div className="flex items-center gap-1.5">
@@ -786,7 +790,7 @@ export default function DeckPlayer({
                         value={periodInput}
                         onChange={(e) => setPeriodInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && retime(periodInput)}
-                        placeholder="e.g. July 2020"
+                        placeholder={say("e.g. July 2020")}
                         maxLength={200}
                         className="min-w-0 flex-1 rounded-wobble-sm border-2 border-ink bg-paper px-2 py-1 text-sm text-ink outline-none focus:border-blue"
                       />
@@ -796,7 +800,8 @@ export default function DeckPlayer({
                         disabled={calibrating || !periodInput.trim()}
                         className="shrink-0 rounded-wobble-sm border-2 border-ink bg-yellow px-2.5 py-1 font-heading text-sm font-bold text-ink shadow-offset-sm transition-transform hover:-translate-y-0.5 disabled:opacity-50"
                       >
-                        Apply
+                        
+                        {say("Apply")}
                       </button>
                     </div>
                   </div>
@@ -828,10 +833,11 @@ export default function DeckPlayer({
               type="button"
               onClick={() => setAnnotateOn(true)}
               className="pointer-events-auto flex items-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-1.5 font-heading text-sm font-semibold text-ink shadow-offset transition-transform hover:-translate-y-0.5"
-              title="Draw, highlight and add notes on this slide"
+              title={say("Draw, highlight and add notes on this slide")}
             >
               <Pencil className="h-4 w-4" strokeWidth={2} />
-              Annotate
+              
+              {say("Annotate")}
             </button>
           )}
         </div>
@@ -846,10 +852,11 @@ export default function DeckPlayer({
                 variant="secondary"
                 onClick={goBack}
                 disabled={index === 0}
-                aria-label="Previous slide"
+                aria-label={say("Previous slide")}
               >
                 <ArrowLeft className="h-4 w-4" />
-                Back
+                
+                {say("Back")}
               </SketchButton>
             </div>
 
@@ -883,19 +890,21 @@ export default function DeckPlayer({
                   variant="accent"
                   onClick={goNext}
                   disabled={!nextUnlocked}
-                  aria-label="Finish deck"
+                  aria-label={say("Finish deck")}
                 >
                   <Flag className="h-4 w-4" />
-                  Finish
+                  
+                  {say("Finish")}
                 </SketchButton>
               ) : (
                 <SketchButton
                   variant={nextUnlocked ? 'accent' : 'secondary'}
                   onClick={goNext}
                   disabled={!nextUnlocked}
-                  aria-label="Next slide"
+                  aria-label={say("Next slide")}
                 >
-                  Next
+                  
+                  {say("Next")}
                   <ArrowRight className="h-4 w-4" />
                 </SketchButton>
               )}
@@ -909,7 +918,8 @@ export default function DeckPlayer({
         <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center pb-5">
           <SketchButton variant="secondary" onClick={() => setReviewIdx(null)}>
             <ArrowLeft className="h-4 w-4" />
-            Back to results
+            
+            {say("Back to results")}
           </SketchButton>
         </div>
       )}
@@ -939,18 +949,21 @@ export default function DeckPlayer({
             >
               <WashiTape rotate={-4} />
               <h2 className="font-display text-3xl font-bold text-ink">
-                Leave the deck?
+                
+                {say("Leave the deck?")}
               </h2>
               <p className="mt-2 text-sm text-ink-soft">
-                Leave now and this play won't be saved — runs only record on
-                completion.
+                
+                {say("Leave now and this play won't be saved — runs only record on completion.")}
               </p>
               <div className="mt-5 flex items-center justify-center gap-3">
                 <SketchButton variant="ghost" onClick={() => setExitConfirm(false)}>
-                  Keep going
+                  
+                  {say("Keep going")}
                 </SketchButton>
                 <SketchButton variant="danger" onClick={onExit}>
-                  Leave
+                  
+                  {say("Leave")}
                 </SketchButton>
               </div>
             </motion.div>

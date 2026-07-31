@@ -8,6 +8,7 @@ import Chip from '../sketch/Chip';
 import TemplateBar from '../templates/TemplateBar';
 import { DoodleSparkle } from '../sketch/DoodleIcons';
 import type { ReadAloudStatus } from './useReadAloud';
+import { say } from '@/lib/i18n';
 
 export interface PlayerHeaderProps {
   title: string;
@@ -75,7 +76,7 @@ export default function PlayerHeader({
 
         {seed && (
           <Chip kind="repo-ref" className="shrink-0">
-            #{seed.repoRef} · Lesson {seed.lessonSeq} of {seed.lessonSeqTotal}
+            #{seed.repoRef}  {say("· Lesson")} {seed.lessonSeq}  {say("of")} {seed.lessonSeqTotal}
           </Chip>
         )}
 
@@ -92,7 +93,8 @@ export default function PlayerHeader({
             aria-expanded={memoryOpen}
           >
             <DoodleSparkle className="h-3.5 w-3.5" />
-            Building on L1–{seed.lessonSeq - 1}
+            
+            {say("Building on L1–")}{seed.lessonSeq - 1}
             <ChevronDown
               className={cn('h-3 w-3 transition-transform', memoryOpen && 'rotate-180')}
             />
@@ -110,7 +112,7 @@ export default function PlayerHeader({
                 : 'border-dashed border-blue text-blue hover:bg-blue-soft',
             )}
             aria-expanded={layoutOpen}
-            title="Which layout template the AI used for this slide"
+            title={say("Which layout template the AI used for this slide")}
           >
             <LayoutTemplate className="h-3.5 w-3.5" />
             {layout.pinned ? 'Pinned' : 'Layout'}: {layout.template ?? 'custom'}
@@ -154,8 +156,8 @@ export default function PlayerHeader({
 
         <button
           onClick={onExit}
-          aria-label="Exit player"
-          title="Exit (Esc)"
+          aria-label={say("Exit player")}
+          title={say("Exit (Esc)")}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-wobble-sm border-2 border-ink bg-paper-3 text-ink transition-colors hover:bg-red-soft"
         >
           <X className="h-5 w-5" strokeWidth={2} />
@@ -186,12 +188,13 @@ export default function PlayerHeader({
                 </ul>
               ) : (
                 <p className="text-xs text-ink-soft">
-                  Prior lessons exist in this repo — this deck assumes their
-                  material and builds straight on top of it.
+                  
+                  {say("Prior lessons exist in this repo — this deck assumes their material and builds straight on top of it.")}
                 </p>
               )}
               <p className="micro mt-2 text-ink-faint">
-                This deck references that material — it doesn't re-teach it.
+                
+                {say("This deck references that material — it doesn't re-teach it.")}
               </p>
             </div>
           </motion.div>

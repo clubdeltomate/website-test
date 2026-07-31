@@ -4,6 +4,7 @@ import { trpc } from '@/providers/trpc';
 import CardPreview from '@/components/marketing/CardPreview';
 import { emptyBusinessCard, type BusinessCard } from '@/components/marketing/business-card';
 import { kindSpec, paymentFilled, paymentUri } from '@/lib/qr';
+import { say } from '@/lib/i18n';
 
 /**
  * "How to pay me" on somebody's profile.
@@ -28,7 +29,7 @@ export default function PayMeButton({ userId, name }: { userId: number; name: st
         onClick={() => setOpen(true)}
         className="flex items-center gap-1.5 rounded-wobble-sm border-2 border-dashed border-pencil px-3 py-1.5 font-heading text-sm font-bold text-ink-soft transition-colors hover:border-ink hover:text-ink"
       >
-        <QrCode className="h-4 w-4" strokeWidth={2} /> How to pay {name}
+        <QrCode className="h-4 w-4" strokeWidth={2} />  {say("How to pay")} {name}
       </button>
 
       {open && (
@@ -44,11 +45,11 @@ export default function PayMeButton({ userId, name }: { userId: number; name: st
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h2 className="font-display text-xl text-ink">How to pay {name}</h2>
+              <h2 className="font-display text-xl text-ink">{say("How to pay")} {name}</h2>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                aria-label="Close"
+                aria-label={say("Close")}
                 className="text-ink-faint hover:text-ink"
               >
                 <X className="h-5 w-5" strokeWidth={2} />
@@ -79,7 +80,8 @@ export default function PayMeButton({ userId, name }: { userId: number; name: st
                             rel="noreferrer noopener"
                             className="micro ml-auto rounded-wobble-sm border-2 border-ink bg-yellow px-2 py-0.5 text-[0.55rem] font-bold text-ink"
                           >
-                            Open
+                            
+                            {say("Open")}
                           </a>
                         )}
                       </div>
@@ -100,7 +102,8 @@ export default function PayMeButton({ userId, name }: { userId: number; name: st
                               }
                               className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-0.5 text-[0.55rem] font-bold text-ink-soft hover:border-ink hover:text-ink"
                             >
-                              Copy
+                              
+                              {say("Copy")}
                             </button>
                           </div>
                         ))}
@@ -111,7 +114,7 @@ export default function PayMeButton({ userId, name }: { userId: number; name: st
 
             {full.details.trim() && (
               <div className="border-t-2 border-dashed border-pencil pt-2">
-                <p className="micro text-[0.58rem] font-bold text-ink-soft">Contact</p>
+                <p className="micro text-[0.58rem] font-bold text-ink-soft">{say("Contact")}</p>
                 <p className="whitespace-pre-wrap text-sm text-ink">{full.details.trim()}</p>
               </div>
             )}

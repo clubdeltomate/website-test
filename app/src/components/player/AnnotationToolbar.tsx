@@ -1,6 +1,7 @@
 import { Eraser, Pencil, Trash2, Type, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AnnTool } from './AnnotationLayer';
+import { say } from '@/lib/i18n';
 
 /** A small, curated ink palette (not too many colours). */
 export const ANN_COLORS = ['#2E2820', '#EF8A3C', '#3F74D6', '#4C9A5C', '#D6455D', '#8566D4'];
@@ -113,8 +114,8 @@ export default function AnnotationToolbar({
         type="button"
         onClick={onClear}
         disabled={!hasMarks}
-        aria-label="Clear this slide's marks"
-        title="Clear this slide"
+        aria-label={say("Clear this slide's marks")}
+        title={say("Clear this slide")}
         className={cn(
           'flex h-8 w-8 items-center justify-center rounded-wobble-sm border-2 border-transparent transition-colors',
           hasMarks ? 'text-ink-soft hover:border-dashed hover:border-red hover:text-red' : 'cursor-not-allowed text-pencil',
@@ -126,8 +127,8 @@ export default function AnnotationToolbar({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close annotation tools"
-          title="Done"
+          aria-label={say("Close annotation tools")}
+          title={say("Done")}
           className="flex h-8 w-8 items-center justify-center rounded-wobble-sm border-2 border-transparent text-ink-soft transition-colors hover:border-dashed hover:border-ink hover:text-ink"
         >
           <X className="h-4 w-4" strokeWidth={2} />

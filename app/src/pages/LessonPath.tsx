@@ -28,6 +28,7 @@ import { loadGenDefaults, saveGenDefaults } from '@/lib/genDefaults';
 import type { ImageStyle, Level, RepoTemplate } from '@contracts/types';
 import { LEVELS } from '@contracts/types';
 import { SketchToaster, TEMPLATE_META } from '@/components/repo/shared';
+import { say } from '@/lib/i18n';
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const MAX_SLIDES = 15;
@@ -111,7 +112,7 @@ export default function LessonPath() {
           const b64 = String(reader.result).split(',')[1] ?? '';
           setAttachments((a) =>
             a.filter((x) => x.kind === 'image').length >= 3
-              ? (toast.error('Up to 3 images'), a)
+              ? (toast.error(say("Up to 3 images")), a)
               : [...a, { name: file.name, kind: 'image', mime: file.type || 'image/png', b64 }],
           );
         };
@@ -183,7 +184,7 @@ export default function LessonPath() {
       }
       if (r.failed > 0) toast.warning(`${r.failed} banner${r.failed === 1 ? '' : 's'} couldn't be drawn — you weren't charged for them`);
     },
-    onError: (e) => toast.warning(`Unit banners skipped: ${e.message}`),
+    onError: (e) => toast.warning(say(`Unit banners skipped: ${e.message}`)),
   });
 
   const referenceFromAttachments = () => {
@@ -216,7 +217,7 @@ export default function LessonPath() {
       return;
     }
     if (subject.trim().length < 3) {
-      toast.error('Give your notebook a subject first ✏️');
+      toast.error(say("Give your notebook a subject first ✏️"));
       return;
     }
     // Remember this user's choices so they become the defaults next time.
@@ -241,11 +242,11 @@ export default function LessonPath() {
       },
       {
         onSuccess: (res) => {
-          toast.success('Your notebook is ready!', {
+          toast.success(say("Your notebook is ready!"), {
             description: `${res.ref} · ${res.cost} 🪙 spent — opening it now`,
           });
           if (res.usedMock) {
-            toast.warning('This outline used the offline placeholder, not AI', {
+            toast.warning(say("This outline used the offline placeholder, not AI"), {
               description:
                 'No AI provider answered — check the server .env key or add your own key in Settings → API Keys, then regenerate for topic-specific lessons.',
               duration: 10000,
@@ -267,18 +268,18 @@ export default function LessonPath() {
           setTheaterStep(null);
           void utils.auth.me.invalidate();
           if (err.message.startsWith('INSUFFICIENT_TOKENS')) {
-            toast.error('Not enough tokens for this plan', {
+            toast.error(say("Not enough tokens for this plan"), {
               action: { label: 'Top up →', onClick: () => navigate('/settings?tab=tokens') },
             });
           } else if (err.message.startsWith('AI_UNAVAILABLE')) {
-            toast.error('AI provider not responding — nothing was generated', {
+            toast.error(say("AI provider not responding — nothing was generated"), {
               description:
                 'Tokens refunded. Check the server .env AI keys (e.g. GEMINI_API_KEY) or add your own key in Settings → API Keys, then try again.',
               duration: 12000,
               action: { label: 'Retry', onClick: onGenerate },
             });
           } else {
-            toast.error(err.message || 'Generation failed — tokens refunded', {
+            toast.error(say(err.message || 'Generation failed — tokens refunded'), {
               action: { label: 'Retry', onClick: onGenerate },
             });
           }
@@ -299,10 +300,11 @@ export default function LessonPath() {
 
       {/* title + dashed route doodle */}
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="sr-only">Lesson Path</h1>
+        <h1 className="sr-only">{say("Lesson Path")}</h1>
         <p className="font-display text-3xl font-bold text-ink">
-          One sketch in —{' '}
-          <span className="marker-highlight">a whole notebook out</span>
+          
+          {say("One sketch in —")}{' '}
+          <span className="marker-highlight">{say("a whole notebook out")}</span>
         </p>
         <span className="flex items-center gap-1 text-2xl" aria-hidden="true">
           ✏️ <span className="mx-1 inline-block w-8 border-t-2 border-dashed border-ink-faint" /> 📒
@@ -316,13 +318,14 @@ export default function LessonPath() {
           className="mt-2 inline-flex items-center gap-1.5 rounded-wobble-sm border-2 border-dashed border-purple/60 bg-purple-soft/60 px-3 py-1 text-sm text-ink"
         >
           <DoodleSparkle className="h-4 w-4 text-purple" />
-          Prefilled by Coach ✦ — tweak anything.
+          
+          {say("Prefilled by Coach ✦ — tweak anything.")}
         </motion.p>
       )}
 
       {/* how it works — the repo ⇄ slide tool ⇄ lesson log loop */}
       <section
-        aria-label="How it works"
+        aria-label={say("How it works")}
         className="mt-5 flex flex-wrap items-stretch gap-x-2 gap-y-3 rounded-wobble-3 border-2 border-dashed border-pencil bg-paper-3/70 px-4 py-4"
       >
         {[
@@ -345,13 +348,14 @@ export default function LessonPath() {
         ))}
         <span className="flex items-center gap-1.5 pl-1 text-sm text-ink-soft">
           <DoodleArrow className="h-5 w-8 rotate-180 text-purple" />
-          every new deck builds on the log
+          
+          {say("every new deck builds on the log")}
           <DoodleSparkle className="h-4 w-4 text-purple" />
         </span>
       </section>
 
       {/* template picker */}
-      <section aria-label="Use-case template" className="mt-8">
+      <section aria-label={say("Use-case template")} className="mt-8">
         <SectionLabel label="What's this notebook for?" />
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {(['course', 'walkthrough', 'news', 'restaurant', 'service', 'shop'] as RepoTemplate[]).map((t, i) => {
@@ -413,7 +417,7 @@ export default function LessonPath() {
               {/* audience & level */}
               <section>
                 <SectionLabel label="Audience & level" />
-                <div className="mt-3 flex flex-wrap gap-2" role="radiogroup" aria-label="Level">
+                <div className="mt-3 flex flex-wrap gap-2" role="radiogroup" aria-label={say("Level")}>
                   {LEVELS.map((l) => (
                     <motion.button
                       key={l}
@@ -436,7 +440,7 @@ export default function LessonPath() {
                   value={audience}
                   onChange={(e) => setAudience(e.target.value)}
                   placeholder={meta.audiencePlaceholder}
-                  aria-label="Audience"
+                  aria-label={say("Audience")}
                   maxLength={120}
                   className="mt-3 w-full rounded-wobble-sm border-2 border-ink bg-paper-3 px-3.5 py-2.5 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue focus:shadow-[4px_4px_0_#DDE9FB]"
                 />
@@ -461,7 +465,7 @@ export default function LessonPath() {
                     onChange={setLessonsPerUnit}
                   />
                   <p className="font-mono text-sm text-ink-soft">
-                    {totalLessons} {meta.lessonNoun.toLowerCase()}s ≈ {totalLessons} decks
+                    {totalLessons} {meta.lessonNoun.toLowerCase()}{say("s ≈")} {totalLessons}  {say("decks")}
                   </p>
                 </div>
               </section>
@@ -478,7 +482,7 @@ export default function LessonPath() {
                     onChange={setSlideCount}
                   />
                 </div>
-                <p className="micro mt-4 text-ink-soft">Image style</p>
+                <p className="micro mt-4 text-ink-soft">{say("Image style")}</p>
                 <div className="mt-2 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                   {STYLE_THUMBS.map((s) => (
                     <button
@@ -493,9 +497,9 @@ export default function LessonPath() {
                           : 'border-pencil opacity-80 hover:border-ink hover:opacity-100',
                       )}
                     >
-                      <img src={s.src} alt={s.label} className="aspect-[3/2] w-full object-cover" />
+                      <img src={s.src} alt={say(s.label)} className="aspect-[3/2] w-full object-cover" />
                       <span className="micro block px-1 py-1 text-center text-[0.58rem] text-ink">
-                        {s.label}
+                        {say(s.label)}
                       </span>
                       {imageStyle === s.style && (
                         <span className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-ink bg-yellow">
@@ -516,10 +520,12 @@ export default function LessonPath() {
                       : 'border-dashed border-pencil text-ink-faint hover:border-ink hover:text-ink',
                   )}
                 >
-                  no images — text & diagrams only (cheaper)
+                  
+                  {say("no images — text & diagrams only (cheaper)")}
                 </button>
                 <label className="micro mt-4 block text-ink-soft" htmlFor="lp-lang">
-                  Language
+                  
+                  {say("Language")}
                 </label>
                 <select
                   id="lp-lang"
@@ -541,7 +547,7 @@ export default function LessonPath() {
                   onChange={(e) => setInstructions(e.target.value)}
                   rows={3}
                   maxLength={600}
-                  placeholder="Anything the AI should always do? e.g. 'Keep it under 5 minutes per deck', 'Always mention allergen info'"
+                  placeholder={say("Anything the AI should always do? e.g. 'Keep it under 5 minutes per deck', 'Always mention allergen info'")}
                   className="mt-3 w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3.5 py-3 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue focus:shadow-[4px_4px_0_#DDE9FB]"
                 />
               </section>
@@ -550,15 +556,15 @@ export default function LessonPath() {
               <section>
                 <SectionLabel label="Attachments" />
                 <p className="mt-1 text-xs text-ink-faint">
-                  Upload a menu, service catalog, syllabus, or notes — the AI reads them and builds the
-                  repo from their real items. Text files &amp; images work.
+                  
+                  {say("Upload a menu, service catalog, syllabus, or notes — the AI reads them and builds the repo from their real items. Text files & images work.")}
                 </p>
                 <button
                   type="button"
                   role="switch"
                   aria-checked={webSearch}
                   onClick={() => setWebSearch((w) => !w)}
-                  title="Look up current facts on the web before building — for real products, news, anything time-sensitive"
+                  title={say("Look up current facts on the web before building — for real products, news, anything time-sensitive")}
                   className="mt-3 flex items-center gap-2 rounded-wobble-sm border-2 border-dashed border-pencil px-2.5 py-1.5 text-sm font-bold text-ink"
                 >
                   <span
@@ -574,14 +580,14 @@ export default function LessonPath() {
                       )}
                     />
                   </span>
-                  <Globe className="h-4 w-4" strokeWidth={2} /> Search the web for current info
+                  <Globe className="h-4 w-4" strokeWidth={2} />  {say("Search the web for current info")}
                 </button>
                 <button
                   type="button"
                   role="switch"
                   aria-checked={unitBanners}
                   onClick={() => setUnitBanners((v) => !v)}
-                  title="Draw one AI banner per unit right after creation, so each unit is identifiable at a glance (charged per image). You can replace or redraw any of them later."
+                  title={say("Draw one AI banner per unit right after creation, so each unit is identifiable at a glance (charged per image). You can replace or redraw any of them later.")}
                   className="mt-2 flex items-center gap-2 rounded-wobble-sm border-2 border-dashed border-pencil px-2.5 py-1.5 text-sm font-bold text-ink"
                 >
                   <span
@@ -597,11 +603,11 @@ export default function LessonPath() {
                       )}
                     />
                   </span>
-                  <ImageIcon className="h-4 w-4" strokeWidth={2} /> Draw a banner image for each unit
+                  <ImageIcon className="h-4 w-4" strokeWidth={2} />  {say("Draw a banner image for each unit")}
                 </button>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <label className="flex cursor-pointer items-center gap-1.5 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper-3 px-3 py-2 text-sm font-bold text-ink-soft transition-colors hover:border-ink hover:text-ink">
-                    <Paperclip className="h-4 w-4" strokeWidth={2} /> Add files
+                    <Paperclip className="h-4 w-4" strokeWidth={2} />  {say("Add files")}
                     <input
                       type="file"
                       accept="image/*,text/*,.md,.csv,.json,.txt"
@@ -642,17 +648,18 @@ export default function LessonPath() {
                 <span
                   role="switch"
                   aria-checked="true"
-                  aria-label="Cross-lesson memory (always on)"
+                  aria-label={say("Cross-lesson memory (always on)")}
                   className="mt-0.5 flex h-6 w-11 shrink-0 cursor-not-allowed items-center justify-end rounded-full border-2 border-ink bg-purple px-1"
                 >
                   <span className="h-4 w-4 rounded-full border border-ink bg-paper-3" />
                 </span>
                 <p className="text-sm text-ink-soft">
                   <span className="font-heading font-semibold text-ink">
-                    Course memory is always on ✦
+                    
+                    {say("Course memory is always on ✦")}
                   </span>{' '}
-                  — every lesson's log links forward, so each new deck builds on what earlier
-                  decks taught instead of re-teaching it.
+                  
+                  {say("— every lesson's log links forward, so each new deck builds on what earlier decks taught instead of re-teaching it.")}
                 </p>
               </section>
 
@@ -681,12 +688,14 @@ export default function LessonPath() {
             {insufficient ? (
               <Link to="/settings?tab=tokens" className="flex-1 no-underline">
                 <SketchButton variant="secondary" className="w-full">
-                  Top up tokens →
+                  
+                  {say("Top up tokens →")}
                 </SketchButton>
               </Link>
             ) : (
               <SketchButton variant="accent" className="flex-1" onClick={onGenerate}>
-                Generate repo + slide tool
+                
+                {say("Generate repo + slide tool")}
               </SketchButton>
             )}
           </div>
@@ -771,7 +780,7 @@ function CostAndGenerate({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <section aria-label="Cost estimate" className="hidden flex-col gap-4 lg:flex">
+    <section aria-label={say("Cost estimate")} className="hidden flex-col gap-4 lg:flex">
       <StickyNote rotate={-1.5} className="max-w-sm">
         <div className="flex items-baseline justify-between gap-3">
           <span className="font-display text-[28px] font-bold leading-none">
@@ -783,7 +792,8 @@ function CostAndGenerate({
             aria-expanded={open}
             className="micro flex items-center gap-1 text-[0.6rem] text-ink-soft hover:text-ink"
           >
-            breakdown
+            
+            {say("breakdown")}
             <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} />
           </button>
         </div>
@@ -806,24 +816,27 @@ function CostAndGenerate({
         </AnimatePresence>
         {usingOwnKey && (
           <p className="mt-1.5 flex items-center gap-1 text-sm">
-            <span className="line-through opacity-60">text cost</span> Using your key — 0 🪙 for
-            text <DoodleSparkle className="h-3.5 w-3.5 text-purple" />
+            <span className="line-through opacity-60">{say("text cost")}</span>  {say("Using your key — 0 🪙 for text")} <DoodleSparkle className="h-3.5 w-3.5 text-purple" />
           </p>
         )}
         <p className="mt-1.5 text-xs text-ink-soft">
-          Covers the whole plan — repo + linked slide tool. Charged only on success.
+          
+          {say("Covers the whole plan — repo + linked slide tool. Charged only on success.")}
         </p>
       </StickyNote>
 
       {insufficient ? (
         <div className="flex flex-col gap-2">
           <SketchButton variant="accent" size="lg" disabled className="w-full font-display text-2xl">
-            Generate repo + slide tool
+            
+            {say("Generate repo + slide tool")}
           </SketchButton>
           <p className="text-sm text-ink-soft">
-            You have {balance} 🪙 — this plan needs {total} 🪙.{' '}
+            
+            {say("You have")} {balance}  {say("🪙 — this plan needs")} {total} 🪙.{' '}
             <Link to="/settings?tab=tokens" className="font-bold text-orange hover:squiggle">
-              Top up →
+              
+              {say("Top up →")}
             </Link>
           </p>
         </div>
@@ -834,12 +847,14 @@ function CostAndGenerate({
           onClick={onGenerate}
           className="w-full font-display text-2xl"
         >
-          Generate repo + slide tool
+          
+          {say("Generate repo + slide tool")}
         </SketchButton>
       )}
       {isGuest && (
         <p className="text-xs text-ink-faint">
-          Guests can sketch the plan — generating asks you to sign in first.
+          
+          {say("Guests can sketch the plan — generating asks you to sign in first.")}
         </p>
       )}
     </section>
@@ -861,7 +876,8 @@ function Theater({ step, total }: { step: number; total: number | null }) {
     >
       <WashiTape rotate={-3} className="left-1/2 -translate-x-1/2" />
       <h2 className="flex items-center gap-2 font-display text-3xl font-bold text-ink">
-        Sketching your notebook
+        
+        {say("Sketching your notebook")}
         <DoodleSparkle className="h-5 w-5 text-purple" />
       </h2>
       <p className="mt-1 text-sm text-ink-soft">
@@ -921,7 +937,8 @@ function Theater({ step, total }: { step: number; total: number | null }) {
       </div>
       <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-faint">
         <Check className="h-3.5 w-3.5" />
-        Real AI drafting can take 10–30 seconds — hang tight while it sketches your notebook.
+        
+        {say("Real AI drafting can take 10–30 seconds — hang tight while it sketches your notebook.")}
       </p>
     </motion.div>
   );

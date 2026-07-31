@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import SketchButton from '@/components/sketch/SketchButton';
 import DeckBuilder, { blankDeck } from '@/components/slides/DeckBuilder';
 import type { SlideDeck } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 /**
  * Editor for a lesson's preset deck. Owner / admin only. When the lesson has no
@@ -45,33 +46,34 @@ export default function PresetEditor() {
       void utils.repos.getBySlug.invalidate({ slug: slug! });
       navigate(`/repos/${slug}`);
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const del = trpc.repos.deleteLessonPreset.useMutation({
     onSuccess: () => {
-      toast.success('Preset deleted');
+      toast.success(say("Preset deleted"));
       void utils.repos.getBySlug.invalidate({ slug: slug! });
       navigate(`/repos/${slug}`);
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (repoQ.isLoading || presetQ.isLoading) {
-    return <div className="mx-auto max-w-content px-4 py-10 text-center text-ink-faint">Loading…</div>;
+    return <div className="mx-auto max-w-content px-4 py-10 text-center text-ink-faint">{say("Loading…")}</div>;
   }
   if (!isOwner) {
     return (
       <div className="mx-auto max-w-content px-4 py-10 text-center">
-        <p className="text-ink-soft">Only the repo's owner or an admin can build this presentation.</p>
+        <p className="text-ink-soft">{say("Only the repo's owner or an admin can build this presentation.")}</p>
         <Link to={`/repos/${slug}`} className="mt-3 inline-block font-heading font-bold text-blue underline">
-          Back to repo
+          
+          {say("Back to repo")}
         </Link>
       </div>
     );
   }
   if (!deck) {
-    return <div className="mx-auto max-w-content px-4 py-10 text-center text-ink-faint">Preparing the builder…</div>;
+    return <div className="mx-auto max-w-content px-4 py-10 text-center text-ink-faint">{say("Preparing the builder…")}</div>;
   }
 
   const doSave = () => save.mutate({ repoSlug: slug!, lessonSeq, deck });
@@ -83,7 +85,7 @@ export default function PresetEditor() {
           to={`/repos/${slug}`}
           className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft no-underline hover:text-ink"
         >
-          <ArrowLeft className="h-4 w-4" /> Repo
+          <ArrowLeft className="h-4 w-4" />  {say("Repo")}
         </Link>
         <h2 className="font-display text-3xl font-bold text-ink">
           {isNew ? 'Build presentation' : 'Edit preset'}
@@ -92,22 +94,23 @@ export default function PresetEditor() {
           {!isNew &&
             (confirmDelete ? (
               <>
-                <span className="micro text-[0.7rem] font-bold text-red">delete preset?</span>
+                <span className="micro text-[0.7rem] font-bold text-red">{say("delete preset?")}</span>
                 <SketchButton
                   variant="danger"
                   size="sm"
                   loading={del.isPending}
                   onClick={() => del.mutate({ repoSlug: slug!, lessonSeq })}
                 >
-                  <Trash2 className="h-4 w-4" /> Delete
+                  <Trash2 className="h-4 w-4" />  {say("Delete")}
                 </SketchButton>
                 <SketchButton variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>
-                  Cancel
+                  
+                  {say("Cancel")}
                 </SketchButton>
               </>
             ) : (
               <SketchButton variant="ghost" size="sm" onClick={() => setConfirmDelete(true)}>
-                <Trash2 className="h-4 w-4" /> Delete
+                <Trash2 className="h-4 w-4" />  {say("Delete")}
               </SketchButton>
             ))}
           <SketchButton variant="accent" size="sm" loading={save.isPending} onClick={doSave}>

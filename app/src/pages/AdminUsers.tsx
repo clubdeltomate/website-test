@@ -22,6 +22,7 @@ import {
 import { errMsg, formatDate, formatRelative } from '@/components/admin/utils';
 import { normalizeUsername, USERNAME_MAX_LENGTH } from '@contracts/types';
 import type { AdminUserRow, Role } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 /** Inline "create account" panel for the Manage users toolbar (admin only —
  *  the whole page is behind AdminGate; the endpoint is adminProcedure too). */
@@ -43,16 +44,17 @@ function AddUserForm({ onDone }: { onDone: () => void }) {
   });
 
   const submit = () => {
-    if (normalizeUsername(name).length < 1) return toast.error('Give the user a name');
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return toast.error('That email looks smudged');
-    if (password.length < 6) return toast.error('Password needs at least 6 characters');
+    if (normalizeUsername(name).length < 1) return toast.error(say("Give the user a name"));
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return toast.error(say("That email looks smudged"));
+    if (password.length < 6) return toast.error(say("Password needs at least 6 characters"));
     create.mutate({ name: normalizeUsername(name), email: email.trim(), password, role, tokens });
   };
 
   return (
     <div className="mt-3 rounded-wobble-2 border-2 border-dashed border-blue bg-paper p-4 shadow-offset">
       <p className="micro mb-3 font-semibold text-ink-soft">
-        New account — they can sign in right away with this email and password.
+        
+        {say("New account — they can sign in right away with this email and password.")}
       </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <LabeledField label={`Username (unique, one word, \u2264${USERNAME_MAX_LENGTH})`}>
@@ -60,20 +62,20 @@ function AddUserForm({ onDone }: { onDone: () => void }) {
             value={name}
             maxLength={USERNAME_MAX_LENGTH}
             onChange={(e) => setName(normalizeUsername(e.target.value))}
-            placeholder="SamSketcher"
+            placeholder={say("SamSketcher")}
           />
         </LabeledField>
         <LabeledField label="Email">
-          <SketchInput value={email} onChange={(e) => setEmail(e.target.value)} placeholder="sam@example.com" type="email" />
+          <SketchInput value={email} onChange={(e) => setEmail(e.target.value)} placeholder={say("sam@example.com")} type="email" />
         </LabeledField>
         <LabeledField label="Password">
-          <SketchInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder="6+ characters" type="text" />
+          <SketchInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder={say("6+ characters")} type="text" />
         </LabeledField>
         <LabeledField label="Role">
           <SketchSelect value={role} onChange={(e) => setRole(e.target.value as Role)}>
-            <option value="user">user</option>
-            <option value="moderator">moderator</option>
-            <option value="admin">admin</option>
+            <option value="user">{say("user")}</option>
+            <option value="moderator">{say("moderator")}</option>
+            <option value="admin">{say("admin")}</option>
           </SketchSelect>
         </LabeledField>
         <LabeledField label="Starting tokens">
@@ -86,11 +88,13 @@ function AddUserForm({ onDone }: { onDone: () => void }) {
       </div>
       <div className="mt-3 flex justify-end gap-2">
         <SketchButton variant="ghost" size="sm" onClick={onDone}>
-          Cancel
+          
+          {say("Cancel")}
         </SketchButton>
         <SketchButton variant="accent" size="sm" loading={create.isPending} onClick={submit}>
           <Plus className="h-4 w-4" strokeWidth={2.5} />
-          Create account
+          
+          {say("Create account")}
         </SketchButton>
       </div>
     </div>
@@ -155,7 +159,7 @@ function CreditModal({
       maxWidth="max-w-[440px]"
     >
       <div className="flex flex-col gap-4">
-        <div className="flex gap-2" role="group" aria-label="Add or remove">
+        <div className="flex gap-2" role="group" aria-label={say("Add or remove")}>
           <button
             onClick={() => {
               setDirection('credit');
@@ -167,7 +171,8 @@ function CreditModal({
                 : 'flex-1 rounded-wobble-sm border-2 border-dashed border-pencil px-3 py-1.5 text-sm font-bold text-ink-soft hover:border-ink hover:text-ink'
             }
           >
-            + Add
+            
+            {say("+ Add")}
           </button>
           <button
             onClick={() => {
@@ -180,7 +185,8 @@ function CreditModal({
                 : 'flex-1 rounded-wobble-sm border-2 border-dashed border-pencil px-3 py-1.5 text-sm font-bold text-ink-soft hover:border-ink hover:text-ink'
             }
           >
-            − Remove
+            
+            {say("− Remove")}
           </button>
         </div>
         <LabeledField
@@ -195,7 +201,7 @@ function CreditModal({
             <SketchButton
               variant="secondary"
               size="icon"
-              aria-label="Less"
+              aria-label={say("Less")}
               onClick={() => setAmount((a) => Math.max(1, a - 50))}
             >
               −
@@ -211,7 +217,7 @@ function CreditModal({
             <SketchButton
               variant="secondary"
               size="icon"
-              aria-label="More"
+              aria-label={say("More")}
               onClick={() => setAmount((a) => Math.min(100000, a + 50))}
             >
               +
@@ -244,7 +250,8 @@ function CreditModal({
             {direction === 'credit' ? `Credit ${amount} 🪙` : `Remove ${amount} 🪙`}
           </SketchButton>
           <SketchButton variant="ghost" onClick={onClose}>
-            Cancel
+            
+            {say("Cancel")}
           </SketchButton>
         </div>
       </div>
@@ -278,11 +285,10 @@ function DeleteModal({
     <SketchModal open onClose={onClose} title={`Delete ${target.name}?`} maxWidth="max-w-[460px]">
       <div className="flex flex-col gap-4">
         <div className="rounded-wobble-sm border-2 border-red bg-red-soft p-3">
-          <p className="text-sm font-bold text-red">This can't be undone.</p>
+          <p className="text-sm font-bold text-red">{say("This can't be undone.")}</p>
           <p className="mt-1 text-sm text-ink-soft">
-            Their account is erased from the platform along with everything they own: slide
-            tools, repositories, runs, favorites, tickets, and their token history
-            ({target.tokenBalance} 🪙).
+            
+            {say("Their account is erased from the platform along with everything they own: slide tools, repositories, runs, favorites, tickets, and their token history (")}{target.tokenBalance} 🪙).
           </p>
         </div>
         <div className="flex gap-2">
@@ -291,10 +297,11 @@ function DeleteModal({
             loading={del.isPending}
             onClick={() => del.mutate({ userId: target.id })}
           >
-            <Trash2 className="h-4 w-4" strokeWidth={2} /> Delete user forever
+            <Trash2 className="h-4 w-4" strokeWidth={2} />  {say("Delete user forever")}
           </SketchButton>
           <SketchButton variant="ghost" onClick={onClose}>
-            Keep the account
+            
+            {say("Keep the account")}
           </SketchButton>
         </div>
       </div>
@@ -337,17 +344,16 @@ function TicketsModal({
     <SketchModal open onClose={onClose} title={`Sell tickets to ${target.name}`} maxWidth="max-w-[440px]">
       <div className="flex flex-col gap-4">
         <p className="text-sm text-ink-soft">
-          Each customization ticket costs{' '}
-          <span className="font-bold text-orange">{unit} 🪙</span> — the price of the most expensive
-          slide a customization can produce. The cost is charged to {target.name}'s credit balance
-          ({target.tokenBalance} 🪙) and added to their ticket pool.
+          
+          {say("Each customization ticket costs")}{' '}
+          <span className="font-bold text-orange">{unit} 🪙</span>  {say("— the price of the most expensive slide a customization can produce. The cost is charged to")} {target.name}{say("'s credit balance (")}{target.tokenBalance}  {say("🪙) and added to their ticket pool.")}
         </p>
         <LabeledField label="Tickets to sell" helper="They gift these to their students, one per customization.">
           <div className="flex items-center gap-2">
             <SketchButton
               variant="secondary"
               size="icon"
-              aria-label="Fewer"
+              aria-label={say("Fewer")}
               onClick={() => setCount((c) => Math.max(1, c - 5))}
             >
               −
@@ -363,7 +369,7 @@ function TicketsModal({
             <SketchButton
               variant="secondary"
               size="icon"
-              aria-label="More"
+              aria-label={say("More")}
               onClick={() => setCount((c) => Math.min(500, c + 5))}
             >
               +
@@ -371,7 +377,8 @@ function TicketsModal({
           </div>
         </LabeledField>
         <p className={tooExpensive ? 'text-sm font-bold text-red' : 'text-sm text-ink-soft'}>
-          Total: {total} 🪙{tooExpensive && ` — more than ${target.name}'s balance`}
+          
+          {say("Total:")} {total} 🪙{tooExpensive && ` — more than ${target.name}'s balance`}
         </p>
         <div className="flex gap-2">
           <SketchButton
@@ -380,10 +387,11 @@ function TicketsModal({
             disabled={tooExpensive || unit === 0}
             onClick={() => sell.mutate({ userId: target.id, count })}
           >
-            <Ticket className="h-4 w-4" strokeWidth={2} /> Sell {count} for {total} 🪙
+            <Ticket className="h-4 w-4" strokeWidth={2} />  {say("Sell")} {count}  {say("for")} {total} 🪙
           </SketchButton>
           <SketchButton variant="ghost" onClick={onClose}>
-            Cancel
+            
+            {say("Cancel")}
           </SketchButton>
         </div>
       </div>
@@ -432,9 +440,9 @@ function RoleModal({
         }
       >
         <SketchSelect value={role} onChange={(e) => setRole(e.target.value as Role)}>
-          <option value="user">User</option>
-          <option value="moderator">Moderator</option>
-          <option value="admin">Admin</option>
+          <option value="user">{say("User")}</option>
+          <option value="moderator">{say("Moderator")}</option>
+          <option value="admin">{say("Admin")}</option>
         </SketchSelect>
       </LabeledField>
       <div className="mt-4 flex gap-2">
@@ -443,10 +451,11 @@ function RoleModal({
           disabled={role === target.role}
           onClick={() => setRoleMut.mutate({ userId: target.id, role })}
         >
-          <ShieldCheck className="h-4 w-4" strokeWidth={2} /> Set role
+          <ShieldCheck className="h-4 w-4" strokeWidth={2} />  {say("Set role")}
         </SketchButton>
         <SketchButton variant="ghost" onClick={onClose}>
-          Cancel
+          
+          {say("Cancel")}
         </SketchButton>
       </div>
     </SketchModal>
@@ -507,13 +516,14 @@ function EditIdentityModal({
           disabled={!changed || !cleanName || !emailOk}
           onClick={() => save.mutate({ userId: target.id, name: cleanName, email: cleanEmail })}
         >
-          <Pencil className="h-4 w-4" strokeWidth={2} /> Save
+          <Pencil className="h-4 w-4" strokeWidth={2} />  {say("Save")}
         </SketchButton>
         <SketchButton variant="ghost" onClick={onClose}>
-          Cancel
+          
+          {say("Cancel")}
         </SketchButton>
       </div>
-      {!emailOk && <p className="mt-2 text-xs font-bold text-red">That email looks smudged</p>}
+      {!emailOk && <p className="mt-2 text-xs font-bold text-red">{say("That email looks smudged")}</p>}
     </SketchModal>
   );
 }
@@ -559,10 +569,10 @@ function UserDrawer({
               <p className="flex flex-wrap items-center gap-2 font-heading text-lg font-semibold text-ink">
                 {u.name}
                 <Chip kind={u.role}>{u.role}</Chip>
-                {u.id === selfId && <Chip kind="neutral">you</Chip>}
+                {u.id === selfId && <Chip kind="neutral">{say("you")}</Chip>}
               </p>
               <p className="truncate text-sm text-ink-soft">{u.email}</p>
-              <p className="micro mt-0.5 text-ink-faint">joined {formatDate(u.createdAt)}</p>
+              <p className="micro mt-0.5 text-ink-faint">{say("joined")} {formatDate(u.createdAt)}</p>
             </div>
           </div>
 
@@ -571,43 +581,43 @@ function UserDrawer({
               <p className="font-display text-3xl font-bold text-orange">
                 <CountUp value={u.tokenBalance} />
               </p>
-              <p className="micro text-ink-faint">tokens</p>
+              <p className="micro text-ink-faint">{say("tokens")}</p>
             </SketchCard>
             {isModerator ? (
               <SketchCard borderStyle="dashed" index={1} className="p-3 text-center">
                 <p className="font-display text-3xl font-bold text-green">
                   <CountUp value={u.ticketBalance} />
                 </p>
-                <p className="micro text-ink-faint">tickets</p>
+                <p className="micro text-ink-faint">{say("tickets")}</p>
               </SketchCard>
             ) : (
               <SketchCard borderStyle="dashed" index={1} className="p-3 text-center">
                 <p className="font-display text-3xl font-bold text-ink">
                   <CountUp value={u.runCount} />
                 </p>
-                <p className="micro text-ink-faint">runs</p>
+                <p className="micro text-ink-faint">{say("runs")}</p>
               </SketchCard>
             )}
             <SketchCard borderStyle="dashed" index={2} className="p-3 text-center">
               <p className="font-display text-3xl font-bold text-ink">
                 {formatRelative(u.createdAt).replace(' ago', '')}
               </p>
-              <p className="micro text-ink-faint">member for</p>
+              <p className="micro text-ink-faint">{say("member for")}</p>
             </SketchCard>
           </div>
 
           <div className="flex flex-wrap gap-2 border-t-2 border-dashed border-pencil pt-4">
             <SketchButton variant="accent" onClick={() => setCrediting(true)}>
-              <Coins className="h-4 w-4" strokeWidth={2} /> Adjust tokens
+              <Coins className="h-4 w-4" strokeWidth={2} />  {say("Adjust tokens")}
             </SketchButton>
             {isAdmin && isModerator && (
               <SketchButton variant="secondary" onClick={() => setSellingTickets(true)}>
-                <Ticket className="h-4 w-4" strokeWidth={2} /> Sell tickets
+                <Ticket className="h-4 w-4" strokeWidth={2} />  {say("Sell tickets")}
               </SketchButton>
             )}
             {isAdmin && (
               <SketchButton variant="secondary" onClick={() => setRoleEditing(true)}>
-                <UserCog className="h-4 w-4" strokeWidth={2} /> Set role
+                <UserCog className="h-4 w-4" strokeWidth={2} />  {say("Set role")}
               </SketchButton>
             )}
             {isAdmin && u.id !== selfId && (
@@ -616,7 +626,7 @@ function UserDrawer({
                 className="text-red hover:border-red"
                 onClick={() => setDeleting(true)}
               >
-                <Trash2 className="h-4 w-4" strokeWidth={2} /> Delete user
+                <Trash2 className="h-4 w-4" strokeWidth={2} />  {say("Delete user")}
               </SketchButton>
             )}
           </div>
@@ -718,7 +728,7 @@ function UsersBody() {
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6 px-4 py-8 lg:px-8">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="font-display text-4xl font-bold text-ink">Users</h2>
+        <h2 className="font-display text-4xl font-bold text-ink">{say("Users")}</h2>
         <Chip kind="neutral">{rows.length}</Chip>
       </div>
 
@@ -734,9 +744,9 @@ function UsersBody() {
             <SketchInput
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search name or email…"
+              placeholder={say("Search name or email…")}
               className="pl-9"
-              aria-label="Search users"
+              aria-label={say("Search users")}
             />
           </div>
           <div className="flex flex-wrap gap-2">
@@ -751,7 +761,7 @@ function UsersBody() {
                     : 'rounded-wobble-sm border-2 border-dashed border-pencil px-3 py-1 text-xs font-bold uppercase tracking-wider text-ink-soft hover:border-ink hover:text-ink'
                 }
               >
-                {f.label}
+                {say(f.label)}
               </motion.button>
             ))}
           </div>
@@ -786,9 +796,10 @@ function UsersBody() {
         <SkeletonBlock lines={5} status="Flipping through the yearbook…" />
       ) : list.isError ? (
         <div className="rounded-wobble-sm border-2 border-red bg-red-soft p-4">
-          <p className="font-bold text-red">Couldn't load users: {errMsg(list.error)}</p>
+          <p className="font-bold text-red">{say("Couldn't load users:")} {errMsg(list.error)}</p>
           <SketchButton variant="secondary" size="sm" className="mt-2" onClick={() => list.refetch()}>
-            Try again
+            
+            {say("Try again")}
           </SketchButton>
         </div>
       ) : (
@@ -810,7 +821,7 @@ function UsersBody() {
                     <span className="block truncate font-heading font-semibold text-ink">
                       {r.name}
                       {r.id === me?.id && (
-                        <span className="ml-1.5 text-xs font-normal text-ink-faint">(you)</span>
+                        <span className="ml-1.5 text-xs font-normal text-ink-faint">{say("(you)")}</span>
                       )}
                     </span>
                     <span className="block truncate text-xs text-ink-faint">{r.email}</span>
@@ -838,9 +849,10 @@ function UsersBody() {
                       setCrediting(r);
                     }}
                     className="rounded-wobble-sm border-2 border-dashed border-pencil px-1.5 py-0.5 text-xs font-bold text-ink-soft hover:border-ink hover:text-ink"
-                    title="Add or remove tokens"
+                    title={say("Add or remove tokens")}
                   >
-                    ± Credit
+                    
+                    {say("± Credit")}
                   </button>
                 </span>
               ),
@@ -871,7 +883,7 @@ function UsersBody() {
                         setEditing(r);
                       }}
                       aria-label={`Edit ${r.name}`}
-                      title="Edit name & email"
+                      title={say("Edit name & email")}
                       className="rounded-wobble-sm border-2 border-dashed border-pencil p-1 text-ink-soft hover:border-ink hover:text-ink"
                     >
                       <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
@@ -883,7 +895,8 @@ function UsersBody() {
                       }}
                       className="rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-xs font-bold text-ink-soft hover:border-ink hover:text-ink"
                     >
-                      Set role
+                      
+                      {say("Set role")}
                     </button>
                     {r.id !== me?.id && (
                       <button
@@ -892,7 +905,7 @@ function UsersBody() {
                           setDeleting(r);
                         }}
                         aria-label={`Delete ${r.name}`}
-                        title="Delete user"
+                        title={say("Delete user")}
                         className="rounded-wobble-sm border-2 border-dashed border-pencil p-1 text-ink-soft hover:border-red hover:text-red"
                       >
                         <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
@@ -900,13 +913,14 @@ function UsersBody() {
                     )}
                   </span>
                 ) : (
-                  <span className="text-xs text-ink-faint">view →</span>
+                  <span className="text-xs text-ink-faint">{say("view →")}</span>
                 ),
             },
           ]}
           emptyState={
             <span className="font-display text-2xl text-ink-faint">
-              No users match — try clearing the filters 🔍
+              
+              {say("No users match — try clearing the filters 🔍")}
             </span>
           }
         />

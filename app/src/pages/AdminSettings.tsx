@@ -22,6 +22,7 @@ import {
 } from '@/components/admin/controls';
 import { errMsg, formatMoney } from '@/components/admin/utils';
 import type { AiCapability, AiProvider, AppSettings, Level, TokenPack } from '@contracts/types';
+import { say } from '@/lib/i18n';
 
 const TABS = [
   { id: 'pricing', label: 'Pricing' },
@@ -72,7 +73,7 @@ function NumberStepper({
       <SketchButton
         variant="secondary"
         size="icon"
-        aria-label="decrease"
+        aria-label={say("decrease")}
         onClick={() => onChange(Math.max(min, round(value - step)))}
       >
         −
@@ -89,7 +90,7 @@ function NumberStepper({
       <SketchButton
         variant="secondary"
         size="icon"
-        aria-label="increase"
+        aria-label={say("increase")}
         onClick={() => onChange(round(value + step))}
       >
         +
@@ -124,12 +125,12 @@ function PricingTab({
     <div className="grid gap-5 lg:grid-cols-2">
       <SketchCard className="relative">
         <WashiTape rotate={-3} />
-        <h3 className="mb-4 font-heading text-lg font-semibold text-ink">Generation prices 🪙</h3>
+        <h3 className="mb-4 font-heading text-lg font-semibold text-ink">{say("Generation prices 🪙")}</h3>
         <div className="flex flex-col divide-y-2 divide-dashed divide-pencil">
           <div className="flex flex-wrap items-center justify-between gap-3 py-3">
             <div>
-              <p className="font-heading font-semibold text-ink">Base cost per slide</p>
-              <p className="text-xs text-ink-faint">Charged for every generated slide.</p>
+              <p className="font-heading font-semibold text-ink">{say("Base cost per slide")}</p>
+              <p className="text-xs text-ink-faint">{say("Charged for every generated slide.")}</p>
             </div>
             <NumberStepper
               value={p.perSlideBase}
@@ -140,8 +141,8 @@ function PricingTab({
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 py-3">
             <div>
-              <p className="font-heading font-semibold text-ink">Generated image</p>
-              <p className="text-xs text-ink-faint">Extra per slide with an image component.</p>
+              <p className="font-heading font-semibold text-ink">{say("Generated image")}</p>
+              <p className="text-xs text-ink-faint">{say("Extra per slide with an image component.")}</p>
             </div>
             <NumberStepper
               value={p.perImageSlide}
@@ -152,8 +153,8 @@ function PricingTab({
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 py-3">
             <div>
-              <p className="font-heading font-semibold text-ink">TTS read-aloud</p>
-              <p className="text-xs text-ink-faint">Extra per slide narrated by a provider.</p>
+              <p className="font-heading font-semibold text-ink">{say("TTS read-aloud")}</p>
+              <p className="text-xs text-ink-faint">{say("Extra per slide narrated by a provider.")}</p>
             </div>
             <NumberStepper
               value={p.perTts}
@@ -164,10 +165,10 @@ function PricingTab({
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 py-3">
             <div>
-              <p className="font-heading font-semibold text-ink">Post music</p>
+              <p className="font-heading font-semibold text-ink">{say("Post music")}</p>
               <p className="text-xs text-ink-faint">
-                Per 30 seconds of ElevenLabs music on a marketing post; longer clips scale from
-                it. Charged to everyone, admins included.
+                
+                {say("Per 30 seconds of ElevenLabs music on a marketing post; longer clips scale from it. Charged to everyone, admins included.")}
               </p>
             </div>
             <NumberStepper
@@ -178,8 +179,8 @@ function PricingTab({
             />
           </div>
           <div className="py-3">
-            <p className="font-heading font-semibold text-ink">Level multipliers</p>
-            <p className="mb-2 text-xs text-ink-faint">Applied to the whole estimate.</p>
+            <p className="font-heading font-semibold text-ink">{say("Level multipliers")}</p>
+            <p className="mb-2 text-xs text-ink-faint">{say("Applied to the whole estimate.")}</p>
             <div className="flex flex-wrap gap-3">
               {(Object.keys(LEVEL_LABEL) as Level[]).map((lvl) => (
                 <label key={lvl} className="flex items-center gap-1.5 text-sm font-bold text-ink-soft">
@@ -206,7 +207,8 @@ function PricingTab({
           </div>
         </div>
         <p className="micro mt-3 text-ink-faint">
-          Edits apply to new generations only — estimates shown to users update immediately.
+          
+          {say("Edits apply to new generations only — estimates shown to users update immediately.")}
         </p>
       </SketchCard>
 
@@ -218,10 +220,11 @@ function PricingTab({
         className="lg:sticky lg:top-20 lg:self-start"
       >
         <StickyNote rotate={0}>
-          <p className="mb-3 font-heading text-lg font-semibold">Live calculator</p>
+          <p className="mb-3 font-heading text-lg font-semibold">{say("Live calculator")}</p>
           <div className="flex flex-col gap-3 text-[0.95rem]">
             <label className="flex items-center justify-between gap-3">
-              Slides
+              
+              {say("Slides")}
               <span className="flex items-center gap-2">
                 <input
                   type="range"
@@ -230,13 +233,14 @@ function PricingTab({
                   value={calcSlides}
                   onChange={(e) => setCalcSlides(Number(e.target.value))}
                   className="h-2 w-28 cursor-pointer appearance-none rounded-full border-2 border-ink bg-paper-3 accent-[#2E2820]"
-                  aria-label="Calculator slides"
+                  aria-label={say("Calculator slides")}
                 />
                 <span className="w-6 text-center font-mono font-bold">{calcSlides}</span>
               </span>
             </label>
             <div className="flex items-center justify-between gap-2">
-              Level
+              
+              {say("Level")}
               <span className="flex gap-1.5">
                 {(Object.keys(LEVEL_LABEL) as Level[]).map((lvl) => (
                   <button
@@ -254,11 +258,13 @@ function PricingTab({
               </span>
             </div>
             <div className="flex items-center justify-between">
-              Images
+              
+              {say("Images")}
               <SketchToggle label="Calculator images" checked={calcImages} onChange={setCalcImages} />
             </div>
             <div className="flex items-center justify-between">
-              TTS
+              
+              {say("TTS")}
               <SketchToggle label="Calculator TTS" checked={calcTts} onChange={setCalcTts} />
             </div>
           </div>
@@ -267,9 +273,9 @@ function PricingTab({
               ≈ <CountUp value={total} decimals={1} duration={300} /> 🪙
             </p>
             <ul className="mt-2 font-mono text-xs text-ink/80">
-              <li>base {calcSlides} × {p.perSlideBase} = {base.toFixed(1)}</li>
-              {calcImages && <li>images {calcSlides} × {p.perImageSlide} = {imageCost.toFixed(1)}</li>}
-              {calcTts && <li>tts {calcSlides} × {p.perTts} = {ttsCost.toFixed(1)}</li>}
+              <li>{say("base")} {calcSlides} × {p.perSlideBase} = {base.toFixed(1)}</li>
+              {calcImages && <li>{say("images")} {calcSlides} × {p.perImageSlide} = {imageCost.toFixed(1)}</li>}
+              {calcTts && <li>{say("tts")} {calcSlides} × {p.perTts} = {ttsCost.toFixed(1)}</li>}
               <li>× {mult} ({LEVEL_LABEL[calcLevel]})</li>
             </ul>
           </div>
@@ -322,13 +328,14 @@ function PaymentsTab({
               value={url}
               bad={urlBad}
               onChange={(e) => patch({ googleSheetUrl: e.target.value.trim() })}
-              placeholder="https://docs.google.com/spreadsheets/d/…"
+              placeholder={say("https://docs.google.com/spreadsheets/d/…")}
               className="min-w-[260px] flex-1 font-mono text-sm"
             />
             {url && !urlBad && (
               <a href={url} target="_blank" rel="noreferrer" className="no-underline">
                 <SketchButton variant="secondary" size="sm">
-                  Open <ExternalLink className="h-3.5 w-3.5" strokeWidth={2} />
+                  
+                  {say("Open")} <ExternalLink className="h-3.5 w-3.5" strokeWidth={2} />
                 </SketchButton>
               </a>
             )}
@@ -338,9 +345,9 @@ function PaymentsTab({
 
       <SketchCard>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="font-heading text-lg font-semibold text-ink">Token packs</h3>
+          <h3 className="font-heading text-lg font-semibold text-ink">{say("Token packs")}</h3>
           <SketchButton variant="secondary" size="sm" onClick={addPack}>
-            <Plus className="h-4 w-4" strokeWidth={2} /> Add pack
+            <Plus className="h-4 w-4" strokeWidth={2} />  {say("Add pack")}
           </SketchButton>
         </div>
         <div className="flex flex-col gap-2">
@@ -359,7 +366,8 @@ function PaymentsTab({
                   {i + 1}
                 </span>
                 <label className="flex items-center gap-1.5 text-xs font-bold text-ink-soft">
-                  Name
+                  
+                  {say("Name")}
                   <input
                     value={pk.label}
                     onChange={(e) => setPack(pk.id, { label: e.target.value })}
@@ -367,7 +375,8 @@ function PaymentsTab({
                   />
                 </label>
                 <label className="flex items-center gap-1.5 text-xs font-bold text-ink-soft">
-                  Tokens
+                  
+                  {say("Tokens")}
                   <input
                     type="number"
                     min={1}
@@ -377,7 +386,8 @@ function PaymentsTab({
                   />
                 </label>
                 <label className="flex items-center gap-1.5 text-xs font-bold text-ink-soft">
-                  Price $
+                  
+                  {say("Price $")}
                   <input
                     type="number"
                     min={0}
@@ -406,7 +416,8 @@ function PaymentsTab({
           </AnimatePresence>
         </div>
         <p className="micro mt-3 text-ink-faint">
-          Users see these as cards in Settings › Tokens. Removing a pack doesn't touch pending payments.
+          
+          {say("Users see these as cards in Settings › Tokens. Removing a pack doesn't touch pending payments.")}
         </p>
       </SketchCard>
     </div>
@@ -424,16 +435,17 @@ function PaymentsTab({
  */
 function ProviderHealth() {
   const check = trpc.admin.aiStatus.useMutation({
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const results = check.data?.results ?? [];
 
   return (
     <SketchCard className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
-        <h3 className="font-heading text-lg font-semibold text-ink">Provider health</h3>
+        <h3 className="font-heading text-lg font-semibold text-ink">{say("Provider health")}</h3>
         <span className="text-xs text-ink-soft">
-          Pings every text key the server would use, in order, with a tiny real request.
+          
+          {say("Pings every text key the server would use, in order, with a tiny real request.")}
         </span>
         <SketchButton
           variant="secondary"
@@ -442,17 +454,16 @@ function ProviderHealth() {
           loading={check.isPending}
           onClick={() => check.mutate()}
         >
-          <Sparkles className="h-3.5 w-3.5" strokeWidth={2} /> Test providers
+          <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />  {say("Test providers")}
         </SketchButton>
       </div>
 
-      {check.isPending && <p className="text-sm text-ink-soft">Knocking on each door…</p>}
+      {check.isPending && <p className="text-sm text-ink-soft">{say("Knocking on each door…")}</p>}
 
       {!check.isPending && check.data && results.length === 0 && (
         <p className="rounded-wobble-sm border-2 border-red bg-red-soft px-3 py-2 text-sm font-bold text-ink">
-          No text provider is configured at all — set a system key below, or add server env keys
-          (GEMINI_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY…). Generation cannot work until one
-          of them answers.
+          
+          {say("No text provider is configured at all — set a system key below, or add server env keys (GEMINI_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY…). Generation cannot work until one of them answers.")}
         </p>
       )}
 
@@ -473,7 +484,7 @@ function ProviderHealth() {
                   {r.model ? ` · ${r.model}` : ''}
                 </span>
                 <Chip kind="neutral">{r.source}</Chip>
-                <span className="font-mono text-xs font-normal text-ink-soft">{r.ms} ms</span>
+                <span className="font-mono text-xs font-normal text-ink-soft">{r.ms}  {say("ms")}</span>
               </p>
               {r.endpoint && (
                 <p className="pl-6 font-mono text-[0.7rem] text-ink-faint">{r.endpoint}</p>
@@ -517,8 +528,8 @@ function ProvidersTab({
   return (
     <div className="flex flex-col gap-5">
       <StickyNote rotate={-1.5} className="max-w-xl text-[0.95rem]">
-        System keys power guests and users without BYOK keys. Users' own keys always
-        take precedence for their generations.
+        
+        {say("System keys power guests and users without BYOK keys. Users' own keys always take precedence for their generations.")}
       </StickyNote>
 
       <ProviderHealth />
@@ -536,11 +547,11 @@ function ProvidersTab({
           >
             <SketchCard index={i} className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="font-heading text-lg font-semibold text-ink">{cap.label}</h3>
+                <h3 className="font-heading text-lg font-semibold text-ink">{say(cap.label)}</h3>
                 {configured ? (
-                  <Chip kind="A1" className="border-solid">active</Chip>
+                  <Chip kind="A1" className="border-solid">{say("active")}</Chip>
                 ) : (
-                  <Chip kind="neutral">not set</Chip>
+                  <Chip kind="neutral">{say("not set")}</Chip>
                 )}
                 <span className="ml-auto text-xs text-ink-faint">{cap.helper}</span>
               </div>
@@ -570,7 +581,7 @@ function ProvidersTab({
                   <SketchInput
                     value={entry?.apiKey ?? ''}
                     onChange={(e) => setKey(cap.id, e.target.value)}
-                    placeholder="Paste a key…"
+                    placeholder={say("Paste a key…")}
                     className="font-mono text-sm"
                     autoComplete="off"
                     spellCheck={false}
@@ -583,8 +594,8 @@ function ProvidersTab({
       })}
       <p className="flex items-center gap-2 text-sm text-ink-soft">
         <Sparkles className="h-4 w-4 text-purple" strokeWidth={2} />
-        With no system keys, generation falls back to the built-in mock deck — the
-        demo always works.
+        
+        {say("With no system keys, generation falls back to the built-in mock deck — the demo always works.")}
       </p>
     </div>
   );
@@ -619,7 +630,7 @@ function FlagsTab({
   return (
     <SketchCard className="relative">
       <WashiTape rotate={-2} />
-      <h3 className="mb-2 font-heading text-lg font-semibold text-ink">Feature flags</h3>
+      <h3 className="mb-2 font-heading text-lg font-semibold text-ink">{say("Feature flags")}</h3>
       <div className="flex flex-col divide-y-2 divide-dashed divide-pencil">
         {Object.entries(flags).map(([key, value]) => {
           const meta = FLAG_META[key] ?? {
@@ -643,7 +654,8 @@ function FlagsTab({
         })}
       </div>
       <p className="micro mt-3 text-ink-faint">
-        Flags go live for everyone the moment you save.
+        
+        {say("Flags go live for everyone the moment you save.")}
       </p>
     </SketchCard>
   );
@@ -681,7 +693,7 @@ function SettingsBody() {
 
   const save = trpc.admin.updateSettings.useMutation({
     onSuccess: () => {
-      toast.success('Settings saved ✓ — live for all users now');
+      toast.success(say("Settings saved ✓ — live for all users now"));
       void utils.admin.getSettings.invalidate();
       void utils.tokens.packs.invalidate();
       setDraft(null);
@@ -705,10 +717,11 @@ function SettingsBody() {
   if (settings.isError) {
     return (
       <div className="mx-auto w-full max-w-[960px] px-4 py-16 text-center lg:px-8">
-        <p className="font-display text-3xl text-ink">Couldn't load platform settings.</p>
+        <p className="font-display text-3xl text-ink">{say("Couldn't load platform settings.")}</p>
         <p className="mt-1 text-sm text-ink-soft">{errMsg(settings.error)}</p>
         <SketchButton className="mt-4" onClick={() => settings.refetch()}>
-          Try again
+          
+          {say("Try again")}
         </SketchButton>
       </div>
     );
@@ -717,8 +730,8 @@ function SettingsBody() {
   return (
     <div className="mx-auto w-full max-w-[960px] px-4 py-8 lg:px-8">
       <div className="mb-5 flex flex-wrap items-center gap-3">
-        <h2 className="font-display text-4xl font-bold text-ink">Platform settings</h2>
-        <Chip kind="admin">admin</Chip>
+        <h2 className="font-display text-4xl font-bold text-ink">{say("Platform settings")}</h2>
+        <Chip kind="admin">{say("admin")}</Chip>
       </div>
 
       <SketchTabs tabs={TABS.map((t) => ({ id: t.id, label: t.label }))} active={activeTab} onChange={setTab} className="mb-6" />
@@ -745,14 +758,15 @@ function SettingsBody() {
           disabled={!dirty || sheetUrlBad}
           onClick={() => save.mutate(draft)}
         >
-          <Save className="h-4 w-4" strokeWidth={2} /> Save settings
+          <Save className="h-4 w-4" strokeWidth={2} />  {say("Save settings")}
         </SketchButton>
         <SketchButton
           variant="ghost"
           disabled={!dirty}
           onClick={() => setDraft(settings.data ? structuredClone(settings.data) : null)}
         >
-          Discard changes
+          
+          {say("Discard changes")}
         </SketchButton>
         <span className="ml-auto text-xs font-bold text-ink-faint">
           {sheetUrlBad

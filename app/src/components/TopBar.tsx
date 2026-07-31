@@ -5,6 +5,8 @@ import { Menu, Plus, LibraryBig, Presentation, Route, ChevronDown, LogOut, Ticke
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { trpc } from '@/providers/trpc';
+import { say } from '@/lib/i18n';
+import LanguagePicker from '@/components/LanguagePicker';
 
 const ROLE_CHIP: Record<string, string> = {
   user: 'bg-blue-soft text-ink',
@@ -51,7 +53,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
         {/* hamburger (mobile / <lg) */}
         <button
           onClick={onMenuClick}
-          aria-label="Open menu"
+          aria-label={say("Open menu")}
           className="rounded-wobble-sm border-2 border-transparent p-2 text-ink hover:border-dashed hover:border-ink lg:hidden"
         >
           <Menu className="h-5 w-5" strokeWidth={2} />
@@ -61,13 +63,16 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
             keeps only navigation and account controls. */}
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Language first: it is the control that makes every other control
+              readable, so it should not be behind an avatar menu. */}
+          <LanguagePicker />
           {/* token pill — live balance when signed in */}
           {user ? (
             <>
               <Link
                 to="/settings?tab=tokens"
                 className="flex items-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-orange/20 px-2.5 py-1 font-mono text-sm font-bold text-ink no-underline shadow-offset transition-transform hover:-translate-y-0.5"
-                title="Token balance — click to recharge"
+                title={say("Token balance — click to recharge")}
               >
                 <span aria-hidden="true">🪙</span>
                 <span>{user.tokenBalance}</span>
@@ -99,7 +104,8 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
               to="/auth"
               className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-1.5 font-heading text-sm font-semibold text-ink no-underline shadow-offset transition-transform hover:-translate-y-0.5"
             >
-              Sign in
+              
+              {say("Sign in")}
             </Link>
           )}
 
@@ -110,7 +116,8 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
               className="flex items-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-yellow px-3 py-1.5 font-heading font-semibold text-ink shadow-offset transition-all hover:-translate-y-0.5 hover:shadow-offset-hover active:translate-x-[2px] active:translate-y-[2px] active:shadow-offset-pressed"
             >
               <Plus className="h-4 w-4" strokeWidth={2.5} />
-              New
+              
+              {say("New")}
               <ChevronDown
                 className={cn('h-3.5 w-3.5 transition-transform', newOpen && 'rotate-180')}
               />
@@ -134,9 +141,9 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
                       <item.icon className="mt-0.5 h-[18px] w-[18px] text-ink" strokeWidth={2} />
                       <span>
                         <span className="block font-heading font-semibold text-ink">
-                          {item.label}
+                          {say(item.label)}
                         </span>
-                        <span className="block text-xs text-ink-faint">{item.hint}</span>
+                        <span className="block text-xs text-ink-faint">{say(item.hint)}</span>
                       </span>
                     </Link>
                   ))}
@@ -149,7 +156,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
           <div className="relative" ref={avatarRef}>
             <button
               onClick={() => setAvatarOpen((o) => !o)}
-              aria-label="Account"
+              aria-label={say("Account")}
               className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-ink bg-purple-soft font-display text-xl text-ink shadow-offset transition-transform hover:-translate-y-0.5"
             >
               {user?.avatarUrl ? (
@@ -188,7 +195,8 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
                         onClick={() => setAvatarOpen(false)}
                         className="mt-1 block rounded-wobble-sm px-3 py-2 font-heading font-semibold text-ink no-underline hover:bg-paper-2"
                       >
-                        Settings
+                        
+                        {say("Settings")}
                       </Link>
                       <button
                         onClick={() => {
@@ -198,7 +206,8 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
                         className="flex w-full items-center gap-2 rounded-wobble-sm px-3 py-2 text-left font-heading font-semibold text-red hover:bg-red-soft"
                       >
                         <LogOut className="h-4 w-4" strokeWidth={2} />
-                        Sign out
+                        
+                        {say("Sign out")}
                       </button>
                     </>
                   ) : (
@@ -208,10 +217,12 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
                         onClick={() => setAvatarOpen(false)}
                         className="block rounded-wobble-sm px-3 py-2 font-heading font-semibold text-ink no-underline hover:bg-paper-2"
                       >
-                        Sign in
+                        
+                        {say("Sign in")}
                       </Link>
                       <p className="px-3 pb-1 text-xs text-ink-faint">
-                        Guests get 3 Coach messages
+                        
+                        {say("Guests get 3 Coach messages")}
                       </p>
                     </>
                   )}

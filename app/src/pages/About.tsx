@@ -15,6 +15,7 @@ import PersonaCards from '@/components/about/PersonaCards';
 import RolesTokens from '@/components/about/RolesTokens';
 import DoodleCta from '@/components/about/DoodleCanvas';
 import { usePrefersReducedMotion } from '@/components/about/usePrefersReducedMotion';
+import { say } from '@/lib/i18n';
 
 const EASE_OUT = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
@@ -69,13 +70,15 @@ function CircledNumber({ n }: { n: number }) {
 function HowItWorks() {
   const reduced = usePrefersReducedMotion();
   return (
-    <section aria-label="How it works" className="relative mx-auto max-w-content px-6 py-20 lg:px-8">
+    <section aria-label={say("How it works")} className="relative mx-auto max-w-content px-6 py-20 lg:px-8">
       <DoodleStar className="absolute right-10 top-12 h-6 w-6 rotate-12 text-ink/40" />
       <h2 className="text-center font-heading text-3xl text-ink md:text-4xl">
-        How the <Squiggle>loop</Squiggle> works
+        
+        {say("How the")} <Squiggle>{say("loop")}</Squiggle>  {say("works")}
       </h2>
       <p className="mx-auto mt-2 max-w-lg text-center text-ink-soft">
-        Three moves, one notebook. <Marker>Everything connects.</Marker>
+        
+        {say("Three moves, one notebook.")} <Marker>{say("Everything connects.")}</Marker>
       </p>
 
       <div className="relative mt-12 grid gap-8 md:grid-cols-3 md:gap-5">
@@ -93,7 +96,7 @@ function HowItWorks() {
                 <CircledNumber n={i + 1} />
                 <s.icon className="h-6 w-6 text-ink-soft transition-transform duration-300 hover:rotate-2" strokeWidth={2} />
               </div>
-              <h3 className="mt-4 font-heading text-xl text-ink">{s.title}</h3>
+              <h3 className="mt-4 font-heading text-xl text-ink">{say(s.title)}</h3>
               <p className="mt-2 text-[0.95rem] leading-relaxed text-ink-soft">{s.body}</p>
             </SketchCard>
             {/* connector arrow (desktop only) */}
@@ -121,7 +124,8 @@ function WhatThisIs() {
       <div className="relative mx-auto max-w-content px-6 py-20 lg:px-8">
         <DoodleSparkle className="absolute right-12 top-14 h-5 w-5 text-yellow" />
         <h2 className="text-center font-heading text-3xl text-ink md:text-4xl">
-          So what <Squiggle>is</Squiggle> this?
+          
+          {say("So what")} <Squiggle>{say("is")}</Squiggle>  {say("this?")}
         </h2>
         <div className="mx-auto mt-6 flex max-w-2xl flex-col gap-3 text-center text-ink-soft">
           {SITE.what.map((line) => (
@@ -132,7 +136,8 @@ function WhatThisIs() {
         </div>
 
         <p className="mx-auto mt-12 max-w-lg text-center font-heading text-xl text-ink">
-          Four doors, <Marker>one notebook.</Marker>
+          
+          {say("Four doors,")} <Marker>{say("one notebook.")}</Marker>
         </p>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {SITE.surfaces.map((s, i) => (
@@ -161,14 +166,16 @@ function WhatThisIs() {
 
 function PersonaSection() {
   return (
-    <section aria-label="One engine, many worlds" className="relative mx-auto max-w-content px-6 py-20 lg:px-8">
+    <section aria-label={say("One engine, many worlds")} className="relative mx-auto max-w-content px-6 py-20 lg:px-8">
       <DoodleSparkle className="absolute left-8 top-16 h-5 w-5 text-purple/60" />
       <DoodleSpiral className="absolute bottom-10 right-8 h-7 w-7 text-ink/40" />
       <h2 className="text-center font-heading text-3xl text-ink md:text-4xl">
-        Same loop, <Marker strong>any counter.</Marker>
+        
+        {say("Same loop,")} <Marker strong>{say("any counter.")}</Marker>
       </h2>
       <p className="mx-auto mt-2 max-w-xl text-center text-ink-soft">
-        Units, lessons, and objectives are just labels. Flip a card to see your world.
+        
+        {say("Units, lessons, and objectives are just labels. Flip a card to see your world.")}
       </p>
       <div className="mt-12">
         <PersonaCards />
@@ -179,11 +186,12 @@ function PersonaSection() {
 
 function RolesTokensSection() {
   return (
-    <section aria-label="Roles, tokens and honest payments" className="relative bg-paper-2/60">
+    <section aria-label={say("Roles, tokens and honest payments")} className="relative bg-paper-2/60">
       <div className="relative mx-auto max-w-content px-6 py-20 lg:px-8">
         <DoodleStar className="absolute left-10 top-10 h-5 w-5 -rotate-12 text-ink/40" />
         <h2 className="text-center font-heading text-3xl text-ink md:text-4xl">
-          Roles, tokens &amp; <Squiggle color="blue">honest payments</Squiggle>
+          
+          {say("Roles, tokens &")} <Squiggle color="blue">{say("honest payments")}</Squiggle>
         </h2>
         <div className="mt-12">
           <RolesTokens />

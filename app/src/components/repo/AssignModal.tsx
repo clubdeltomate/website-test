@@ -6,6 +6,7 @@ import { SketchModal } from '@/components/admin/overlays';
 import SketchButton from '@/components/sketch/SketchButton';
 import Chip from '@/components/sketch/Chip';
 import { VerifiedBadge } from '@/components/repo/shared';
+import { say } from '@/lib/i18n';
 
 /**
  * "Hand this to someone": pick a user, and the slide tool / repo appears on
@@ -45,7 +46,7 @@ export default function AssignModal({
       );
       void utils.assignments.listFor.invalidate({ targetType, slug });
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const unassign = trpc.assignments.unassign.useMutation({
     onSuccess: (_r, vars) => {
@@ -53,22 +54,22 @@ export default function AssignModal({
       toast.success(`Removed from ${who}'s shelf`);
       void utils.assignments.listFor.invalidate({ targetType, slug });
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
   const noun = targetType === 'repo' ? 'notebook' : 'presentation';
   return (
-    <SketchModal open={open} onClose={onClose} title="Assign to someone" maxWidth="max-w-[440px]">
+    <SketchModal open={open} onClose={onClose} title={say("Assign to someone")} maxWidth="max-w-[440px]">
       <p className="text-sm text-ink-soft">
-        Put <strong className="text-ink">{title}</strong> on another person's shelf. They'll see
-        this {noun} on their own page, tagged as assigned.
+        
+        {say("Put")} <strong className="text-ink">{title}</strong>  {say("on another person's shelf. They'll see this")} {noun}  {say("on their own page, tagged as assigned.")}
       </p>
       <div className="mt-3 flex items-center gap-2 rounded-wobble-sm border-2 border-ink bg-paper px-2.5 py-1.5 shadow-offset">
         <Search className="h-4 w-4 shrink-0 text-ink-faint" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Find a user…"
-          aria-label="Find a user"
+          placeholder={say("Find a user…")}
+          aria-label={say("Find a user")}
           className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
         />
       </div>
@@ -96,23 +97,23 @@ export default function AssignModal({
                 title={`On ${u.name}'s shelf — press again to unassign`}
                 className="flex items-center gap-1.5 rounded-wobble-sm border-2 border-green bg-green-soft px-3 py-1.5 font-heading text-sm font-bold text-green shadow-offset transition-colors hover:border-red hover:bg-red-soft hover:text-red disabled:cursor-wait"
               >
-                <Check className="h-3.5 w-3.5" strokeWidth={2.5} /> Assigned
+                <Check className="h-3.5 w-3.5" strokeWidth={2.5} />  {say("Assigned")}
               </button>
             ) : (
               <SketchButton
                 variant="secondary"
                 size="sm"
                 loading={assign.isPending && assign.variables?.userId === u.id}
-                title="Put it on their shelf"
+                title={say("Put it on their shelf")}
                 onClick={() => assign.mutate({ targetType, slug, userId: u.id })}
               >
-                <UserPlus className="h-3.5 w-3.5" strokeWidth={2} /> Assign
+                <UserPlus className="h-3.5 w-3.5" strokeWidth={2} />  {say("Assign")}
               </SketchButton>
             )}
           </div>
         ))}
         {directory.isSuccess && (directory.data ?? []).length === 0 && (
-          <p className="py-4 text-center text-sm text-ink-faint">Nobody matches that search.</p>
+          <p className="py-4 text-center text-sm text-ink-faint">{say("Nobody matches that search.")}</p>
         )}
       </div>
     </SketchModal>

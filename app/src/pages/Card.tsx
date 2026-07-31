@@ -48,6 +48,7 @@ import { saveBlob } from '@/lib/pdf';
 import { PAYMENT_KINDS, kindSpec, paymentFilled, paymentUri } from '@/lib/qr';
 import type { PostCategory } from '@contracts/post';
 import { measureCtx } from '@/lib/caption-words';
+import { say } from '@/lib/i18n';
 
 /* Your card.
  *
@@ -196,7 +197,7 @@ function CardBody() {
       void utils.users.paymentCard.invalidate();
       toast.success(card.shared ? 'Saved — and on your profile' : 'Card saved');
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   const draft = trpc.marketing.draftCard.useMutation({
@@ -205,7 +206,7 @@ function CardBody() {
       toast.success(`Drafted — ${r.cost} 🪙`);
       void utils.auth.me.invalidate();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   const drawLogo = async () => {
@@ -219,17 +220,17 @@ function CardBody() {
       toast.success(`Logo drawn — ${r.cost} 🪙`);
       void utils.auth.me.invalidate();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "That logo couldn't be drawn");
+      toast.error(say(err instanceof Error ? err.message : "That logo couldn't be drawn"));
     } finally {
       setDrawingLogo(false);
     }
   };
 
   const uploadLogo = (file: File) => {
-    if (file.size > 6_000_000) return toast.error('That logo is over 6 MB — try a smaller one');
+    if (file.size > 6_000_000) return toast.error(say("That logo is over 6 MB — try a smaller one"));
     const reader = new FileReader();
     reader.onload = () => set({ logoUrl: String(reader.result) });
-    reader.onerror = () => toast.error("That file couldn't be read");
+    reader.onerror = () => toast.error(say("That file couldn't be read"));
     reader.readAsDataURL(file);
   };
 
@@ -270,7 +271,7 @@ function CardBody() {
         );
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't build the card");
+      toast.error(say(err instanceof Error ? err.message : "Couldn't build the card"));
     } finally {
       setBuilding(false);
     }
@@ -303,10 +304,10 @@ function CardBody() {
 
   /** A QR the exchange gave you, used instead of one we generate. */
   const uploadQr = (m: PaymentMethod, file: File) => {
-    if (file.size > 3_000_000) return toast.error('That image is over 3 MB — try a smaller one');
+    if (file.size > 3_000_000) return toast.error(say("That image is over 3 MB — try a smaller one"));
     const reader = new FileReader();
     reader.onload = () => patchMethod(m.id, { qrImage: String(reader.result) });
-    reader.onerror = () => toast.error("That file couldn't be read");
+    reader.onerror = () => toast.error(say("That file couldn't be read"));
     reader.readAsDataURL(file);
   };
 
@@ -315,9 +316,10 @@ function CardBody() {
       <SketchToaster />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl text-ink">Card</h1>
+          <h1 className="font-display text-2xl text-ink">{say("Card")}</h1>
           <p className="micro text-[0.62rem] text-ink-faint">
-            Yours to download and print, or to show on your profile — nothing here is posted.
+            
+            {say("Yours to download and print, or to show on your profile — nothing here is posted.")}
           </p>
         </div>
         <div className="flex overflow-hidden rounded-wobble-sm border-2 border-ink shadow-offset">
@@ -336,7 +338,7 @@ function CardBody() {
               )}
             >
               <k.icon className="h-3.5 w-3.5" strokeWidth={2} />
-              {k.label}
+              {say(k.label)}
             </button>
           ))}
         </div>
@@ -365,7 +367,8 @@ function CardBody() {
           )}
           {card.backOn && side === 'back' && (
             <span className="micro text-[0.58rem] text-ink-faint">
-              Showing the back — {BACK_LAYOUTS.find((l) => l.id === backLayoutOf(card))?.label}.{' '}
+              
+              {say("Showing the back —")} {BACK_LAYOUTS.find((l) => l.id === backLayoutOf(card))?.label}.{' '}
               {BACK_HINTS[backLayoutOf(card)]}
             </span>
           )}
@@ -382,7 +385,7 @@ function CardBody() {
                 )}
               >
                 <f.icon className="h-3 w-3" strokeWidth={2} />
-                {f.label}
+                {say(f.label)}
               </button>
             ))}
           </div>
@@ -397,28 +400,29 @@ function CardBody() {
           </span>
           {format === 'sheet' && card.backOn && (
             <label className="micro flex flex-wrap items-center gap-2 text-[0.58rem] text-ink-soft">
-              Your printer turns the paper over on its
+              
+              {say("Your printer turns the paper over on its")}
               <select
                 value={flip}
                 onChange={(e) => setFlip(e.target.value as FlipEdge)}
-                aria-label="Duplex flip edge"
+                aria-label={say("Duplex flip edge")}
                 className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-2 py-1 text-[0.62rem] text-ink shadow-offset outline-none focus:border-blue"
               >
-                <option value="long">long edge (the usual)</option>
-                <option value="short">short edge</option>
+                <option value="long">{say("long edge (the usual)")}</option>
+                <option value="short">{say("short edge")}</option>
               </select>
             </label>
           )}
           <div className="flex flex-wrap items-center gap-2">
             <SketchButton variant="accent" loading={building} onClick={() => void download()}>
-              <Download className="h-4 w-4" strokeWidth={2.5} /> Download
+              <Download className="h-4 w-4" strokeWidth={2.5} />  {say("Download")}
             </SketchButton>
             <SketchButton
               variant="secondary"
               loading={save.isPending}
               onClick={() => save.mutate({ card: { ...card }, logoUrl: card.logoUrl })}
             >
-              <Save className="h-4 w-4" strokeWidth={2} /> Save
+              <Save className="h-4 w-4" strokeWidth={2} />  {say("Save")}
             </SketchButton>
           </div>
         </div>
@@ -446,7 +450,7 @@ function CardBody() {
                   )}
                 >
                   <sec.icon className="h-3.5 w-3.5" strokeWidth={2} />
-                  {sec.label}
+                  {say(sec.label)}
                 </button>
               ),
             )}
@@ -459,28 +463,28 @@ function CardBody() {
             {section === 'who' && (
               <SketchCard className="flex flex-col gap-3 p-5">
                 <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
-                  <Wand2 className="h-3.5 w-3.5" strokeWidth={2} /> Who it is for
+                  <Wand2 className="h-3.5 w-3.5" strokeWidth={2} />  {say("Who it is for")}
                 </span>
                 <input
                   value={card.company}
                   onChange={(e) => set({ company: e.target.value })}
-                  aria-label="Company"
-                  placeholder="Company — the small line above the name"
+                  aria-label={say("Company")}
+                  placeholder={say("Company — the small line above the name")}
                   className={field}
                 />
                 <input
                   value={card.name}
                   onChange={(e) => set({ name: e.target.value })}
-                  aria-label="Name"
-                  placeholder="Name"
+                  aria-label={say("Name")}
+                  placeholder={say("Name")}
                   className={cn(field, 'font-heading text-base font-bold')}
                 />
                 {!pay && (
                   <input
                     value={card.title}
                     onChange={(e) => set({ title: e.target.value })}
-                    aria-label="Role"
-                    placeholder="Role"
+                    aria-label={say("Role")}
+                    placeholder={say("Role")}
                     className={field}
                   />
                 )}
@@ -489,8 +493,8 @@ function CardBody() {
                     value={card.tagline}
                     onChange={(e) => set({ tagline: e.target.value })}
                     rows={2}
-                    aria-label="Tagline"
-                    placeholder="One line about what you do for someone"
+                    aria-label={say("Tagline")}
+                    placeholder={say("One line about what you do for someone")}
                     className={cn(field, 'resize-y')}
                   />
                 )}
@@ -498,7 +502,7 @@ function CardBody() {
                   value={card.details}
                   onChange={(e) => set({ details: e.target.value })}
                   rows={3}
-                  aria-label="Contact details"
+                  aria-label={say("Contact details")}
                   placeholder={'Contact — one per line\nyou@example.com\n+1 555 0100'}
                   className={cn(field, 'resize-y')}
                 />
@@ -507,8 +511,8 @@ function CardBody() {
                     <input
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
-                      aria-label="Note for the AI"
-                      placeholder="Anything the AI should know?"
+                      aria-label={say("Note for the AI")}
+                      placeholder={say("Anything the AI should know?")}
                       className={cn(field, 'min-w-[180px] flex-1')}
                     />
                     <SketchButton
@@ -518,14 +522,14 @@ function CardBody() {
                         draft.mutate({ note: note.trim(), categories: myCategories })
                       }
                     >
-                      <Sparkles className="h-4 w-4" strokeWidth={2.5} /> Write my role and line
+                      <Sparkles className="h-4 w-4" strokeWidth={2.5} />  {say("Write my role and line")}
                       {quote.data ? ` — ${quote.data.highlight} 🪙` : ''}
                     </SketchButton>
                   </div>
                 )}
                 <p className="micro text-[0.58rem] text-ink-faint">
-                  The name, company and contact start from your profile, and every one of them is
-                  yours to change — the card does not have to say what the site says.
+                  
+                  {say("The name, company and contact start from your profile, and every one of them is yours to change — the card does not have to say what the site says.")}
                 </p>
               </SketchCard>
             )}
@@ -533,11 +537,12 @@ function CardBody() {
             {section === 'pay' && (pay || backLayoutOf(card) === 'payments') && (
               <SketchCard className="flex flex-col gap-3 p-5">
                 <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
-                  <QrCode className="h-3.5 w-3.5" strokeWidth={2} /> How you get paid
+                  <QrCode className="h-3.5 w-3.5" strokeWidth={2} />  {say("How you get paid")}
                 </span>
                 {card.payments.length === 0 && (
                   <p className="micro text-[0.58rem] text-ink-faint">
-                    Nothing yet. Add an address and the card grows a code for it.
+                    
+                    {say("Nothing yet. Add an address and the card grows a code for it.")}
                   </p>
                 )}
                 {card.payments.map((m) => {
@@ -551,7 +556,7 @@ function CardBody() {
                         <select
                           value={m.kind}
                           onChange={(e) => patchMethod(m.id, { kind: e.target.value })}
-                          aria-label="Payment method"
+                          aria-label={say("Payment method")}
                           className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-2 py-1.5 text-sm text-ink shadow-offset outline-none focus:border-blue"
                         >
                           {PAYMENT_KINDS.map((k) => (
@@ -564,7 +569,7 @@ function CardBody() {
                           type="button"
                           onClick={() => set({ qrOf: m.id })}
                           aria-pressed={card.qrOf === m.id}
-                          title="Put this one in the QR code"
+                          title={say("Put this one in the QR code")}
                           className={cn(
                             'micro rounded-wobble-sm border-2 px-2 py-1.5 text-[0.58rem] font-bold transition-colors',
                             card.qrOf === m.id
@@ -572,7 +577,8 @@ function CardBody() {
                               : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
                           )}
                         >
-                          QR
+                          
+                          {say("QR")}
                         </button>
                         <label className="micro cursor-pointer rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1.5 text-[0.58rem] font-bold text-ink-soft hover:border-ink hover:text-ink">
                           <Upload className="mr-1 inline h-3 w-3" strokeWidth={2} />
@@ -595,7 +601,8 @@ function CardBody() {
                             onClick={() => patchMethod(m.id, { qrImage: null })}
                             className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1.5 text-[0.58rem] font-bold text-ink-soft hover:border-red hover:text-red"
                           >
-                            Use a generated code
+                            
+                            {say("Use a generated code")}
                           </button>
                         )}
                         <button
@@ -606,7 +613,8 @@ function CardBody() {
                           aria-label={`Remove ${m.kind}`}
                           className="micro ml-auto rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1.5 text-[0.58rem] font-bold text-ink-soft hover:border-red hover:text-red"
                         >
-                          Remove
+                          
+                          {say("Remove")}
                         </button>
                       </div>
                       {/* Every rail asks for what it actually needs — a Pago
@@ -637,7 +645,8 @@ function CardBody() {
                   onClick={addMethod}
                   className="micro w-fit rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink"
                 >
-                  + Add a way to pay
+                  
+                  {say("+ Add a way to pay")}
                 </button>
 
                 {/* The profile popover is a payment card's feature — a
@@ -650,13 +659,13 @@ function CardBody() {
                       onChange={(e) => set({ shared: e.target.checked })}
                       className="h-4 w-4 accent-yellow"
                     />
-                    <span className="text-sm font-bold text-ink">Show it on my profile</span>
+                    <span className="text-sm font-bold text-ink">{say("Show it on my profile")}</span>
                   </label>
                 )}
                 {pay && (
                 <p className="micro text-[0.58rem] text-ink-faint">
-                  A "How to pay me" button appears on your profile; anyone who presses it sees
-                  these details and your contact lines. Save to apply it. The QR encodes{' '}
+                  
+                  {say("A \"How to pay me\" button appears on your profile; anyone who presses it sees these details and your contact lines. Save to apply it. The QR encodes")}{' '}
                   {(() => {
                     const chosen =
                       card.payments.find((m) => m.id === card.qrOf && paymentFilled(m.values)) ??
@@ -693,11 +702,12 @@ function CardBody() {
                     }}
                     className="h-4 w-4 accent-yellow"
                   />
-                  <span className="text-sm font-bold text-ink">Give it a back</span>
+                  <span className="text-sm font-bold text-ink">{say("Give it a back")}</span>
                 </label>
 
                 <span className="micro text-[0.6rem] font-semibold text-ink-soft">
-                  What the back is for
+                  
+                  {say("What the back is for")}
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {BACK_LAYOUTS.map((l) => (
@@ -731,7 +741,7 @@ function CardBody() {
                     onChange={(e) => set({ quote: e.target.value })}
                     rows={3}
                     disabled={!card.backOn}
-                    aria-label="The back's big line"
+                    aria-label={say("The back's big line")}
                     placeholder={BACK_FIELDS[backLayoutOf(card)].quote ?? ''}
                     className={cn(field, 'resize-y disabled:opacity-50')}
                   />
@@ -741,14 +751,15 @@ function CardBody() {
                   onChange={(e) => set({ backNote: e.target.value })}
                   rows={2}
                   disabled={!card.backOn}
-                  aria-label="The back's small lines"
-                  placeholder={BACK_FIELDS[backLayoutOf(card)].note}
+                  aria-label={say("The back's small lines")}
+                  placeholder={say(BACK_FIELDS[backLayoutOf(card)].note)}
                   className={cn(field, 'resize-y disabled:opacity-50')}
                 />
                 {backLayoutOf(card) === 'payments' &&
                   !card.payments.some((m) => paymentFilled(m.values)) && (
                     <p className="micro text-[0.58rem] font-bold text-red">
-                      Nothing to list yet — add a way to pay under Payments and it lands here.
+                      
+                      {say("Nothing to list yet — add a way to pay under Payments and it lands here.")}
                     </p>
                   )}
                 <p className="micro text-[0.58rem] text-ink-faint">
@@ -762,14 +773,14 @@ function CardBody() {
             {section === 'logo' && (
               <SketchCard className="flex flex-col gap-3 p-5">
                 <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
-                  <ImageIcon className="h-3.5 w-3.5" strokeWidth={2} /> Logo
+                  <ImageIcon className="h-3.5 w-3.5" strokeWidth={2} />  {say("Logo")}
                 </span>
                 <div className="flex flex-wrap items-center gap-2">
                   <input
                     value={card.logoPrompt}
                     onChange={(e) => set({ logoPrompt: e.target.value })}
-                    aria-label="Logo brief"
-                    placeholder="Describe a mark — e.g. a folded paper crane, one colour"
+                    aria-label={say("Logo brief")}
+                    placeholder={say("Describe a mark — e.g. a folded paper crane, one colour")}
                     className={cn(field, 'min-w-[200px] flex-1')}
                   />
                   <SketchButton
@@ -778,16 +789,16 @@ function CardBody() {
                     disabled={card.logoPrompt.trim().length < 3}
                     onClick={() => void drawLogo()}
                   >
-                    <Sparkles className="h-4 w-4" strokeWidth={2} /> Draw
+                    <Sparkles className="h-4 w-4" strokeWidth={2} />  {say("Draw")}
                     {quote.data ? ` — ${quote.data.logo} 🪙` : ''}
                   </SketchButton>
                   <label className="micro cursor-pointer rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1.5 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink">
-                    <Upload className="mr-1 inline h-3 w-3" strokeWidth={2} /> Upload
+                    <Upload className="mr-1 inline h-3 w-3" strokeWidth={2} />  {say("Upload")}
                     <input
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      aria-label="Upload a logo"
+                      aria-label={say("Upload a logo")}
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         if (f) uploadLogo(f);
@@ -801,7 +812,8 @@ function CardBody() {
                       onClick={() => set({ logoUrl: null })}
                       className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1.5 text-[0.6rem] font-bold text-ink-soft hover:border-red hover:text-red"
                     >
-                      Remove
+                      
+                      {say("Remove")}
                     </button>
                   )}
                 </div>
@@ -811,9 +823,9 @@ function CardBody() {
             {section === 'colour' && (
               <SketchCard className="flex flex-col gap-3 p-5">
                 <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
-                  <Palette className="h-3.5 w-3.5" strokeWidth={2} /> Colour
+                  <Palette className="h-3.5 w-3.5" strokeWidth={2} />  {say("Colour")}
                 </span>
-                <span className="micro text-[0.58rem] text-ink-soft">Card</span>
+                <span className="micro text-[0.58rem] text-ink-soft">{say("Card")}</span>
                 <div className="flex flex-wrap gap-1.5">
                   {SWATCHES.map((hex) => (
                     <button
@@ -833,11 +845,11 @@ function CardBody() {
                     type="color"
                     value={card.bg}
                     onChange={(e) => set({ bg: e.target.value })}
-                    aria-label="Mix a card colour"
+                    aria-label={say("Mix a card colour")}
                     className="h-7 w-10 cursor-pointer rounded-wobble-sm border-2 border-pencil bg-transparent"
                   />
                 </div>
-                <span className="micro text-[0.58rem] text-ink-soft">Accent</span>
+                <span className="micro text-[0.58rem] text-ink-soft">{say("Accent")}</span>
                 <div className="flex flex-wrap gap-1.5">
                   {ACCENTS.map((hex) => (
                     <button
@@ -857,7 +869,7 @@ function CardBody() {
                     type="color"
                     value={card.accent}
                     onChange={(e) => set({ accent: e.target.value })}
-                    aria-label="Mix an accent"
+                    aria-label={say("Mix an accent")}
                     className="h-7 w-10 cursor-pointer rounded-wobble-sm border-2 border-pencil bg-transparent"
                   />
                 </div>
@@ -867,7 +879,7 @@ function CardBody() {
         </div>
       </div>
       {!user && (
-        <p className="micro text-[0.6rem] text-ink-faint">Sign in to keep a card.</p>
+        <p className="micro text-[0.6rem] text-ink-faint">{say("Sign in to keep a card.")}</p>
       )}
     </div>
   );

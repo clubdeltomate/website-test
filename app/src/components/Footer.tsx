@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import { SquiggleDivider } from './sketch/Squiggle';
+import { say } from '@/lib/i18n';
 
 /** App footer (design.md §7.1): squiggle divider + tagline + links */
 export default function Footer() {
@@ -8,14 +9,16 @@ export default function Footer() {
       <SquiggleDivider />
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-ink-soft">
         <span className="font-heading">
-          SketchLearn — made with ✏️ and a good notebook
+          
+          {say("SketchLearn — made with ✏️ and a good notebook")}
         </span>
         <nav className="flex items-center gap-4">
           <Link to="/about" className="hover:squiggle no-underline">
-            About
+            
+            {say("About")}
           </Link>
-          <span className="text-ink-faint">Terms</span>
-          <span className="text-ink-faint">Privacy</span>
+          <span className="text-ink-faint">{say("Terms")}</span>
+          <span className="text-ink-faint">{say("Privacy")}</span>
         </nav>
       </div>
     </footer>

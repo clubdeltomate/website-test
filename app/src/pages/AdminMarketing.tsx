@@ -58,6 +58,7 @@ import SketchToaster from '@/components/admin/SketchToaster';
 import SketchButton from '@/components/sketch/SketchButton';
 import SketchCard from '@/components/sketch/SketchCard';
 import { HubHeader } from '@/components/admin/PanelTiles';
+import { say } from '@/lib/i18n';
 
 /* Marketing: a small Canva for Instagram carousels.
  *
@@ -569,9 +570,9 @@ function MarketingBody() {
       // the megabyte of base64 does not sit in memory for the rest of the session.
       if (r.logoUrl !== follow.logoUrl) setFollow((f) => ({ ...f, logoUrl: r.logoUrl }));
       void brand.refetch();
-      toast.success('Saved — every new carousel starts from this card');
+      toast.success(say("Saved — every new carousel starts from this card"));
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   const outH = FORMATS.find((f) => f.id === design.format)!.h;
@@ -626,7 +627,7 @@ function MarketingBody() {
       toast.success(`Story written — ${r.slides.length} slides, ${r.cost} 🪙`);
       void utils.auth.me.invalidate();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   /**
@@ -638,11 +639,11 @@ function MarketingBody() {
    * the AI a page of nonsense and charge for it.
    */
   const attachFile = async (file: File) => {
-    if (file.size > 3_000_000) return toast.error('That file is over 3 MB — try a smaller one');
+    if (file.size > 3_000_000) return toast.error(say("That file is over 3 MB — try a smaller one"));
     const isImage = file.type.startsWith('image/');
     const isText = file.type.startsWith('text/') || /\.(txt|md|csv|json)$/i.test(file.name);
     if (!isImage && !isText) {
-      return toast.error('Attach a picture, or a text file (.txt, .md, .csv, .json)');
+      return toast.error(say("Attach a picture, or a text file (.txt, .md, .csv, .json)"));
     }
     try {
       if (isImage) {
@@ -661,7 +662,7 @@ function MarketingBody() {
       }
       toast.success(`${file.name} attached — the AI will read it`);
     } catch {
-      toast.error("That file couldn't be read");
+      toast.error(say("That file couldn't be read"));
     }
   };
 
@@ -702,7 +703,7 @@ function MarketingBody() {
       );
       void utils.auth.me.invalidate();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   /** Ask the AI which words carry each card, and paint those. Re-runnable, so
@@ -730,7 +731,7 @@ function MarketingBody() {
       toast.success(`${painted} keyword${painted === 1 ? '' : 's'} highlighted — ${r.cost} 🪙`);
       void utils.auth.me.invalidate();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(say(e.message)),
   });
 
   const runHighlight = async (scope: 'title' | 'subtitle' | 'both') => {
@@ -788,7 +789,7 @@ function MarketingBody() {
       );
       void utils.auth.me.invalidate();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "That backdrop couldn't be drawn");
+      toast.error(say(err instanceof Error ? err.message : "That backdrop couldn't be drawn"));
     } finally {
       setDrawing(null);
     }
@@ -797,7 +798,7 @@ function MarketingBody() {
   /** Draw every slide that still has no picture, one after another. */
   const drawAllMissing = async () => {
     const todo = slides.map((s, i) => ({ s, i })).filter(({ s }) => !s.imageUrl && s.imagePrompt.trim().length > 2);
-    if (todo.length === 0) return toast.error('Every slide with a prompt already has a picture');
+    if (todo.length === 0) return toast.error(say("Every slide with a prompt already has a picture"));
     if (
       !(await confirm.ask(
         `Drawing ${todo.length} backdrop${todo.length === 1 ? '' : 's'}`,
@@ -818,7 +819,7 @@ function MarketingBody() {
         patch(i, { imageUrl: await cleanBackdrop(r.url), cast: r.cast });
         made++;
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'A backdrop failed');
+        toast.error(say(err instanceof Error ? err.message : 'A backdrop failed'));
         break;
       }
     }
@@ -973,10 +974,10 @@ function MarketingBody() {
         toast.success(`${total} slide${total === 1 ? '' : 's'} zipped ✓`);
       } else {
         saveCanvas(await renderAt(active), slideName(active));
-        toast.success('Slide downloaded ✓');
+        toast.success(say("Slide downloaded ✓"));
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't build the image");
+      toast.error(say(err instanceof Error ? err.message : "Couldn't build the image"));
     } finally {
       setBusy(false);
     }
@@ -992,7 +993,7 @@ function MarketingBody() {
    * nowhere near it individually.
    */
   const publish = async () => {
-    if (!caption.trim()) return toast.error('Give the post a caption first');
+    if (!caption.trim()) return toast.error(say("Give the post a caption first"));
     setPosting(true);
     try {
       const imageIds: number[] = [];
@@ -1026,7 +1027,7 @@ function MarketingBody() {
       // its own — you should be able to carry on scrolling from there.
       navigate(`/feed?post=${encodeURIComponent(r.slug)}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "That post couldn't be published");
+      toast.error(say(err instanceof Error ? err.message : "That post couldn't be published"));
     } finally {
       setPosting(false);
     }
@@ -1045,7 +1046,7 @@ function MarketingBody() {
       toast.success(`Logo drawn — ${r.cost} 🪙`);
       void utils.auth.me.invalidate();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "That logo couldn't be drawn");
+      toast.error(say(err instanceof Error ? err.message : "That logo couldn't be drawn"));
     } finally {
       setDrawingLogo(false);
     }
@@ -1053,7 +1054,7 @@ function MarketingBody() {
 
   /** Read an uploaded photograph into a reusable cast member. */
   const modelFromPhoto = (file: File) => {
-    if (file.size > 6_000_000) return toast.error('That photo is over 6 MB — try a smaller one');
+    if (file.size > 6_000_000) return toast.error(say("That photo is over 6 MB — try a smaller one"));
     const reader = new FileReader();
     reader.onload = async () => {
       if (!(await confirm.ask('Reading that photo into a model', 1))) return;
@@ -1069,12 +1070,12 @@ function MarketingBody() {
         toast.success(`${r.model.name} joined the cast — ${r.cost} 🪙`);
         void utils.auth.me.invalidate();
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "That photo couldn't be read");
+        toast.error(say(err instanceof Error ? err.message : "That photo couldn't be read"));
       } finally {
         setReading(false);
       }
     };
-    reader.onerror = () => toast.error("That file couldn't be read");
+    reader.onerror = () => toast.error(say("That file couldn't be read"));
     reader.readAsDataURL(file);
   };
 
@@ -1088,7 +1089,7 @@ function MarketingBody() {
       toast.success(`${name} drawn — ${r.cost} 🪙`);
       void utils.auth.me.invalidate();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "That portrait couldn't be drawn");
+      toast.error(say(err instanceof Error ? err.message : "That portrait couldn't be drawn"));
     } finally {
       setPortraying(null);
     }
@@ -1101,9 +1102,9 @@ function MarketingBody() {
       await utils.client.cast.remove.mutate({ id: numeric });
       setPicked((p) => p.filter((x) => x !== id));
       await cast.refetch();
-      toast.success('Model deleted — you can read a new photo now');
+      toast.success(say("Model deleted — you can read a new photo now"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "That model couldn't be removed");
+      toast.error(say(err instanceof Error ? err.message : "That model couldn't be removed"));
     }
   };
 
@@ -1119,7 +1120,7 @@ function MarketingBody() {
    */
   const composeMusic = async () => {
     const prompt = musicPrompt.trim();
-    if (prompt.length < 3) return toast.error('Say what the music should sound like first');
+    if (prompt.length < 3) return toast.error(say("Say what the music should sound like first"));
     if (!(await confirm.ask(`Composing ${musicSeconds}s of music`, musicCost ?? undefined))) return;
     setComposing(true);
     try {
@@ -1129,17 +1130,17 @@ function MarketingBody() {
       toast.success(`Music composed — ${r.cost} 🪙`);
       void utils.auth.me.invalidate();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "That music couldn't be composed");
+      toast.error(say(err instanceof Error ? err.message : "That music couldn't be composed"));
     } finally {
       setComposing(false);
     }
   };
 
   const uploadLogo = (file: File) => {
-    if (file.size > 6_000_000) return toast.error('That logo is over 6 MB — try a smaller one');
+    if (file.size > 6_000_000) return toast.error(say("That logo is over 6 MB — try a smaller one"));
     const reader = new FileReader();
     reader.onload = () => setFollow((f) => ({ ...f, logoUrl: String(reader.result) }));
-    reader.onerror = () => toast.error("That file couldn't be read");
+    reader.onerror = () => toast.error(say("That file couldn't be read"));
     reader.readAsDataURL(file);
   };
 
@@ -1153,9 +1154,9 @@ function MarketingBody() {
       a.download = 'sketchlearn-logo.png';
       a.click();
       URL.revokeObjectURL(a.href);
-      toast.success('Logo downloaded ✓');
+      toast.success(say("Logo downloaded ✓"));
     } catch {
-      toast.error("That logo couldn't be saved");
+      toast.error(say("That logo couldn't be saved"));
     }
   };
 
@@ -1179,7 +1180,7 @@ function MarketingBody() {
       <HubHeader
         backTo="/feed"
         backLabel="Feed"
-        title="New post"
+        title={say("New post")}
         blurb="Write a carousel, draw its pictures, set the words — then post it."
       />
 
@@ -1235,7 +1236,8 @@ function MarketingBody() {
                       className="block px-6 text-center"
                       style={{ fontSize: cq(34), color: 'rgba(18,41,75,0.45)' }}
                     >
-                      The working goes here.
+                      
+                      {say("The working goes here.")}
                     </span>
                   )}
                 </div>
@@ -1249,7 +1251,8 @@ function MarketingBody() {
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
                   <ImageIcon className="h-8 w-8 text-ink-faint" strokeWidth={1.5} />
                   <p className="micro text-[0.62rem] text-ink-faint">
-                    Write the story, then draw this slide's picture.
+                    
+                    {say("Write the story, then draw this slide's picture.")}
                   </p>
                 </div>
               ))}
@@ -1360,9 +1363,9 @@ function MarketingBody() {
                   setActive(slides.length);
                   setSection('follow');
                 }}
-                aria-label="Follow card"
+                aria-label={say("Follow card")}
                 aria-pressed={onFollow}
-                title="The closing follow card"
+                title={say("The closing follow card")}
                 className={cn(
                   'relative flex h-12 w-9 items-center justify-center overflow-hidden rounded-wobble-sm border-2 transition-transform hover:-translate-y-0.5',
                   onFollow ? 'border-ink shadow-offset' : 'border-pencil',
@@ -1383,8 +1386,8 @@ function MarketingBody() {
                 setActive(slides.length);
                 setSection('slide');
               }}
-              aria-label="Add slide"
-              title="Add a slide"
+              aria-label={say("Add slide")}
+              title={say("Add a slide")}
               className="flex h-12 w-9 items-center justify-center rounded-wobble-sm border-2 border-dashed border-pencil text-ink-faint hover:border-ink hover:text-ink"
             >
               <Plus className="h-4 w-4" strokeWidth={2} />
@@ -1402,8 +1405,8 @@ function MarketingBody() {
                 });
                 setActive((a) => a - 1);
               }}
-              aria-label="Move slide earlier"
-              title="Move earlier"
+              aria-label={say("Move slide earlier")}
+              title={say("Move earlier")}
               className="rounded-wobble-sm border-2 border-dashed border-pencil p-1 text-ink-faint hover:border-ink hover:text-ink disabled:opacity-30"
             >
               <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.5} />
@@ -1419,8 +1422,8 @@ function MarketingBody() {
                 });
                 setActive((a) => a + 1);
               }}
-              aria-label="Move slide later"
-              title="Move later"
+              aria-label={say("Move slide later")}
+              title={say("Move later")}
               className="rounded-wobble-sm border-2 border-dashed border-pencil p-1 text-ink-faint hover:border-ink hover:text-ink disabled:opacity-30"
             >
               <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.5} />
@@ -1432,8 +1435,8 @@ function MarketingBody() {
                 setSlides((s) => s.filter((_, i) => i !== active));
                 setActive((a) => Math.max(0, a - 1));
               }}
-              aria-label="Delete slide"
-              title="Delete this slide"
+              aria-label={say("Delete slide")}
+              title={say("Delete this slide")}
               className="rounded-wobble-sm border-2 border-dashed border-pencil p-1 text-ink-faint hover:border-red hover:text-red disabled:opacity-30"
             >
               <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
@@ -1466,7 +1469,7 @@ function MarketingBody() {
                 )}
               >
                 <sec.icon className="h-3.5 w-3.5" strokeWidth={2} />
-                {sec.label}
+                {say(sec.label)}
               </button>
             ))}
           </div>
@@ -1486,7 +1489,7 @@ function MarketingBody() {
           <SketchCard className="flex flex-col gap-3 p-5">
             <div className="flex w-full items-center gap-2">
               <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
-                <Users className="h-3.5 w-3.5" strokeWidth={2} /> The cast
+                <Users className="h-3.5 w-3.5" strokeWidth={2} />  {say("The cast")}
               </span>
               <span className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-1.5 text-[0.58rem] font-bold text-ink-soft">
                 {picked.length ? `${picked.length} picked` : 'all ten in play'}
@@ -1558,7 +1561,7 @@ function MarketingBody() {
                             type="button"
                             onClick={() => void removeModel(m.id)}
                             aria-label={`Remove ${m.name}`}
-                            title="Remove this model"
+                            title={say("Remove this model")}
                             className="shrink-0 text-ink-faint hover:text-red"
                           >
                             <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
@@ -1573,8 +1576,8 @@ function MarketingBody() {
                   <input
                     value={modelNote}
                     onChange={(e) => setModelNote(e.target.value)}
-                    aria-label="Model note"
-                    placeholder="Optional — what to call them, e.g. “Sam, runs the workshop”"
+                    aria-label={say("Model note")}
+                    placeholder={say("Optional — what to call them, e.g. “Sam, runs the workshop”")}
                     className="min-w-[200px] flex-1 rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
                   />
                   {/* One at a time: a model read out of a photograph is a
@@ -1603,7 +1606,7 @@ function MarketingBody() {
                       accept="image/*"
                       className="hidden"
                       disabled={!!ownModel}
-                      aria-label="New model from a photo"
+                      aria-label={say("New model from a photo")}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) modelFromPhoto(file);
@@ -1620,17 +1623,10 @@ function MarketingBody() {
                   </button>
                 </div>
                 <p className="micro text-[0.58rem] text-ink-faint">
-                  Pick who may appear and the AI casts each slide from them — often only two or
-                  three across a whole carousel, and nobody at all on a slide that is a close-up.
-                  Pick nobody and the whole cast is in play: every picture with a person in it is
-                  drawn from these ten, and the slide records which of them it used.
-                  They are written descriptions, not photos, so a shot of just hands still carries
-                  the right skin, build and nails. Use the face button to draw a portrait from
-                  someone's description and see who you are casting
-                  {imgCost != null ? ` — ${imgCost} 🪙 each` : ''}. The same cast is here for every
-                  carousel you make, which is what keeps a feed looking like one feed. A model read
-                  out of a photograph is yours alone and you may hold one at a time — delete{' '}
-                  {ownModel ? ownModel.name : 'it'} to make another.
+                  
+                  {say("Pick who may appear and the AI casts each slide from them — often only two or three across a whole carousel, and nobody at all on a slide that is a close-up. Pick nobody and the whole cast is in play: every picture with a person in it is drawn from these ten, and the slide records which of them it used. They are written descriptions, not photos, so a shot of just hands still carries the right skin, build and nails. Use the face button to draw a portrait from someone's description and see who you are casting")}
+                  {imgCost != null ? ` — ${imgCost} 🪙 each` : ''}{say(". The same cast is here for every carousel you make, which is what keeps a feed looking like one feed. A model read out of a photograph is yours alone and you may hold one at a time — delete")}{' '}
+                  {ownModel ? ownModel.name : 'it'}  {say("to make another.")}
                 </p>
               </>
             )}
@@ -1660,7 +1656,7 @@ function MarketingBody() {
                     )}
                   >
                     <m.icon className="h-3 w-3" strokeWidth={2} />
-                    {m.label}
+                    {say(m.label)}
                   </button>
                 ))}
               </div>
@@ -1688,7 +1684,7 @@ function MarketingBody() {
                   type="file"
                   accept="image/*,text/*,.txt,.md,.csv,.json"
                   className="hidden"
-                  aria-label="Attach a file for context"
+                  aria-label={say("Attach a file for context")}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) void attachFile(file);
@@ -1702,7 +1698,7 @@ function MarketingBody() {
                   <button
                     type="button"
                     onClick={() => setAttachment(null)}
-                    aria-label="Remove the attachment"
+                    aria-label={say("Remove the attachment")}
                     className="text-ink-faint hover:text-red"
                   >
                     <Trash2 className="h-3 w-3" strokeWidth={2} />
@@ -1713,7 +1709,7 @@ function MarketingBody() {
             {/* Which shelf this post belongs on — the same six the notebooks
                 and slide tools use, so the feed filters read the same way. */}
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="micro w-full text-[0.6rem] text-ink-soft">This post is about…</span>
+              <span className="micro w-full text-[0.6rem] text-ink-soft">{say("This post is about…")}</span>
               {POST_CATEGORIES.map((c) => {
                 const meta = TEMPLATE_META[c];
                 const Icon = meta.icon;
@@ -1738,11 +1734,12 @@ function MarketingBody() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <label className="micro flex items-center gap-1.5 text-[0.6rem] text-ink-soft">
-                Written in
+                
+                {say("Written in")}
                 <select
                   value={language}
                   onChange={(e) => setLanguage(e.target.value)}
-                  aria-label="Language"
+                  aria-label={say("Language")}
                   className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-2 py-1 text-sm text-ink shadow-offset outline-none focus:border-blue"
                 >
                   {LANGUAGES.map((l) => (
@@ -1760,13 +1757,13 @@ function MarketingBody() {
                   accessible name from the label, so this one announced itself
                   as "Slides" instead of what it does. */}
               <div className="micro flex items-center gap-1.5 text-[0.6rem] text-ink-soft">
-                <span>Slides</span>
+                <span>{say("Slides")}</span>
                 <button
                   type="button"
                   onClick={() => setSlideCount((c) => (c == null ? 5 : null))}
                   aria-pressed={slideCount == null}
                   disabled={mode === 'math'}
-                  title="Let the AI use as many slides as the subject needs"
+                  title={say("Let the AI use as many slides as the subject needs")}
                   className={cn(
                     'micro rounded-wobble-sm border-2 px-2 py-1 text-[0.58rem] font-bold transition-colors disabled:opacity-60',
                     slideCount == null || mode === 'math'
@@ -1774,7 +1771,8 @@ function MarketingBody() {
                       : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
                   )}
                 >
-                  AI decides
+                  
+                  {say("AI decides")}
                 </button>
                 {slideCount != null && mode !== 'math' && (
                   <input
@@ -1785,7 +1783,7 @@ function MarketingBody() {
                     onChange={(e) =>
                       setSlideCount(Math.max(2, Math.min(10, Number(e.target.value) || 5)))
                     }
-                    aria-label="Slide count"
+                    aria-label={say("Slide count")}
                     className="w-16 rounded-wobble-sm border-2 border-ink bg-paper-3 px-2 py-1 text-sm text-ink shadow-offset outline-none focus:border-blue"
                   />
                 )}
@@ -1833,7 +1831,7 @@ function MarketingBody() {
                   disabled={missing === 0}
                   onClick={() => void drawAllMissing()}
                 >
-                  <ImageIcon className="h-4 w-4" strokeWidth={2} /> Draw {missing} picture
+                  <ImageIcon className="h-4 w-4" strokeWidth={2} />  {say("Draw")} {missing}  {say("picture")}
                   {missing === 1 ? '' : 's'}
                   {imgCost != null && missing > 0 ? ` — ${missing * imgCost} 🪙` : ''}
                 </SketchButton>
@@ -1851,7 +1849,7 @@ function MarketingBody() {
           {section === 'slide' && (
           <SketchCard className={cn('flex flex-col gap-3 p-5', onFollow && 'hidden')}>
             <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
-              <Layers className="h-3.5 w-3.5" strokeWidth={2} /> Slide {active + 1}
+              <Layers className="h-3.5 w-3.5" strokeWidth={2} />  {say("Slide")} {active + 1}
             </span>
             {mode === 'math' ? (
               /* The working itself: one line per line on the card. Editable
@@ -1859,7 +1857,8 @@ function MarketingBody() {
                  you would have written differently is one you can retype. */
               <div className="flex flex-col gap-1.5">
                 <span className="micro text-[0.58rem] text-ink-soft">
-                  The working — one line each
+                  
+                  {say("The working — one line each")}
                 </span>
                 <textarea
                   value={slide.steps.join('\n')}
@@ -1867,13 +1866,13 @@ function MarketingBody() {
                     patch(active, { steps: e.target.value.split('\n').map((l) => l.trimEnd()) })
                   }
                   rows={Math.min(6, Math.max(3, slide.steps.length + 1))}
-                  aria-label="The working"
+                  aria-label={say("The working")}
                   placeholder={'∫ x·eˣ dx\nu = x,  dv = eˣ dx\n= x·eˣ − ∫ eˣ dx'}
                   className="w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 font-mono text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
                 />
                 <p className="micro text-[0.55rem] text-ink-faint">
-                  Plain text, drawn straight onto the card — × ÷ √ ² π ∫ ∑ ≤ ≥ ≈ → all work. The
-                  type shrinks to fit, so a long line still lands on the slide.
+                  
+                  {say("Plain text, drawn straight onto the card — × ÷ √ ² π ∫ ∑ ≤ ≥ ≈ → all work. The type shrinks to fit, so a long line still lands on the slide.")}
                 </p>
               </div>
             ) : (
@@ -1882,8 +1881,8 @@ function MarketingBody() {
                   value={slide.imagePrompt}
                   onChange={(e) => patch(active, { imagePrompt: e.target.value })}
                   rows={2}
-                  aria-label="Picture brief"
-                  placeholder="What's in this slide's picture?"
+                  aria-label={say("Picture brief")}
+                  placeholder={say("What's in this slide's picture?")}
                   className="min-w-[220px] flex-1 resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
                 />
                 <SketchButton
@@ -1909,7 +1908,7 @@ function MarketingBody() {
             <div className="flex flex-col gap-1.5 border-t-2 border-dashed border-pencil pt-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="micro flex items-center gap-1 text-[0.58rem] font-semibold text-ink-soft">
-                  <Users className="h-3 w-3" strokeWidth={2} /> Who is in this picture
+                  <Users className="h-3 w-3" strokeWidth={2} />  {say("Who is in this picture")}
                 </span>
                 {/* Named, not counted. After the AI writes a carousel it has
                     cast every slide for you, and "2 cast" does not tell you
@@ -1930,7 +1929,8 @@ function MarketingBody() {
                     onClick={() => patch(active, { cast: [] })}
                     className="micro text-[0.55rem] font-bold text-ink-faint hover:text-red"
                   >
-                    clear
+                    
+                    {say("clear")}
                   </button>
                 )}
               </div>
@@ -2005,11 +2005,8 @@ function MarketingBody() {
                   ))}
               </div>
               <p className="micro text-[0.55rem] text-ink-faint">
-                Everyone chosen here is in the picture — the generator is told how many people to
-                fit and held to it, so two names means two faces, both looking like themselves.
-                Past {MAX_IN_FRAME} it draws {MAX_IN_FRAME} of them at random, because more than
-                that in one frame is where a generator starts blending faces. Say who is in the
-                shot in the brief above too, then redraw.
+                
+                {say("Everyone chosen here is in the picture — the generator is told how many people to fit and held to it, so two names means two faces, both looking like themselves. Past")} {MAX_IN_FRAME}  {say("it draws")} {MAX_IN_FRAME}  {say("of them at random, because more than that in one frame is where a generator starts blending faces. Say who is in the shot in the brief above too, then redraw.")}
               </p>
             </div>
             </>
@@ -2017,16 +2014,16 @@ function MarketingBody() {
             <input
               value={slide.title}
               onChange={(e) => patch(active, { title: e.target.value })}
-              aria-label="Title"
-              placeholder="Title — the big line"
+              aria-label={say("Title")}
+              placeholder={say("Title — the big line")}
               className="w-full rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 font-heading text-base font-bold text-ink shadow-offset outline-none placeholder:font-normal placeholder:text-ink-faint focus:border-blue"
             />
             <textarea
               value={slide.subtitle}
               onChange={(e) => patch(active, { subtitle: e.target.value })}
               rows={2}
-              aria-label="Subtitle"
-              placeholder="Subtitle — the smaller sentences underneath"
+              aria-label={say("Subtitle")}
+              placeholder={say("Subtitle — the smaller sentences underneath")}
               className="w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
             />
           </SketchCard>
@@ -2037,13 +2034,13 @@ function MarketingBody() {
           <SketchCard className="flex flex-col gap-3 p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
-                <UserPlus className="h-3.5 w-3.5" strokeWidth={2} /> Follow card — the last slide
+                <UserPlus className="h-3.5 w-3.5" strokeWidth={2} />  {say("Follow card — the last slide")}
               </span>
               <button
                 type="button"
                 role="switch"
                 aria-checked={follow.on}
-                aria-label="Include the follow card"
+                aria-label={say("Include the follow card")}
                 onClick={() => setFollow((f) => ({ ...f, on: !f.on }))}
                 className="flex items-center gap-2 rounded-wobble-sm border-2 border-dashed border-pencil px-2.5 py-1 text-sm font-bold text-ink"
               >
@@ -2070,8 +2067,8 @@ function MarketingBody() {
                   value={follow.headline}
                   onChange={(e) => setFollow((f) => ({ ...f, headline: e.target.value }))}
                   rows={2}
-                  aria-label="Follow headline"
-                  placeholder="You will never see this page again unless you follow us right now 👇"
+                  aria-label={say("Follow headline")}
+                  placeholder={say("You will never see this page again unless you follow us right now 👇")}
                   className="w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
                 />
 
@@ -2090,8 +2087,8 @@ function MarketingBody() {
                   <input
                     value={follow.logoPrompt}
                     onChange={(e) => setFollow((f) => ({ ...f, logoPrompt: e.target.value }))}
-                    aria-label="Logo brief"
-                    placeholder="What should the logo be? e.g. a pencil drawing an open book"
+                    aria-label={say("Logo brief")}
+                    placeholder={say("What should the logo be? e.g. a pencil drawing an open book")}
                     className="min-w-[180px] flex-1 rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
                   />
                   <SketchButton
@@ -2107,12 +2104,12 @@ function MarketingBody() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <label className="micro cursor-pointer rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink">
-                    <Upload className="mr-1 inline h-3 w-3" strokeWidth={2} /> Upload a logo
+                    <Upload className="mr-1 inline h-3 w-3" strokeWidth={2} />  {say("Upload a logo")}
                     <input
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      aria-label="Upload a logo"
+                      aria-label={say("Upload a logo")}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) uploadLogo(file);
@@ -2126,7 +2123,7 @@ function MarketingBody() {
                     onClick={() => void downloadLogo()}
                     className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink disabled:opacity-30"
                   >
-                    <Download className="mr-1 inline h-3 w-3" strokeWidth={2} /> Download the logo
+                    <Download className="mr-1 inline h-3 w-3" strokeWidth={2} />  {say("Download the logo")}
                   </button>
                   <button
                     type="button"
@@ -2134,7 +2131,8 @@ function MarketingBody() {
                     onClick={() => setFollow((f) => ({ ...f, logoUrl: null }))}
                     className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-red hover:text-red disabled:opacity-30"
                   >
-                    Remove
+                    
+                    {say("Remove")}
                   </button>
                 </div>
 
@@ -2142,15 +2140,15 @@ function MarketingBody() {
                   <input
                     value={follow.name}
                     onChange={(e) => setFollow((f) => ({ ...f, name: e.target.value }))}
-                    aria-label="Account name"
-                    placeholder="Account name"
+                    aria-label={say("Account name")}
+                    placeholder={say("Account name")}
                     className="min-w-[140px] flex-1 rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 font-heading text-base font-bold text-ink shadow-offset outline-none placeholder:font-normal placeholder:text-ink-faint focus:border-blue"
                   />
                   <button
                     type="button"
                     role="switch"
                     aria-checked={follow.verified}
-                    aria-label="Verified tick"
+                    aria-label={say("Verified tick")}
                     onClick={() => setFollow((f) => ({ ...f, verified: !f.verified }))}
                     className={cn(
                       'micro rounded-wobble-sm border-2 px-2 py-1 text-[0.6rem] font-bold transition-colors',
@@ -2159,7 +2157,7 @@ function MarketingBody() {
                         : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
                     )}
                   >
-                    <BadgeCheck className="mr-1 inline h-3 w-3" strokeWidth={2.5} /> Tick
+                    <BadgeCheck className="mr-1 inline h-3 w-3" strokeWidth={2.5} />  {say("Tick")}
                   </button>
                 </div>
 
@@ -2181,7 +2179,7 @@ function MarketingBody() {
                   value={follow.bio}
                   onChange={(e) => setFollow((f) => ({ ...f, bio: e.target.value }))}
                   rows={2}
-                  aria-label="Account bio"
+                  aria-label={say("Account bio")}
                   placeholder={'The line under the name\nA second line, e.g. a contact'}
                   className="w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
                 />
@@ -2214,16 +2212,16 @@ function MarketingBody() {
                       })
                     }
                   >
-                    <Save className="h-4 w-4" strokeWidth={2} /> Update
+                    <Save className="h-4 w-4" strokeWidth={2} />  {say("Update")}
                   </SketchButton>
                   <span className="micro text-[0.58rem] text-ink-faint">
-                    Keeps this card — logo, name, counts, bio — as the starting point for every
-                    carousel from now on.
+                    
+                    {say("Keeps this card — logo, name, counts, bio — as the starting point for every carousel from now on.")}
                   </span>
                 </div>
                 <p className="micro text-[0.58rem] text-ink-faint">
-                  Until you Update it, the card describes this site and the AI rewrites the headline
-                  for whatever the carousel is about. Everything here is yours to overwrite.
+                  
+                  {say("Until you Update it, the card describes this site and the AI rewrites the headline for whatever the carousel is about. Everything here is yours to overwrite.")}
                 </p>
               </>
             )}
@@ -2234,7 +2232,7 @@ function MarketingBody() {
           {section === 'design' && (
           <SketchCard className="flex flex-col gap-3 p-5">
             <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
-              <Type className="h-3.5 w-3.5" strokeWidth={2} /> Design — applies to every slide
+              <Type className="h-3.5 w-3.5" strokeWidth={2} />  {say("Design — applies to every slide")}
             </span>
             <div className="flex flex-wrap items-center gap-1.5">
               {FORMATS.map((f) => (
@@ -2250,7 +2248,7 @@ function MarketingBody() {
                       : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
                   )}
                 >
-                  {f.label}
+                  {say(f.label)}
                 </button>
               ))}
             </div>
@@ -2260,7 +2258,7 @@ function MarketingBody() {
               onPick={(fill) => setDesign((d) => ({ ...d, bandFill: fill }))}
             />
             <div className="flex flex-wrap items-center gap-2">
-              <span className="micro w-28 shrink-0 text-[0.6rem] text-ink-soft">Band finish</span>
+              <span className="micro w-28 shrink-0 text-[0.6rem] text-ink-soft">{say("Band finish")}</span>
               <div className="flex flex-1 flex-wrap items-center gap-1.5">
                 {FINISHES.map((f) => (
                   <button
@@ -2268,7 +2266,7 @@ function MarketingBody() {
                     type="button"
                     onClick={() => setDesign((d) => ({ ...d, bandFinish: f.id }))}
                     aria-pressed={design.bandFinish === f.id}
-                    title={f.hint}
+                    title={say(f.hint)}
                     className={cn(
                       'micro rounded-wobble-sm border-2 px-2 py-1 text-[0.6rem] font-bold transition-colors',
                       design.bandFinish === f.id
@@ -2276,7 +2274,7 @@ function MarketingBody() {
                         : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
                     )}
                   >
-                    {f.label}
+                    {say(f.label)}
                   </button>
                 ))}
               </div>
@@ -2286,7 +2284,7 @@ function MarketingBody() {
                 type="button"
                 role="switch"
                 aria-checked={design.bandOn}
-                aria-label="Caption band"
+                aria-label={say("Caption band")}
                 onClick={() => setDesign((d) => ({ ...d, bandOn: !d.bandOn }))}
                 className="flex items-center gap-2 rounded-wobble-sm border-2 border-dashed border-pencil px-2.5 py-1 text-sm font-bold text-ink"
               >
@@ -2303,13 +2301,14 @@ function MarketingBody() {
                     )}
                   />
                 </span>
-                Band
+                
+                {say("Band")}
               </button>
               <button
                 type="button"
                 role="switch"
                 aria-checked={design.inset}
-                aria-label="Float the band"
+                aria-label={say("Float the band")}
                 onClick={() => setDesign((d) => ({ ...d, inset: !d.inset }))}
                 className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink"
               >
@@ -2344,7 +2343,7 @@ function MarketingBody() {
           {section === 'words' && (
           <SketchCard className="flex flex-col gap-3 p-5">
             <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
-              <Eraser className="h-3.5 w-3.5" strokeWidth={2} /> Colour the words
+              <Eraser className="h-3.5 w-3.5" strokeWidth={2} />  {say("Colour the words")}
             </span>
             <div className="flex flex-wrap items-center gap-2">
               {COLORS.map((c) => (
@@ -2352,7 +2351,7 @@ function MarketingBody() {
                   key={c.label}
                   type="button"
                   onClick={() => setActiveColor(c.hex)}
-                  aria-label={c.label}
+                  aria-label={say(c.label)}
                   aria-pressed={activeColor === c.hex}
                   title={c.hex ? c.label : 'Default — clears a painted word'}
                   className={cn(
@@ -2366,15 +2365,17 @@ function MarketingBody() {
               <button
                 type="button"
                 onClick={() => patch(active, { titleTints: {}, subTints: {} })}
-                title="Clear every painted word on this slide"
+                title={say("Clear every painted word on this slide")}
                 className="micro ml-auto rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink"
               >
-                Reset slide colours
+                
+                {say("Reset slide colours")}
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-2 border-t-2 border-dashed border-pencil pt-3">
               <span className="micro w-full text-[0.6rem] text-ink-soft">
-                Let the AI pick the keywords in…
+                
+                {say("Let the AI pick the keywords in…")}
               </span>
               {(
                 [
@@ -2399,13 +2400,14 @@ function MarketingBody() {
               ))}
             </div>
             <p className="micro text-[0.58rem] text-ink-faint">
-              The AI reads every card and paints the words that carry it —{' '}
+              
+              {say("The AI reads every card and paints the words that carry it —")}{' '}
               <span className="font-bold" style={{ color: accent }}>
-                in the swatch you have in hand
+                
+                {say("in the swatch you have in hand")}
               </span>
-              . Repainting one half leaves the other exactly as you left it, and the whole carousel
-              gets this the moment it is written. To change one word yourself, pick a colour and
-              click it in the preview.
+              
+              {say(". Repainting one half leaves the other exactly as you left it, and the whole carousel gets this the moment it is written. To change one word yourself, pick a colour and click it in the preview.")}
             </p>
           </SketchCard>
           )}
@@ -2414,14 +2416,14 @@ function MarketingBody() {
           {section === 'music' && (
           <SketchCard className="flex flex-col gap-3 p-5">
             <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
-              <Music className="h-3.5 w-3.5" strokeWidth={2} /> Music under the carousel
+              <Music className="h-3.5 w-3.5" strokeWidth={2} />  {say("Music under the carousel")}
             </span>
             <textarea
               value={musicPrompt}
               onChange={(e) => setMusicPrompt(e.target.value)}
               rows={2}
-              aria-label="Music brief"
-              placeholder="What should it sound like? e.g. warm lo-fi beat, soft rhodes, unhurried"
+              aria-label={say("Music brief")}
+              placeholder={say("What should it sound like? e.g. warm lo-fi beat, soft rhodes, unhurried")}
               className="w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
             />
             <div className="flex flex-wrap items-center gap-2">
@@ -2436,19 +2438,21 @@ function MarketingBody() {
                 }
                 className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink disabled:opacity-40"
               >
-                Use the carousel's subject
+                
+                {say("Use the carousel's subject")}
               </button>
               <label className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
-                Length
+                
+                {say("Length")}
                 <select
                   value={musicSeconds}
                   onChange={(e) => setMusicSeconds(Number(e.target.value))}
-                  aria-label="Music length"
+                  aria-label={say("Music length")}
                   className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-2 py-1 text-[0.7rem] text-ink shadow-offset outline-none focus:border-blue"
                 >
                   {[10, 15, 20, 30, 45, 60].map((s) => (
                     <option key={s} value={s}>
-                      {s}s
+                      {s}{say("s")}
                     </option>
                   ))}
                 </select>
@@ -2470,7 +2474,7 @@ function MarketingBody() {
                   src={music.url}
                   controls
                   loop
-                  aria-label="The post's music"
+                  aria-label={say("The post's music")}
                   className="min-w-[220px] flex-1"
                 />
                 <a
@@ -2478,22 +2482,21 @@ function MarketingBody() {
                   download="sketchlearn-post-music.mp3"
                   className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink"
                 >
-                  <Download className="mr-1 inline h-3 w-3" strokeWidth={2} /> Download
+                  <Download className="mr-1 inline h-3 w-3" strokeWidth={2} />  {say("Download")}
                 </a>
                 <button
                   type="button"
                   onClick={() => setMusic(null)}
-                  aria-label="Remove the music"
+                  aria-label={say("Remove the music")}
                   className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-red hover:text-red"
                 >
-                  <Trash2 className="mr-1 inline h-3 w-3" strokeWidth={2} /> Remove
+                  <Trash2 className="mr-1 inline h-3 w-3" strokeWidth={2} />  {say("Remove")}
                 </button>
               </div>
             )}
             <p className="micro text-[0.58rem] text-ink-faint">
-              Written by ElevenLabs from that brief and posted with the carousel, where it loops
-              under the pictures — muted until someone turns it on, which is the only way a
-              browser will let a feed make noise. Optional: a post without music simply has none.
+              
+              {say("Written by ElevenLabs from that brief and posted with the carousel, where it loops under the pictures — muted until someone turns it on, which is the only way a browser will let a feed make noise. Optional: a post without music simply has none.")}
               {musicCost != null
                 ? ` ${musicSeconds}s costs ${musicCost} 🪙, and it is charged the same to everyone.`
                 : ''}
@@ -2506,14 +2509,14 @@ function MarketingBody() {
           <SketchCard className="flex flex-col gap-3 p-5">
             <div className="flex flex-col gap-2">
               <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
-                <Send className="h-3.5 w-3.5" strokeWidth={2} /> Put it on the feed
+                <Send className="h-3.5 w-3.5" strokeWidth={2} />  {say("Put it on the feed")}
               </span>
               <textarea
                 value={caption}
                 onChange={(e) => setCaption(e.target.value)}
                 rows={2}
-                aria-label="Post caption"
-                placeholder="The caption under the post — the first line becomes its address"
+                aria-label={say("Post caption")}
+                placeholder={say("The caption under the post — the first line becomes its address")}
                 className="w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
               />
               {/* Who it is for. Three states rather than a public switch,
@@ -2522,7 +2525,7 @@ function MarketingBody() {
               <div className="flex flex-col gap-2 rounded-wobble-sm border-2 border-dashed border-pencil p-2.5">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="micro flex items-center gap-1 text-[0.58rem] font-semibold text-ink-soft">
-                    <Eye className="h-3 w-3" strokeWidth={2} /> Who sees it
+                    <Eye className="h-3 w-3" strokeWidth={2} />  {say("Who sees it")}
                   </span>
                   {POST_VISIBILITY.map((v) => (
                     <button
@@ -2560,7 +2563,8 @@ function MarketingBody() {
                     className="micro flex w-fit items-center gap-1.5 text-[0.58rem] font-semibold text-ink-soft hover:text-ink"
                   >
                     <UserPlus className="h-3 w-3" strokeWidth={2} />
-                    Also send it to particular people
+                    
+                    {say("Also send it to particular people")}
                     {sendTo.length > 0 ? ` — ${sendTo.length}` : ''}
                     <ChevronRight
                       className={cn('h-3 w-3 transition-transform', sending && 'rotate-90')}
@@ -2573,8 +2577,8 @@ function MarketingBody() {
                     <input
                       value={userQuery}
                       onChange={(e) => setUserQuery(e.target.value)}
-                      aria-label="Find a user"
-                      placeholder="Find someone by name"
+                      aria-label={say("Find a user")}
+                      placeholder={say("Find someone by name")}
                       className="w-full rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-1.5 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
                     />
                     <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto">
@@ -2610,7 +2614,8 @@ function MarketingBody() {
                       })}
                       {directory.data?.length === 0 && (
                         <span className="micro text-[0.58rem] text-ink-faint">
-                          Nobody by that name.
+                          
+                          {say("Nobody by that name.")}
                         </span>
                       )}
                     </div>
@@ -2631,23 +2636,25 @@ function MarketingBody() {
                   disabled={caption.trim().length === 0}
                   onClick={() => void publish()}
                 >
-                  <Send className="h-4 w-4" strokeWidth={2.5} /> Post {total} slide
+                  <Send className="h-4 w-4" strokeWidth={2.5} />  {say("Post")} {total}  {say("slide")}
                   {total === 1 ? '' : 's'}
                 </SketchButton>
                 <span className="micro text-[0.58rem] text-ink-faint">
-                  Filed under {TEMPLATE_META[category].label}
+                  
+                  {say("Filed under")} {TEMPLATE_META[category].label}
                   {music ? `, with ${music.seconds}s of music` : ''},{' '}
                   {VISIBILITY_LABEL[who].toLowerCase()}
                   {sendTo.length > 0
                     ? `, sent to ${sendTo.length} ${sendTo.length === 1 ? 'person' : 'people'}`
                     : ''}
-                  . Publishing is free — the pictures are already paid for.
+                  
+                  {say(". Publishing is free — the pictures are already paid for.")}
                 </span>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 border-t-2 border-dashed border-pencil pt-3">
               <SketchButton variant="accent" loading={busy} onClick={() => void download(false)}>
-                <Download className="h-4 w-4" strokeWidth={2.5} /> Download slide
+                <Download className="h-4 w-4" strokeWidth={2.5} />  {say("Download slide")}
               </SketchButton>
               <SketchButton
                 variant="secondary"
@@ -2655,10 +2662,11 @@ function MarketingBody() {
                 disabled={total < 2}
                 onClick={() => void download(true)}
               >
-                <Download className="h-4 w-4" strokeWidth={2} /> Download all {total} as a zip
+                <Download className="h-4 w-4" strokeWidth={2} />  {say("Download all")} {total}  {say("as a zip")}
               </SketchButton>
               <span className="micro text-[0.58rem] text-ink-faint">
-                PNG · {OUT_W} × {outH}
+                
+                {say("PNG ·")} {OUT_W} × {outH}
               </span>
               {confirm.muted && (
                 <button
@@ -2666,7 +2674,8 @@ function MarketingBody() {
                   onClick={() => confirm.setMuted(false)}
                   className="micro ml-auto rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.58rem] font-bold text-ink-soft hover:border-ink hover:text-ink"
                 >
-                  Cost reminders are off — turn them back on
+                  
+                  {say("Cost reminders are off — turn them back on")}
                 </button>
               )}
             </div>
@@ -2758,9 +2767,9 @@ function Swatches({
             key={b.label}
             type="button"
             onClick={() => onPick(b.fill)}
-            aria-label={b.label}
+            aria-label={say(b.label)}
             aria-pressed={value === b.fill}
-            title={b.label}
+            title={say(b.label)}
             className={cn(
               'h-7 w-7 rounded-full border-2 transition-transform hover:scale-110',
               value === b.fill ? 'border-ink ring-2 ring-blue' : 'border-pencil',
@@ -2769,7 +2778,7 @@ function Swatches({
           />
         ))}
         <label
-          title="Mix any other colour"
+          title={say("Mix any other colour")}
           className="flex h-7 cursor-pointer items-center gap-1 rounded-wobble-sm border-2 border-dashed border-pencil px-1.5 text-ink-soft hover:border-ink hover:text-ink"
         >
           <Palette className="h-3.5 w-3.5" strokeWidth={2} />
