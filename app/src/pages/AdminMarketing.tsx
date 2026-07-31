@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BadgeCheck,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -14,11 +15,13 @@ import {
   Type,
   Upload,
   UserPlus,
+  Users,
   Wand2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { FONT, OUT_W, bandRgb, inkFor, tintsFrom, wordsOf } from '@/lib/caption-words';
+import { type ZipEntry, canvasBytes, makeZip } from '@/lib/zip';
 import { trpc } from '@/providers/trpc';
 import FollowPreview from '@/components/marketing/FollowPreview';
 import {
@@ -123,6 +126,8 @@ interface Slide {
   id: string;
   imageUrl: string | null;
   imagePrompt: string;
+  /** names of the cast members this slide's picture shows */
+  cast: string[];
   title: string;
   subtitle: string;
   /** word index → hex. Absent = the band's default ink. */
@@ -149,6 +154,7 @@ const newSlide = (n: number): Slide => ({
   id: `s${n}-${Math.random().toString(36).slice(2, 8)}`,
   imageUrl: null,
   imagePrompt: '',
+  cast: [],
   title: '',
   subtitle: '',
   titleTints: {},
@@ -288,6 +294,11 @@ function MarketingBody() {
   const [drawing, setDrawing] = useState<number | null>(null);
   const [follow, setFollow] = useState<FollowCard>(emptyFollowCard);
   const [drawingLogo, setDrawingLogo] = useState(false);
+  /** ids of the models this carousel may draw from */
+  const [picked, setPicked] = useState<string[]>([]);
+  const [castOpen, setCastOpen] = useState(false);
+  const [modelNote, setModelNote] = useState('');
+  const [reading, setReading] = useState(false);
 
   const measureRef = useRef<CanvasRenderingContext2D | null>(null);
   if (measureRef.current === null && typeof document !== 'undefined') {
@@ -299,6 +310,21 @@ function MarketingBody() {
   /* Who is posting: this site's own name and bio, read from the same
    * description the About page renders. It seeds the card once, so the thing
    * is already right before anyone types — and never fights an edit. */
+  const cast = trpc.cast.list.useQuery();
+  /* The pool the AI may cast from, and the lookup that turns the names it
+   * chose back into the sheets an image prompt needs. */
+  const roster = useMemo(() => cast.data ?? [], [cast.data]);
+  const pickedModels = useMemo(
+    () => roster.filter((m) => picked.includes(m.id)),
+    [roster, picked],
+  );
+  const sheetsFor = (names: string[]) => {
+    const want = names.map((n) => n.trim().toLowerCase());
+    return pickedModels
+      .filter((m) => want.includes(m.name.trim().toLowerCase()))
+      .map((m) => ({ name: m.name, headline: m.headline, sheet: m.sheet }));
+  };
+
   const brand = trpc.marketing.brand.useQuery();
   const seeded = useRef(false);
   useEffect(() => {
@@ -343,6 +369,7 @@ function MarketingBody() {
           title: s.title,
           subtitle: s.subtitle,
           imagePrompt: s.imagePrompt,
+          cast: s.cast,
           titleTints: tintsFrom(s.title, s.titleKeywords, accent),
           subTints: tintsFrom(s.subtitle, s.subtitleKeywords, accent),
         })),
@@ -405,7 +432,11 @@ function MarketingBody() {
     if (prompt.length < 3) return;
     setDrawing(i);
     try {
-      const r = await utils.client.marketing.generate.mutate({ prompt, format: design.format });
+      const r = await utils.client.marketing.generate.mutate({
+        prompt,
+        format: design.format,
+        cast: sheetsFor(slides[i].cast),
+      });
       patch(i, { imageUrl: r.url });
       toast.success(`Backdrop drawn — ${r.cost} 🪙`);
       void utils.auth.me.invalidate();
@@ -427,6 +458,7 @@ function MarketingBody() {
         const r = await utils.client.marketing.generate.mutate({
           prompt: s.imagePrompt.trim(),
           format: design.format,
+          cast: sheetsFor(s.cast),
         });
         patch(i, { imageUrl: r.url });
         made++;
@@ -536,23 +568,33 @@ function MarketingBody() {
     a.click();
   };
 
-  const downloadOne = async (index: number) => {
-    const isFollow = follow.on && index === slides.length;
-    const canvas = isFollow ? await renderFollow() : await renderSlide(slides[index]);
-    saveCanvas(canvas, isFollow ? 'sketchlearn-post-follow.png' : `sketchlearn-post-${index + 1}.png`);
-  };
+  const slideName = (index: number) =>
+    follow.on && index === slides.length
+      ? 'sketchlearn-post-follow.png'
+      : `sketchlearn-post-${index + 1}.png`;
+
+  const renderAt = (index: number) =>
+    follow.on && index === slides.length ? renderFollow() : renderSlide(slides[index]);
 
   const download = async (all: boolean) => {
     setBusy(true);
     try {
       if (all) {
+        // One archive rather than a burst of saves — a six-slide carousel used
+        // to mean six trips through the download bar.
+        const entries: ZipEntry[] = [];
         for (let i = 0; i < total; i++) {
-          await downloadOne(i);
-          await new Promise((r) => setTimeout(r, 350)); // let each save land
+          entries.push({ name: slideName(i), bytes: await canvasBytes(await renderAt(i)) });
         }
-        toast.success(`${total} slide${total === 1 ? '' : 's'} downloaded ✓`);
+        const blob = new Blob([makeZip(entries) as BlobPart], { type: 'application/zip' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'sketchlearn-carousel.zip';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        toast.success(`${total} slide${total === 1 ? '' : 's'} zipped ✓`);
       } else {
-        await downloadOne(active);
+        saveCanvas(await renderAt(active), slideName(active));
         toast.success('Slide downloaded ✓');
       }
     } catch (err) {
@@ -577,6 +619,44 @@ function MarketingBody() {
       toast.error(err instanceof Error ? err.message : "That logo couldn't be drawn");
     } finally {
       setDrawingLogo(false);
+    }
+  };
+
+  /** Read an uploaded photograph into a reusable cast member. */
+  const modelFromPhoto = (file: File) => {
+    if (file.size > 6_000_000) return toast.error('That photo is over 6 MB — try a smaller one');
+    const reader = new FileReader();
+    reader.onload = async () => {
+      setReading(true);
+      try {
+        const r = await utils.client.cast.fromPhoto.mutate({
+          image: String(reader.result),
+          note: modelNote.trim(),
+        });
+        await cast.refetch();
+        setPicked((p) => [...p, r.model.id]);
+        setModelNote('');
+        toast.success(`${r.model.name} joined the cast — ${r.cost} 🪙`);
+        void utils.auth.me.invalidate();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "That photo couldn't be read");
+      } finally {
+        setReading(false);
+      }
+    };
+    reader.onerror = () => toast.error("That file couldn't be read");
+    reader.readAsDataURL(file);
+  };
+
+  const removeModel = async (id: string) => {
+    const numeric = Number(id.replace('own-', ''));
+    if (!numeric) return;
+    try {
+      await utils.client.cast.remove.mutate({ id: numeric });
+      setPicked((p) => p.filter((x) => x !== id));
+      await cast.refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "That model couldn't be removed");
     }
   };
 
@@ -800,6 +880,146 @@ function MarketingBody() {
 
         {/* ---------------- controls ---------------- */}
         <div className="flex flex-col gap-4">
+          {/* the cast */}
+          <SketchCard className="flex flex-col gap-3 p-5">
+            <button
+              type="button"
+              onClick={() => setCastOpen((o) => !o)}
+              aria-expanded={castOpen}
+              className="flex w-full items-center gap-2 text-left"
+            >
+              <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
+                <Users className="h-3.5 w-3.5" strokeWidth={2} /> The cast
+              </span>
+              <span className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-1.5 text-[0.58rem] font-bold text-ink-soft">
+                {picked.length ? `${picked.length} picked` : 'nobody picked'}
+              </span>
+              <ChevronDown
+                className={cn('ml-auto h-4 w-4 text-ink-soft transition-transform', castOpen && 'rotate-180')}
+                strokeWidth={2}
+              />
+            </button>
+
+            {/* who is picked, always visible so it reads at a glance */}
+            {picked.length > 0 && !castOpen && (
+              <div className="flex flex-wrap gap-1.5">
+                {pickedModels.map((m) => (
+                  <span
+                    key={m.id}
+                    className="micro rounded-wobble-sm border-2 border-ink bg-yellow-soft px-2 py-0.5 text-[0.58rem] font-bold text-ink"
+                  >
+                    {m.name}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {castOpen && (
+              <>
+                <div className="grid gap-1.5 sm:grid-cols-2">
+                  {roster.map((m) => {
+                    const on = picked.includes(m.id);
+                    return (
+                      <div
+                        key={m.id}
+                        className={cn(
+                          'flex items-center gap-2 rounded-wobble-sm border-2 p-1.5 transition-colors',
+                          on ? 'border-ink bg-yellow-soft shadow-offset' : 'border-dashed border-pencil',
+                        )}
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPicked((p) => (on ? p.filter((x) => x !== m.id) : [...p, m.id]))
+                          }
+                          aria-pressed={on}
+                          aria-label={m.name}
+                          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                        >
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-ink bg-paper-2 font-heading text-[0.6rem] font-bold text-ink">
+                            {m.photoUrl ? (
+                              <img src={m.photoUrl} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              m.name
+                                .split(' ')
+                                .map((w) => w[0])
+                                .join('')
+                                .slice(0, 2)
+                            )}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-[0.8rem] font-bold text-ink">
+                              {m.name}
+                            </span>
+                            <span className="micro block truncate text-[0.55rem] text-ink-soft">
+                              {m.headline}
+                            </span>
+                          </span>
+                        </button>
+                        {m.custom && (
+                          <button
+                            type="button"
+                            onClick={() => void removeModel(m.id)}
+                            aria-label={`Remove ${m.name}`}
+                            title="Remove this model"
+                            className="shrink-0 text-ink-faint hover:text-red"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 border-t-2 border-dashed border-pencil pt-3">
+                  <input
+                    value={modelNote}
+                    onChange={(e) => setModelNote(e.target.value)}
+                    aria-label="Model note"
+                    placeholder="Optional — what to call them, e.g. “Sam, runs the workshop”"
+                    className="min-w-[200px] flex-1 rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
+                  />
+                  <label
+                    className={cn(
+                      'micro cursor-pointer rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink',
+                      reading && 'pointer-events-none opacity-50',
+                    )}
+                  >
+                    <Upload className="mr-1 inline h-3 w-3" strokeWidth={2} />
+                    {reading ? 'Reading the photo…' : 'New model from a photo'}
+                    {quote.data ? ` — 1 🪙` : ''}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      aria-label="New model from a photo"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) modelFromPhoto(file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setPicked(picked.length === roster.length ? [] : roster.map((m) => m.id))}
+                    className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink"
+                  >
+                    {picked.length === roster.length ? 'Pick nobody' : 'Pick everyone'}
+                  </button>
+                </div>
+                <p className="micro text-[0.58rem] text-ink-faint">
+                  Pick who may appear and the AI casts each slide from them — often only two or
+                  three across a whole carousel, and nobody at all on a slide that is a close-up.
+                  They are written descriptions, not photos, so a shot of just hands still carries
+                  the right skin, build and nails. The same cast is here for every carousel you
+                  make, which is what keeps a feed looking like one feed.
+                </p>
+              </>
+            )}
+          </SketchCard>
+
           {/* the story */}
           <SketchCard className="flex flex-col gap-3 p-5">
             <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
@@ -831,7 +1051,16 @@ function MarketingBody() {
                 loading={storyboard.isPending}
                 disabled={topic.trim().length < 3}
                 onClick={() =>
-                  storyboard.mutate({ topic: topic.trim(), slideCount, format: design.format })
+                  storyboard.mutate({
+                    topic: topic.trim(),
+                    slideCount,
+                    format: design.format,
+                    cast: pickedModels.map((m) => ({
+                      name: m.name,
+                      headline: m.headline,
+                      sheet: m.sheet,
+                    })),
+                  })
                 }
               >
                 <Sparkles className="h-4 w-4" strokeWidth={2.5} /> Write the carousel
@@ -879,6 +1108,40 @@ function MarketingBody() {
                 {imgCost != null ? ` — ${imgCost} 🪙` : ''}
               </SketchButton>
             </div>
+            {pickedModels.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="micro text-[0.58rem] text-ink-soft">In this picture</span>
+                {pickedModels.map((m) => {
+                  const on = slide.cast.some((n) => n.toLowerCase() === m.name.toLowerCase());
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() =>
+                        patch(active, {
+                          cast: on
+                            ? slide.cast.filter((n) => n.toLowerCase() !== m.name.toLowerCase())
+                            : [...slide.cast, m.name],
+                        })
+                      }
+                      aria-pressed={on}
+                      title={m.headline}
+                      className={cn(
+                        'micro rounded-wobble-sm border-2 px-2 py-0.5 text-[0.58rem] font-bold transition-colors',
+                        on
+                          ? 'border-ink bg-yellow text-ink shadow-offset'
+                          : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                      )}
+                    >
+                      {m.name}
+                    </button>
+                  );
+                })}
+                {slide.cast.length === 0 && (
+                  <span className="micro text-[0.55rem] text-ink-faint">nobody — an object shot</span>
+                )}
+              </div>
+            )}
             <input
               value={slide.title}
               onChange={(e) => patch(active, { title: e.target.value })}
@@ -1243,10 +1506,10 @@ function MarketingBody() {
               <SketchButton
                 variant="secondary"
                 loading={busy}
-                disabled={slides.length < 2}
+                disabled={total < 2}
                 onClick={() => void download(true)}
               >
-                <Download className="h-4 w-4" strokeWidth={2} /> Download all {slides.length}
+                <Download className="h-4 w-4" strokeWidth={2} /> Download all {total} as a zip
               </SketchButton>
               <span className="micro text-[0.58rem] text-ink-faint">
                 PNG · {OUT_W} × {outH}

@@ -10,6 +10,7 @@ import { applyTokenDelta } from "../tokens.js";
 import { getSettings } from "../settings.js";
 import { IMAGE_URL_PREFIX } from "../deck-images.js";
 import { SITE, siteBrief } from "../../contracts/site.js";
+import { castDirective, castRoster } from "../../contracts/cast.js";
 
 /** What one storyboard costs. Text-only, so a flat small fee like the other
  *  short AI writes (grading, recalibration) rather than an image price. */
@@ -70,8 +71,17 @@ const slideSchema = z
     title: z.string().max(120).default(""),
     subtitle: z.string().max(300).default(""),
     imagePrompt: z.string().max(600).default(""),
+    /** which of the selected models this slide's picture should show */
+    cast: z.array(z.string().max(120)).max(6).default([]),
   })
   .merge(keywordsSchema);
+
+/** A model as the editor sends it — the sheet is the part that matters. */
+const castMemberSchema = z.object({
+  name: z.string().max(120),
+  headline: z.string().max(200).default(""),
+  sheet: z.string().max(2000),
+});
 
 /** The two lines of the closing follow card the AI is allowed to write. The
  *  rest of that card — handle, counts, logo — is the user's to set. */
@@ -82,6 +92,27 @@ const endCardSchema = z.object({
 
 /** How the keyword half of a reply is asked for, shared by both endpoints so
  *  a story write and a later re-highlight pick words the same way. */
+/**
+ * How the storyboard is told about the cast.
+ *
+ * Deliberately permissive: the selection is a pool to draw from, not a
+ * checklist to satisfy. Ten chosen models with three actually used across a
+ * carousel is the right outcome if that is what the story wants — forcing all
+ * of them in would make the posts worse, which is the opposite of the point.
+ */
+function castRule(cast: { name: string; headline: string }[]): string {
+  if (cast.length === 0) return "";
+  return (
+    `A recurring cast is available for the photographs: ${castRoster(cast)}. ` +
+    "For each slide put the names you want in that picture in its cast array — usually one, " +
+    "sometimes two, and an empty array for a slide that is a close-up of an object or a place " +
+    "with nobody in it. You do NOT have to use everyone; picking three of them across the whole " +
+    "carousel is fine if that serves the story better. Choose whoever fits the moment. Write " +
+    "the imagePrompt around the action and the setting and refer to the person by name — their " +
+    "appearance is supplied separately, so do not describe their looks yourself. "
+  );
+}
+
 const KEYWORD_RULE =
   "Also pick out the words worth colouring — the ones that carry the meaning and " +
   "should catch the eye when someone scrolls past. titleKeywords: 1 to 2 words from " +
@@ -126,6 +157,8 @@ export const marketingRouter = createRouter({
         topic: z.string().min(3).max(500),
         slideCount: z.number().int().min(2).max(10).default(5),
         format: z.enum(["9:16", "4:5", "1:1"]).default("9:16"),
+        /** the models available to cast from; may be empty */
+        cast: z.array(castMemberSchema).max(12).default([]),
       }),
     )
     .mutation(
@@ -152,6 +185,7 @@ export const marketingRouter = createRouter({
           "subtitle — one or two short sentences that explain it; imagePrompt — a concrete " +
           "description of a photograph for that slide's backdrop (setting, subject, action, " +
           "light), showing adults, no text in the picture. Write for adults. " +
+          castRule(input.cast) +
           KEYWORD_RULE +
           " The carousel closes with a follow card for the account posting it. Write its two " +
           "lines from the account description below, bent towards this carousel's subject: " +
@@ -160,7 +194,7 @@ export const marketingRouter = createRouter({
           "may be a contact line. " +
           `The account: ${siteBrief()} ` +
           'Reply STRICT JSON ONLY: {"slides":[{"title":"…","subtitle":"…","imagePrompt":"…",' +
-          '"titleKeywords":["…"],"subtitleKeywords":["…"]}],' +
+          '"titleKeywords":["…"],"subtitleKeywords":["…"],"cast":["…"]}],' +
           '"endCard":{"headline":"…","bio":"…"}}';
         let parsed: { slides?: unknown; endCard?: unknown } | null = null;
         for (let attempt = 0; attempt < 2 && parsed === null; attempt++) {
@@ -312,11 +346,15 @@ export const marketingRouter = createRouter({
       z.object({
         prompt: z.string().min(3).max(1000),
         format: z.enum(["9:16", "4:5", "1:1"]).default("9:16"),
+        /** the models this frame shows, so they come back looking the same */
+        cast: z.array(castMemberSchema).max(6).default([]),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ url: string; cost: number }> =>
       drawAndStore(ctx.user.id, ctx.user.tokenBalance, {
-        prompt: `${input.prompt}\n\n${postDirective(input.format)}`,
+        prompt: [input.prompt, castDirective(input.cast), postDirective(input.format)]
+          .filter(Boolean)
+          .join("\n\n"),
         what: "a post image",
         note: `marketing post: ${input.prompt.slice(0, 55)}`,
       }),
