@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { Link } from 'react-router';
-import { MessageCircle, Trash2 } from 'lucide-react';
+import { Download, MessageCircle, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { type ZipEntry, makeZip } from '@/lib/zip';
 import { TEMPLATE_META, VerifiedBadge } from '@/components/repo/shared';
 import type { PostCategory, PostSummary } from '@contracts/post';
 
@@ -10,6 +13,15 @@ import type { PostCategory, PostSummary } from '@contracts/post';
  * One component for two places — the column beside the post in the feed, and
  * the same column on a post's own page — because they are the same panel and
  * were drifting apart as two copies. */
+
+/** Whatever the image route said it served, as a file extension. */
+function extFor(mime: string | null): string {
+  const type = (mime ?? '').split(';')[0].trim().toLowerCase();
+  if (type === 'image/jpeg' || type === 'image/jpg') return 'jpg';
+  if (type === 'image/webp') return 'webp';
+  if (type === 'image/gif') return 'gif';
+  return 'png';
+}
 
 export default function PostDetails({
   post,
@@ -22,6 +34,37 @@ export default function PostDetails({
 }) {
   const meta = TEMPLATE_META[post.category as PostCategory] ?? TEMPLATE_META.course;
   const Icon = meta.icon;
+  const [zipping, setZipping] = useState(false);
+  const when = new Date(post.createdAt);
+
+  /* Every slide of the post in one archive. The pictures are already stored
+     PNGs behind /api/img, so this is a fetch and a zip — nothing is redrawn,
+     and what you get is exactly what was published. */
+  const downloadZip = async () => {
+    setZipping(true);
+    try {
+      const entries: ZipEntry[] = [];
+      for (let i = 0; i < post.imageUrls.length; i++) {
+        const res = await fetch(post.imageUrls[i]);
+        if (!res.ok) throw new Error(`Slide ${i + 1} couldn't be fetched`);
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        const n = String(i + 1).padStart(2, '0');
+        entries.push({ name: `${post.slug}-${n}.${extFor(res.headers.get('content-type'))}`, bytes });
+      }
+      const blob = new Blob([makeZip(entries) as BlobPart], { type: 'application/zip' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${post.slug}.zip`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast.success(`${entries.length} slide${entries.length === 1 ? '' : 's'} zipped ✓`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Those images couldn't be downloaded");
+    } finally {
+      setZipping(false);
+    }
+  };
+
   return (
     <div className={cn('flex min-h-0 min-w-0 flex-col', className)}>
       <header className="flex items-center gap-2 border-b-2 border-dashed border-pencil px-4 py-3">
@@ -71,10 +114,24 @@ export default function PostDetails({
         )}
       </div>
 
-      <p className="micro border-t-2 border-dashed border-pencil px-4 py-2 text-[0.55rem] text-ink-faint">
-        {new Date(post.createdAt).toLocaleDateString()} · {post.imageUrls.length} slide
-        {post.imageUrls.length === 1 ? '' : 's'}
-      </p>
+      <div className="flex items-center gap-2 border-t-2 border-dashed border-pencil px-4 py-2">
+        <p className="micro min-w-0 flex-1 text-[0.55rem] text-ink-faint">
+          {when.toLocaleDateString()} ·{' '}
+          {when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} ·{' '}
+          {post.imageUrls.length} slide{post.imageUrls.length === 1 ? '' : 's'}
+        </p>
+        <button
+          type="button"
+          onClick={() => void downloadZip()}
+          disabled={zipping || post.imageUrls.length === 0}
+          aria-label="Download the images as a zip"
+          title="Download the images as a zip"
+          className="micro flex shrink-0 items-center gap-1 rounded-wobble-sm border-2 border-dashed border-pencil px-1.5 py-0.5 text-[0.55rem] font-bold text-ink-soft transition-colors hover:border-ink hover:text-ink disabled:opacity-40"
+        >
+          <Download className="h-3 w-3" strokeWidth={2} />
+          {zipping ? 'Zipping…' : 'Zip'}
+        </button>
+      </div>
       {/* Where the conversation will go. Marked out rather than hidden, so the
           panel does not need rearranging when it arrives. */}
       <div className="flex items-center gap-2 border-t-2 border-dashed border-pencil px-4 py-3 text-ink-faint">
