@@ -150,6 +150,11 @@ export const castRouter = createRouter({
    * the image generator from then on. That is what makes an uploaded person
    * usable in a frame that shows only their hands — and it works on every
    * provider we have, which handing the pixels to an image model would not.
+   *
+   * One at a time, and only for the account that made it. A model read out of
+   * a photograph is a likeness of a real person, so it is not something to
+   * accumulate quietly or to share around: this account may hold exactly one,
+   * and making another means deleting the one it has.
    */
   fromPhoto: adminProcedure
     .input(
@@ -163,6 +168,17 @@ export const castRouter = createRouter({
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ model: CastModel; cost: number }> => {
+      const [held] = await getDb()
+        .select({ id: castModels.id, name: castModels.name })
+        .from(castModels)
+        .where(eq(castModels.ownerId, ctx.user.id))
+        .limit(1);
+      if (held) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `You already have a model made from a photo — ${held.name}. Delete them first, then upload a new photo.`,
+        });
+      }
       if (ctx.user.tokenBalance < DESCRIBE_COST) {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -267,6 +283,16 @@ export const castRouter = createRouter({
       await getDb()
         .delete(castModels)
         .where(and(eq(castModels.id, input.id), eq(castModels.ownerId, ctx.user.id)));
+      // Take the drawn portrait with them. Nothing else refers to it, and
+      // leaving it behind would hand a future model the old face.
+      await getDb()
+        .delete(castPortraits)
+        .where(
+          and(
+            eq(castPortraits.ownerId, ctx.user.id),
+            eq(castPortraits.modelId, `own-${input.id}`),
+          ),
+        );
       return { ok: true };
     }),
 });

@@ -540,6 +540,8 @@ export const posts = appSchema.table(
     /** the shape they were exported at, so the feed reserves the right space */
     width: integer("width").notNull().default(1080),
     height: integer("height").notNull().default(1350),
+    /** a music bed, parked in slideImages like everything else with bytes */
+    audioId: integer("audioId"),
     isPublic: boolean("isPublic").notNull().default(true),
     createdAt: createdAt(),
   },

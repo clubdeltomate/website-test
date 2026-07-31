@@ -860,6 +860,8 @@ export interface PriceSettings {
   perSlideBase: number;
   perImageSlide: number;
   perTts: number;
+  /** Coins for a 30-second music bed on a post; longer clips scale from it. */
+  perMusic?: number;
   levelMultiplier: Record<Level, number>;
   /** Admin-set ticket price in coins; null/absent = auto (the price of the
    *  most expensive possible customization). Set from Finance → Set prices. */

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   ChevronDown,
@@ -8,6 +8,8 @@ import {
   Grid3x3,
   Plus,
   Rows3,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -72,8 +74,28 @@ const MEDIA_MAX_H = '1400px';
  */
 export function Carousel({ post, height }: { post: PostSummary; height?: string }) {
   const [at, setAt] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const audio = useRef<HTMLAudioElement | null>(null);
   const many = post.imageUrls.length > 1;
   const ratio = `${post.width} / ${post.height}`;
+
+  /* Sound starts off. No browser lets a page make noise unasked, and no
+     reader wants it to — so the music waits behind a button, the way it does
+     on every feed that has any. */
+  const toggleSound = () => {
+    const el = audio.current;
+    if (!el) return;
+    if (playing) {
+      el.pause();
+      setPlaying(false);
+    } else {
+      void el.play().then(
+        () => setPlaying(true),
+        () => setPlaying(false),
+      );
+    }
+  };
+
   return (
     // A column of its own, so the dots sit under the picture whichever
     // direction the parent happens to lay its children out in.
@@ -114,6 +136,25 @@ export function Carousel({ post, height }: { post: PostSummary; height?: string 
           <span className="absolute right-2 top-2 rounded-full border-2 border-ink bg-paper-3/90 px-2 font-mono text-[0.6rem] text-ink">
             {at + 1}/{post.imageUrls.length}
           </span>
+        </>
+      )}
+      {post.audioUrl && (
+        <>
+          <audio ref={audio} src={post.audioUrl} loop preload="none" />
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label={playing ? 'Mute the music' : 'Play the music'}
+            title={playing ? 'Mute' : 'Play the music'}
+            aria-pressed={playing}
+            className="absolute bottom-2 right-2 rounded-full border-2 border-ink bg-paper-3/90 p-1.5 text-ink shadow-offset"
+          >
+            {playing ? (
+              <Volume2 className="h-4 w-4" strokeWidth={2.5} />
+            ) : (
+              <VolumeX className="h-4 w-4" strokeWidth={2.5} />
+            )}
+          </button>
         </>
       )}
     </div>

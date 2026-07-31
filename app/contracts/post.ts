@@ -41,6 +41,8 @@ export interface PostSummary {
   category: string;
   /** every slide, in carousel order */
   imageUrls: string[];
+  /** the music bed under it, if one was made */
+  audioUrl: string | null;
   width: number;
   height: number;
   ownerId: number;

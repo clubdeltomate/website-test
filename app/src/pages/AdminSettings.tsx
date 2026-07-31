@@ -162,6 +162,21 @@ function PricingTab({
               onChange={(v) => setPrices({ perTts: v })}
             />
           </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div>
+              <p className="font-heading font-semibold text-ink">Post music</p>
+              <p className="text-xs text-ink-faint">
+                Per 30 seconds of ElevenLabs music on a marketing post; longer clips scale from
+                it. Charged to everyone, admins included.
+              </p>
+            </div>
+            <NumberStepper
+              value={p.perMusic ?? 20}
+              step={1}
+              ariaLabel="Per music clip"
+              onChange={(v) => setPrices({ perMusic: v })}
+            />
+          </div>
           <div className="py-3">
             <p className="font-heading font-semibold text-ink">Level multipliers</p>
             <p className="mb-2 text-xs text-ink-faint">Applied to the whole estimate.</p>

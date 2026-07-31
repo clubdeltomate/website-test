@@ -377,6 +377,26 @@ function BalanceFixForm() {
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* Music: what ElevenLabs takes for it                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * ElevenLabs bills music out of the same credit pool as speech, by the
+ * second rather than by the token — which is why it cannot ride along in the
+ * model chart below and is stated on its own.
+ *
+ * Both numbers are estimates, and deliberately visible ones: the credit rate
+ * moves with the plan you are on, so the page says so rather than quietly
+ * reporting a margin that stopped being true. Check them against the current
+ * ElevenLabs pricing page and set the coin price to match.
+ */
+const MUSIC_CREDITS_PER_SECOND = 100;
+/** Creator plan: $22 for 100,000 credits. */
+const USD_PER_ELEVEN_CREDIT = 22 / 100_000;
+/** The length quoted, and the one the coin price is set for. */
+const MUSIC_REF_SECONDS = 30;
+
 const TABS = [
   { id: 'generation', label: 'Per generation' },
   { id: 'sales', label: 'Sales desk' },
@@ -1120,6 +1140,12 @@ function FinanceBody() {
     return t > 0 ? data.packs.reduce((n, p) => n + p.priceCents, 0) / t : 4;
   }, [data]);
 
+  // What a music bed costs us against what it charges. Same shape as the
+  // deck line above: their price, our price, the gap between them.
+  const musicApiUsd = MUSIC_CREDITS_PER_SECOND * MUSIC_REF_SECONDS * USD_PER_ELEVEN_CREDIT;
+  const musicCoins = Math.max(1, Math.ceil(data?.prices.perMusic ?? 20));
+  const musicChargeUsd = (musicCoins * packRate) / 100;
+
   const calc = useMemo(() => {
     if (!data) return null;
     const mult = data.prices.levelMultiplier[calcLevel] ?? 1;
@@ -1463,6 +1489,33 @@ function FinanceBody() {
                 <span className="font-bold">{fmtUsd(calc.chargeUsd)}</span>
                 <span className="text-ink-faint"> · one ticket sells for </span>
                 <span className="font-bold text-green">{data.ticketPriceCoins} 🪙 ≈ {fmtUsd(calc.ticketUsd)}</span>
+              </p>
+            </div>
+
+            {/* Music is priced per second by the provider rather than per
+                token, so it does not belong in the model chart — but it is
+                real money going out, so it is stated here beside the deck. */}
+            <div className="mb-4 rounded-wobble-sm border-2 border-dashed border-pencil bg-paper px-4 py-2.5">
+              <p className="text-sm text-ink">
+                <span className="font-heading font-bold">Post music (ElevenLabs)</span> — a{' '}
+                {MUSIC_REF_SECONDS}-second bed is about{' '}
+                {(MUSIC_CREDITS_PER_SECOND * MUSIC_REF_SECONDS).toLocaleString()} ElevenLabs
+                credits, roughly{' '}
+                <span className="font-bold text-orange">{fmtUsd(musicApiUsd)}</span>. You charge{' '}
+                <span className="font-bold text-green">
+                  {musicCoins} 🪙 ≈ {fmtUsd(musicChargeUsd)}
+                </span>{' '}
+                for it —{' '}
+                <span className={musicChargeUsd >= musicApiUsd ? 'text-green' : 'text-red'}>
+                  {musicChargeUsd >= musicApiUsd
+                    ? `${fmtUsd(musicChargeUsd - musicApiUsd)} margin`
+                    : `${fmtUsd(musicApiUsd - musicChargeUsd)} LOSS`}
+                </span>
+                . Everyone pays it, admins included.
+              </p>
+              <p className="mt-1 text-xs text-ink-faint">
+                The credit rate is an estimate — check it against your ElevenLabs plan and set the
+                coin price in Settings → Pricing → Post music.
               </p>
             </div>
 

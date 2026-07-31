@@ -7,6 +7,7 @@ import {
   Eraser,
   Image as ImageIcon,
   Layers,
+  Music,
   Palette,
   Plus,
   RefreshCw,
@@ -25,6 +26,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { FONT, OUT_W, bandRgb, inkFor, tintsFrom, wordsOf } from '@/lib/caption-words';
 import { type ZipEntry, canvasBytes, makeZip } from '@/lib/zip';
+import { trimBars } from '@/lib/trim-bars';
 import { POST_CATEGORIES, type PostCategory } from '@contracts/post';
 import { LANGUAGES } from '@contracts/languages';
 import { useNavigate } from 'react-router';
@@ -144,6 +146,7 @@ const SECTIONS = [
   { id: 'follow' as const, label: 'Follow card', icon: UserPlus },
   { id: 'design' as const, label: 'Design', icon: Type },
   { id: 'words' as const, label: 'Words', icon: Eraser },
+  { id: 'music' as const, label: 'Music', icon: Music },
   { id: 'share' as const, label: 'Post', icon: Send },
 ];
 type SectionId = (typeof SECTIONS)[number]['id'];
@@ -174,6 +177,32 @@ interface Design {
   bandFill: string;
   /** how it meets the picture: flat, see-through, or dissolving upward */
   bandFinish: FinishId;
+}
+
+/**
+ * The most a rendered slide may weigh on its way to the feed.
+ *
+ * The upload endpoint takes a data URL and stops at four million characters,
+ * which is the serverless request cap wearing a different hat. A 1080×1920
+ * PNG of a photograph goes past it easily — PNG does not compress photographs
+ * — so publishing a carousel of real pictures used to fail outright.
+ */
+const UPLOAD_MAX = 4_000_000;
+
+/**
+ * A slide encoded small enough to publish.
+ *
+ * JPEG rather than PNG: the same picture lands at a fraction of the size with
+ * nothing visible lost at this width, which is what every social network does
+ * to it on the way in anyway. Quality steps down only if the first pass is
+ * still too heavy. Downloads stay PNG — that copy is yours to keep.
+ */
+function uploadDataUrl(canvas: HTMLCanvasElement): string {
+  for (const quality of [0.92, 0.82, 0.7, 0.55]) {
+    const url = canvas.toDataURL('image/jpeg', quality);
+    if (url.length <= UPLOAD_MAX) return url;
+  }
+  throw new Error('That slide is too detailed to publish — try a smaller format');
 }
 
 const newSlide = (n: number): Slide => ({
@@ -329,6 +358,12 @@ function MarketingBody() {
   const [posting, setPosting] = useState(false);
   const [modelNote, setModelNote] = useState('');
   const [reading, setReading] = useState(false);
+  /* The soundtrack. Held as an id as well as a URL because publishing hands
+     the post the id, and the URL is only how the player fetches it. */
+  const [musicPrompt, setMusicPrompt] = useState('');
+  const [musicSeconds, setMusicSeconds] = useState(30);
+  const [music, setMusic] = useState<{ id: number; url: string; seconds: number } | null>(null);
+  const [composing, setComposing] = useState(false);
   /** which model's face is being drawn, so only its button spins */
   const [portraying, setPortraying] = useState<string | null>(null);
   const confirm = useCostConfirm();
@@ -352,9 +387,14 @@ function MarketingBody() {
     () => roster.filter((m) => picked.includes(m.id)),
     [roster, picked],
   );
+  /** The one model this account has made from a photograph, if it has. */
+  const ownModel = useMemo(() => roster.find((m) => m.custom) ?? null, [roster]);
+  /* Looked up across the whole roster rather than the pool: a slide can name
+     someone directly in its own picker without them being cast for the
+     carousel, and that choice has to reach the prompt. */
   const sheetsFor = (names: string[]) => {
     const want = names.map((n) => n.trim().toLowerCase());
-    return pickedModels
+    return roster
       .filter((m) => want.includes(m.name.trim().toLowerCase()))
       .map((m) => ({ name: m.name, headline: m.headline, sheet: m.sheet }));
   };
@@ -473,6 +513,29 @@ function MarketingBody() {
     });
   };
 
+  /**
+   * A drawn backdrop, with any flat bar the generator padded it with cut off.
+   *
+   * A padded picture is the one way a photograph can fail to reach the bottom
+   * of the caption band: cover-fitting keeps the bar, and the bar lands right
+   * where the band begins. Cutting it here means every later use — the
+   * preview, the PNG, the published post — gets the clean picture, whatever
+   * height the band happens to be. A picture with no bar is left alone and
+   * costs nothing extra.
+   */
+  const cleanBackdrop = async (url: string): Promise<string> => {
+    try {
+      const cut = await trimBars(url);
+      if (!cut?.trimmed) return url;
+      const r = await utils.client.posts.uploadSlide.mutate({
+        image: uploadDataUrl(cut.canvas),
+      });
+      return `/api/img/${r.id}`;
+    } catch {
+      return url; // never lose a picture we already paid for
+    }
+  };
+
   /** Draw one slide's backdrop. The index is captured here rather than
    *  recovered from the response, so the picture always lands on the slide
    *  that asked for it even if the prompt was edited mid-flight. */
@@ -487,7 +550,7 @@ function MarketingBody() {
         format: design.format,
         cast: sheetsFor(slides[i].cast),
       });
-      patch(i, { imageUrl: r.url });
+      patch(i, { imageUrl: await cleanBackdrop(r.url) });
       toast.success(`Backdrop drawn — ${r.cost} 🪙`);
       void utils.auth.me.invalidate();
     } catch (err) {
@@ -517,7 +580,7 @@ function MarketingBody() {
           format: design.format,
           cast: sheetsFor(s.cast),
         });
-        patch(i, { imageUrl: r.url });
+        patch(i, { imageUrl: await cleanBackdrop(r.url) });
         made++;
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'A backdrop failed');
@@ -678,7 +741,7 @@ function MarketingBody() {
       for (let i = 0; i < total; i++) {
         const canvas = await renderAt(i);
         const r = await utils.client.posts.uploadSlide.mutate({
-          image: canvas.toDataURL('image/png'),
+          image: uploadDataUrl(canvas),
         });
         imageIds.push(r.id);
       }
@@ -688,6 +751,7 @@ function MarketingBody() {
         imageIds,
         width: OUT_W,
         height: outH,
+        audioId: music?.id ?? null,
       });
       toast.success('Posted to the feed ✓');
       navigate(`/feed/${r.slug}`);
@@ -767,8 +831,37 @@ function MarketingBody() {
       await utils.client.cast.remove.mutate({ id: numeric });
       setPicked((p) => p.filter((x) => x !== id));
       await cast.refetch();
+      toast.success('Model deleted — you can read a new photo now');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "That model couldn't be removed");
+    }
+  };
+
+  /** What a bed of this length costs, scaled off the quoted thirty seconds. */
+  const musicCost =
+    quote.data == null ? null : Math.max(1, Math.ceil((quote.data.music * musicSeconds) / 30));
+
+  /**
+   * Compose the music that plays under the carousel on the feed.
+   *
+   * Charged in coins like everything else the tool makes, whoever is asking —
+   * the API call costs the same whether an admin or anyone else makes it.
+   */
+  const composeMusic = async () => {
+    const prompt = musicPrompt.trim();
+    if (prompt.length < 3) return toast.error('Say what the music should sound like first');
+    if (!(await confirm.ask(`Composing ${musicSeconds}s of music`, musicCost ?? undefined))) return;
+    setComposing(true);
+    try {
+      const r = await utils.client.marketing.music.mutate({ prompt, seconds: musicSeconds });
+      const id = Number(r.url.split('/').pop());
+      setMusic({ id, url: r.url, seconds: r.seconds });
+      toast.success(`Music composed — ${r.cost} 🪙`);
+      void utils.auth.me.invalidate();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "That music couldn't be composed");
+    } finally {
+      setComposing(false);
     }
   };
 
@@ -1144,19 +1237,32 @@ function MarketingBody() {
                     placeholder="Optional — what to call them, e.g. “Sam, runs the workshop”"
                     className="min-w-[200px] flex-1 rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
                   />
+                  {/* One at a time: a model read out of a photograph is a
+                      likeness of a real person, so this account holds exactly
+                      one and swapping it means deleting the one it has. */}
                   <label
+                    title={
+                      ownModel
+                        ? `${ownModel.name} was made from a photo — delete them to make another`
+                        : 'Read a photo into a reusable cast member'
+                    }
                     className={cn(
                       'micro cursor-pointer rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink',
-                      reading && 'pointer-events-none opacity-50',
+                      (reading || !!ownModel) && 'pointer-events-none opacity-50',
                     )}
                   >
                     <Upload className="mr-1 inline h-3 w-3" strokeWidth={2} />
-                    {reading ? 'Reading the photo…' : 'New model from a photo'}
-                    {quote.data ? ` — 1 🪙` : ''}
+                    {reading
+                      ? 'Reading the photo…'
+                      : ownModel
+                        ? `Photo model: ${ownModel.name}`
+                        : 'New model from a photo'}
+                    {!ownModel && quote.data ? ` — 1 🪙` : ''}
                     <input
                       type="file"
                       accept="image/*"
                       className="hidden"
+                      disabled={!!ownModel}
                       aria-label="New model from a photo"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
@@ -1180,7 +1286,9 @@ function MarketingBody() {
                   the right skin, build and nails. Use the face button to draw a portrait from
                   someone's description and see who you are casting
                   {imgCost != null ? ` — ${imgCost} 🪙 each` : ''}. The same cast is here for every
-                  carousel you make, which is what keeps a feed looking like one feed.
+                  carousel you make, which is what keeps a feed looking like one feed. A model read
+                  out of a photograph is yours alone and you may hold one at a time — delete{' '}
+                  {ownModel ? ownModel.name : 'it'} to make another.
                 </p>
               </>
             )}
@@ -1322,40 +1430,81 @@ function MarketingBody() {
                 {imgCost != null ? ` — ${imgCost} 🪙` : ''}
               </SketchButton>
             </div>
-            {pickedModels.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="micro text-[0.58rem] text-ink-soft">In this picture</span>
-                {pickedModels.map((m) => {
+            {/* Who is in THIS picture.
+                The whole roster, not just the carousel's pool: deciding a
+                slide shows Marisol and Theo is a decision you make looking at
+                the slide, so picking them here casts them for the carousel
+                too rather than sending you to another panel first. As many as
+                the frame holds — an empty row is an object shot. */}
+            <div className="flex flex-col gap-1.5 border-t-2 border-dashed border-pencil pt-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="micro flex items-center gap-1 text-[0.58rem] font-semibold text-ink-soft">
+                  <Users className="h-3 w-3" strokeWidth={2} /> Who is in this picture
+                </span>
+                <span className="micro text-[0.55rem] text-ink-faint">
+                  {slide.cast.length === 0
+                    ? 'nobody — an object or a place'
+                    : `${slide.cast.length} cast`}
+                </span>
+                {slide.cast.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => patch(active, { cast: [] })}
+                    className="micro text-[0.55rem] font-bold text-ink-faint hover:text-red"
+                  >
+                    clear
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {roster.map((m) => {
                   const on = slide.cast.some((n) => n.toLowerCase() === m.name.toLowerCase());
                   return (
                     <button
                       key={m.id}
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
                         patch(active, {
                           cast: on
                             ? slide.cast.filter((n) => n.toLowerCase() !== m.name.toLowerCase())
                             : [...slide.cast, m.name],
-                        })
-                      }
+                        });
+                        // Casting someone on a slide casts them for the
+                        // carousel — the pool is what the AI draws from when
+                        // it writes the rest, and it should know.
+                        if (!on) setPicked((p) => (p.includes(m.id) ? p : [...p, m.id]));
+                      }}
                       aria-pressed={on}
-                      title={m.headline}
+                      title={`${m.name} — ${m.headline}`}
                       className={cn(
-                        'micro rounded-wobble-sm border-2 px-2 py-0.5 text-[0.58rem] font-bold transition-colors',
+                        'flex items-center gap-1.5 rounded-wobble-sm border-2 py-0.5 pl-0.5 pr-2 transition-colors',
                         on
                           ? 'border-ink bg-yellow text-ink shadow-offset'
                           : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
                       )}
                     >
-                      {m.name}
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-ink bg-paper-2 font-heading text-[0.5rem] font-bold text-ink">
+                        {m.photoUrl ? (
+                          <img src={m.photoUrl} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          m.name
+                            .split(' ')
+                            .map((w) => w[0])
+                            .join('')
+                            .slice(0, 2)
+                        )}
+                      </span>
+                      <span className="micro text-[0.58rem] font-bold">{m.name}</span>
                     </button>
                   );
                 })}
-                {slide.cast.length === 0 && (
-                  <span className="micro text-[0.55rem] text-ink-faint">nobody — an object shot</span>
-                )}
               </div>
-            )}
+              <p className="micro text-[0.55rem] text-ink-faint">
+                Everyone chosen here is described to the generator when this picture is drawn, so
+                two people in one frame both come back looking like themselves. Redraw the slide
+                after changing it.
+              </p>
+            </div>
             <input
               value={slide.title}
               onChange={(e) => patch(active, { title: e.target.value })}
@@ -1752,6 +1901,97 @@ function MarketingBody() {
           </SketchCard>
           )}
 
+          {/* the soundtrack */}
+          {section === 'music' && (
+          <SketchCard className="flex flex-col gap-3 p-5">
+            <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
+              <Music className="h-3.5 w-3.5" strokeWidth={2} /> Music under the carousel
+            </span>
+            <textarea
+              value={musicPrompt}
+              onChange={(e) => setMusicPrompt(e.target.value)}
+              rows={2}
+              aria-label="Music brief"
+              placeholder="What should it sound like? e.g. warm lo-fi beat, soft rhodes, unhurried"
+              className="w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Free, and no AI: the carousel already says what it is about. */}
+              <button
+                type="button"
+                disabled={topic.trim().length < 3}
+                onClick={() =>
+                  setMusicPrompt(
+                    `An instrumental bed for a short ${TEMPLATE_META[category].label.toLowerCase()} post about ${topic.trim()}. Warm, modern, understated — it sits under the pictures rather than competing with them.`,
+                  )
+                }
+                className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink disabled:opacity-40"
+              >
+                Use the carousel's subject
+              </button>
+              <label className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
+                Length
+                <select
+                  value={musicSeconds}
+                  onChange={(e) => setMusicSeconds(Number(e.target.value))}
+                  aria-label="Music length"
+                  className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-2 py-1 text-[0.7rem] text-ink shadow-offset outline-none focus:border-blue"
+                >
+                  {[10, 15, 20, 30, 45, 60].map((s) => (
+                    <option key={s} value={s}>
+                      {s}s
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <SketchButton
+                variant="secondary"
+                loading={composing}
+                disabled={musicPrompt.trim().length < 3}
+                onClick={() => void composeMusic()}
+              >
+                <Music className="h-4 w-4" strokeWidth={2} />
+                {music ? 'Compose again' : 'Compose'}
+                {musicCost != null ? ` — ${musicCost} 🪙` : ''}
+              </SketchButton>
+            </div>
+            {music && (
+              <div className="flex flex-wrap items-center gap-2 border-t-2 border-dashed border-pencil pt-3">
+                <audio
+                  src={music.url}
+                  controls
+                  loop
+                  aria-label="The post's music"
+                  className="min-w-[220px] flex-1"
+                />
+                <a
+                  href={music.url}
+                  download="sketchlearn-post-music.mp3"
+                  className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink"
+                >
+                  <Download className="mr-1 inline h-3 w-3" strokeWidth={2} /> Download
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setMusic(null)}
+                  aria-label="Remove the music"
+                  className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-red hover:text-red"
+                >
+                  <Trash2 className="mr-1 inline h-3 w-3" strokeWidth={2} /> Remove
+                </button>
+              </div>
+            )}
+            <p className="micro text-[0.58rem] text-ink-faint">
+              Written by ElevenLabs from that brief and posted with the carousel, where it loops
+              under the pictures — muted until someone turns it on, which is the only way a
+              browser will let a feed make noise. Optional: a post without music simply has none.
+              {musicCost != null
+                ? ` ${musicSeconds}s costs ${musicCost} 🪙, and it is charged the same to everyone.`
+                : ''}
+            </p>
+          </SketchCard>
+          )}
+
           {/* publish and export */}
           {section === 'share' && (
           <SketchCard className="flex flex-col gap-3 p-5">
@@ -1778,8 +2018,9 @@ function MarketingBody() {
                   {total === 1 ? '' : 's'}
                 </SketchButton>
                 <span className="micro text-[0.58rem] text-ink-faint">
-                  Filed under {TEMPLATE_META[category].label}. Publishing is free — the pictures
-                  are already paid for.
+                  Filed under {TEMPLATE_META[category].label}
+                  {music ? `, with ${music.seconds}s of music` : ''}. Publishing is free — the
+                  pictures are already paid for.
                 </span>
               </div>
             </div>

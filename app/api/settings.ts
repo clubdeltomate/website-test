@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     perSlideBase: 2,
     perImageSlide: 2,
     perTts: 1,
+    perMusic: 20,
     levelMultiplier: { A0: 1.0, A1: 1.0, A2: 1.1, B1: 1.2, B2: 1.3, C1: 1.4, C2: 1.5 },
   },
   googleSheetUrl: "https://docs.google.com/spreadsheets/d/REPLACE_ME",
