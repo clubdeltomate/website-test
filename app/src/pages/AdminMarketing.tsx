@@ -1012,6 +1012,10 @@ function MarketingBody() {
         height: outH,
         audioId: music?.id ?? null,
         visibility: who,
+        /* The language the carousel was actually written in, not the language
+           the author happens to be reading the site in — the storyboard was
+           generated under this setting, so it is the honest answer. */
+        contentLanguage: language,
         assignedUserIds: sendTo,
       });
       toast.success(

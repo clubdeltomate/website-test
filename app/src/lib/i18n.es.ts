@@ -645,4 +645,12 @@ export const ES: Record<string, string> = {
   'Template subject filter': 'Filtro de materia de la plantilla',
   'Saved to the preset ✓': 'Guardado en el ajuste ✓',
   'Reset all to Auto': 'Restablecer todo a Automático',
+
+  /* ---------------------------------------------------------------- */
+  /* Content language: the stickers and the shelf filters               */
+  /* ---------------------------------------------------------------- */
+  'Filter by language': 'Filtrar por idioma',
+  'Every language': 'Todos los idiomas',
+  'Language updated': 'Idioma actualizado',
+  'Language of this post': 'Idioma de esta publicación',
 };

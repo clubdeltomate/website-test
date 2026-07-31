@@ -90,6 +90,8 @@ export interface PostSummary {
   /** the viewer saved it */
   saved: boolean;
   who: PostVisibility;
+  /** the language the post is written in, for the sticker and the filter */
+  contentLanguage: string;
   /** how many people it was assigned to; 0 unless `who` is "assigned" */
   assignedCount: number;
 }

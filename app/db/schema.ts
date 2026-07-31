@@ -93,6 +93,17 @@ export const repos = appSchema.table(
     // how the content was authored: "ai" (generated) or "human" (hand-built).
     // Precursor to a future hand-fill editor; today everything is "ai".
     source: varchar("source", { length: 16 }).notNull().default("ai"),
+    /**
+     * What language the content itself is written in.
+     *
+     * Not the reader's language — the work's. A Spanish reader is shown only
+     * Spanish work, while an English reader is shown everything, so this is
+     * the field that decides which shelves a thing appears on. Defaults to
+     * "en" because that is the bucket everything non-Spanish falls into, and
+     * every row that existed before this column was English or unknown, which
+     * amount to the same shelf.
+     */
+    contentLanguage: varchar("contentLanguage", { length: 5 }).notNull().default("en"),
     isPublic: boolean("isPublic").notNull().default(true),
     // The card's thin AI banner strip: bytes live in slideImages, the prompt
     // is kept so Refresh can reseed a new image from the same description.
@@ -182,6 +193,17 @@ export const slideTools = appSchema.table(
     // Category/purpose of the tool: course (education) or restaurant/service/
     // shop (commercial showcase — no evaluations). Drives templates + prompt.
     template: templateEnum("template").notNull().default("course"),
+    /**
+     * What language the content itself is written in.
+     *
+     * Not the reader's language — the work's. A Spanish reader is shown only
+     * Spanish work, while an English reader is shown everything, so this is
+     * the field that decides which shelves a thing appears on. Defaults to
+     * "en" because that is the bucket everything non-Spanish falls into, and
+     * every row that existed before this column was English or unknown, which
+     * amount to the same shelf.
+     */
+    contentLanguage: varchar("contentLanguage", { length: 5 }).notNull().default("en"),
     // Advanced default: teaching tone applied to generations from this tool.
     defaultTone: varchar("defaultTone", { length: 24 }).notNull().default("neutral"),
     // How this tool's content is authored: "ai" = a reusable AI generator (no
@@ -549,6 +571,17 @@ export const posts = appSchema.table(
      * the older flag is never wrong, just less specific.
      */
     visibility: varchar("visibility", { length: 10 }).notNull().default("public"),
+    /**
+     * What language the content itself is written in.
+     *
+     * Not the reader's language — the work's. A Spanish reader is shown only
+     * Spanish work, while an English reader is shown everything, so this is
+     * the field that decides which shelves a thing appears on. Defaults to
+     * "en" because that is the bucket everything non-Spanish falls into, and
+     * every row that existed before this column was English or unknown, which
+     * amount to the same shelf.
+     */
+    contentLanguage: varchar("contentLanguage", { length: 5 }).notNull().default("en"),
     createdAt: createdAt(),
   },
   (t) => [index("posts_owner_idx").on(t.ownerId), index("posts_category_idx").on(t.category)],

@@ -37,6 +37,9 @@ import { SketchModal } from '@/components/admin/overlays';
 import { CardBanner, OwnerAvatar, SourceBadge, TemplateIcon, TEMPLATE_META, VerifiedBadge } from '@/components/repo/shared';
 import AssignModal from '@/components/repo/AssignModal';
 import { say } from '@/lib/i18n';
+import LanguageTag from '@/components/LanguageTag';
+import LanguageFilter from '@/components/LanguageFilter';
+import { useLanguageFilter } from '@/hooks/useLanguageFilter';
 
 type SortKey = 'recent' | 'name' | 'plays';
 type ViewMode = 'cards' | 'table';
@@ -136,8 +139,9 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
   };
   const [menuFor, setMenuFor] = useState<string | null>(null);
 
+  const lang = useLanguageFilter();
   const toolsQuery = trpc.slideTools.list.useQuery(
-    { q: search.trim() || undefined, limit: 100, mine, excludeMine: !mine, followingOnly: followingOnly && !mine },
+    { q: search.trim() || undefined, limit: 100, mine, excludeMine: !mine, followingOnly: followingOnly && !mine, language: lang.query },
     { placeholderData: (prev) => prev },
   );
   // repo linkage heuristic: tools created by Lesson Path are named <repoSlug>-studio
@@ -251,6 +255,7 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
           )}
           <span className="flex min-w-0 flex-col">
             <span className="flex items-center gap-1.5 font-heading font-semibold text-ink">
+              <LanguageTag code={t.contentLanguage} />
               {t.name}
               {t.assigned && (
                 <Chip kind="neutral" className="border-blue bg-blue-soft text-[0.55rem]" title={say("A moderator put this on your shelf")}>
@@ -395,6 +400,13 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
         {!toolsQuery.isLoading && (
           <Chip kind="slide-tool">{tools.length}  {say("in the drawer")}</Chip>
         )}
+        {/* Sits with the count, not with the search box: on a Spanish site
+            this is already narrowing the shelf before anyone types. */}
+        <LanguageFilter
+          value={lang.filter}
+          onChange={lang.setFilter}
+          present={(toolsQuery.data ?? []).map((t) => t.contentLanguage)}
+        />
       </div>
 
       {/* guest banner */}

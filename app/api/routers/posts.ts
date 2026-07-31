@@ -95,6 +95,10 @@ export const postsRouter = createRouter({
           scope: z.enum(POST_SCOPES).default("feed"),
           /** one author's shelf, for a profile page */
           ownerId: z.number().int().positive().optional(),
+          /* Narrow to one language. Absent means every language, which is
+             what an English reader gets — see src/lib/content-language.ts
+             for why Spanish is the exclusive shelf and English the catch-all. */
+          language: z.string().max(5).optional(),
           limit: z.number().int().min(1).max(60).default(30),
         })
         .default({ limit: 30, saved: false, scope: "feed" }),
@@ -139,6 +143,7 @@ export const postsRouter = createRouter({
             input.category ? eq(posts.category, input.category) : undefined,
             input.saved ? inArray(posts.slug, [...saved]) : undefined,
             input.ownerId ? eq(posts.ownerId, input.ownerId) : undefined,
+            input.language ? eq(posts.contentLanguage, input.language) : undefined,
           ),
         )
         .orderBy(desc(posts.id))
@@ -205,6 +210,10 @@ export const postsRouter = createRouter({
         /** the music bed, already generated and stored */
         audioId: z.number().int().positive().nullable().default(null),
         visibility: z.enum(POST_VISIBILITY).default("public"),
+        /* What language the carousel is written in. Sent by the page rather
+           than guessed from the caption: the maker knows, and a wrong guess
+           hides the post from the people it was written for. */
+        contentLanguage: z.string().max(5).default("en"),
         /** who it is made out to; only read when visibility is "assigned" */
         assignedUserIds: z.array(z.number().int().positive()).max(200).default([]),
       }),
@@ -263,6 +272,7 @@ export const postsRouter = createRouter({
           height: input.height,
           audioId,
           visibility,
+          contentLanguage: input.contentLanguage,
           // Kept in step with visibility so anything still reading the older
           // flag is never wrong, only less specific.
           isPublic: visibility === "public",
@@ -302,6 +312,28 @@ export const postsRouter = createRouter({
         .update(posts)
         // The older flag is kept in step, as everywhere else.
         .set({ visibility: input.visibility, isPublic: input.visibility === "public" })
+        .where(eq(posts.id, row.id));
+      return { ok: true };
+    }),
+
+  /**
+   * Correct what language a post is in.
+   *
+   * Needed because the language was inferred once, at publish, and an author
+   * who wrote in Spanish under an English setting would otherwise have to
+   * delete and republish to be found by the people they wrote for.
+   */
+  setLanguage: authedProcedure
+    .input(z.object({ slug: z.string().max(191), contentLanguage: z.string().max(5) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const [row] = await getDb().select().from(posts).where(eq(posts.slug, input.slug));
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "That post isn't here" });
+      if (row.ownerId !== ctx.user.id && ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "That post isn't yours" });
+      }
+      await getDb()
+        .update(posts)
+        .set({ contentLanguage: input.contentLanguage })
         .where(eq(posts.id, row.id));
       return { ok: true };
     }),
@@ -450,6 +482,7 @@ function toSummary(
     : "public";
   return {
     who,
+    contentLanguage: r.post.contentLanguage ?? "en",
     saved: saved.has(r.post.slug),
     assignedCount: counts.get(r.post.slug) ?? 0,
     slug: r.post.slug,

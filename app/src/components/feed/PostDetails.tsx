@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { type ZipEntry, makeZip } from '@/lib/zip';
 import { TEMPLATE_META, VerifiedBadge } from '@/components/repo/shared';
 import PostAudience from '@/components/feed/PostAudience';
+import PostLanguage from '@/components/feed/PostLanguage';
 import type { PostCategory, PostSummary } from '@contracts/post';
 import { say } from '@/lib/i18n';
 
@@ -161,6 +162,9 @@ export default function PostDetails({
         {/* Who sees it, changed here rather than back in the tool that made
             it. Only shown to someone who may change it. */}
         <PostAudience post={post} />
+        {/* Beside the audience because it is the same kind of decision: who
+            this post is for. Language is the other half of that answer. */}
+        <PostLanguage post={post} />
         {onRemove && (
           <button
             type="button"

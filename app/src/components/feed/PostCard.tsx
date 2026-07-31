@@ -4,6 +4,7 @@ import { TEMPLATE_META } from '@/components/repo/shared';
 import PostAudience from '@/components/feed/PostAudience';
 import type { PostCategory, PostSummary } from '@contracts/post';
 import { say } from '@/lib/i18n';
+import LanguageTag from '@/components/LanguageTag';
 
 /**
  * One post as a card: the first slide, what it says, who posted it.
@@ -38,7 +39,8 @@ export default function PostCard({ post }: { post: PostSummary }) {
             {post.imageUrls.length}
           </span>
         )}
-        <span className="absolute left-1.5 top-1.5 flex gap-1">
+        <span className="absolute left-1.5 top-1.5 flex items-center gap-1">
+          <LanguageTag code={post.contentLanguage} />
           {post.audioUrl && (
             <span
               title={say("Has music")}

@@ -35,6 +35,8 @@ import {
   useDebounced,
 } from '@/components/repo/shared';
 import { say } from '@/lib/i18n';
+import LanguageFilter from '@/components/LanguageFilter';
+import { useLanguageFilter } from '@/hooks/useLanguageFilter';
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const PAGE_SIZE = 12;
@@ -85,10 +87,12 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
     (role === 'admin' ||
       (role === 'moderator' && !!user?.verified && repo.ownerName === user.name));
 
+  const lang = useLanguageFilter();
   const list = trpc.repos.list.useQuery(
     {
       q: debouncedQ.trim() || undefined,
       template: template === 'all' ? undefined : template,
+      language: lang.query,
       limit: 100,
       mine,
       excludeMine: !mine,
@@ -375,6 +379,14 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
             {say("Following")}
           </motion.button>
         )}
+
+        {/* language — the narrowing that is already on when the site is in
+            Spanish, so it belongs beside the other narrowings, not hidden */}
+        <LanguageFilter
+          value={lang.filter}
+          onChange={lang.setFilter}
+          present={(list.data ?? []).map((r) => r.contentLanguage)}
+        />
 
         {/* sort */}
         <label className="flex items-center gap-1.5 text-sm text-ink-soft">

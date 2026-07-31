@@ -227,6 +227,17 @@ export async function ensureRequiredSchema(): Promise<void> {
     await client.query(
       `CREATE INDEX IF NOT EXISTS "assignments_user_idx" ON sketchlearn.assignments ("userId", "targetType")`,
     );
+    /* What language each thing is written in. Additive with a default, so
+       every row that predates the column lands in the English bucket — which
+       is where everything that is not Spanish belongs anyway. */
+    for (const table of ["posts", "repos", "slideTools"]) {
+      await client.query(
+        `ALTER TABLE sketchlearn."${table}" ADD COLUMN IF NOT EXISTS "contentLanguage" varchar(5) NOT NULL DEFAULT 'en'`,
+      );
+      await client.query(
+        `CREATE INDEX IF NOT EXISTS "${table}_lang_idx" ON sketchlearn."${table}" ("contentLanguage")`,
+      );
+    }
   } finally {
     await client.end();
   }

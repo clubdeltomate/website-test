@@ -5,6 +5,8 @@ import { TEMPLATE_META } from '@/components/repo/shared';
 import PostCard from '@/components/feed/PostCard';
 import { POST_CATEGORIES, type PostCategory, type PostScope } from '@contracts/post';
 import { say } from '@/lib/i18n';
+import LanguageFilter from '@/components/LanguageFilter';
+import { useLanguageFilter } from '@/hooks/useLanguageFilter';
 
 /**
  * A shelf of posts under the same category filter the notebooks use.
@@ -23,10 +25,12 @@ export default function PostShelf({
   emptyLine: string;
 }) {
   const [category, setCategory] = useState<PostCategory | null>(null);
+  const lang = useLanguageFilter();
   const list = trpc.posts.list.useQuery({
     scope,
     ownerId,
     category: category ?? undefined,
+    language: lang.query,
     limit: 60,
   });
   const posts = list.data ?? [];
@@ -34,6 +38,11 @@ export default function PostShelf({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-1.5">
+        <LanguageFilter
+          value={lang.filter}
+          onChange={lang.setFilter}
+          present={(list.data ?? []).map((p) => p.contentLanguage)}
+        />
         <button
           type="button"
           onClick={() => setCategory(null)}

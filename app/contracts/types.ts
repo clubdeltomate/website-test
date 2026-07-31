@@ -480,6 +480,8 @@ export interface RepoSummary {
       assigned it to them — the card wears an "assigned" tag. */
   assigned: boolean;
   createdAt: Date;
+  /** the language the repo is written in */
+  contentLanguage: string;
 }
 
 export interface RepoLesson {
@@ -608,6 +610,8 @@ export interface SlideToolSummary {
   /** True when this item sits on the viewer's shelf because a moderator
       assigned it to them — the card wears an "assigned" tag. */
   assigned: boolean;
+  /** the language the tool writes in */
+  contentLanguage: string;
 }
 
 /* ---------------- Runs & lesson logs -------------------------------- */

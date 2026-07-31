@@ -25,6 +25,8 @@ import PostCard from '@/components/feed/PostCard';
 import SketchButton from '@/components/sketch/SketchButton';
 import EmptyState from '@/components/sketch/EmptyState';
 import { say } from '@/lib/i18n';
+import LanguageFilter from '@/components/LanguageFilter';
+import { useLanguageFilter } from '@/hooks/useLanguageFilter';
 
 /* The feed — the front door.
  *
@@ -197,9 +199,11 @@ export default function Feed() {
   const { user } = useAuth();
   const isMobile = useIsMobile();
   const utils = trpc.useUtils();
+  const lang = useLanguageFilter();
   const list = trpc.posts.list.useQuery({
     category: category ?? undefined,
     saved: savedOnly,
+    language: lang.query,
     limit: 30,
   });
 
@@ -406,6 +410,16 @@ export default function Feed() {
           {say("Saved")}
         </button>
       )}
+      {/* Language sits with the category chips because it narrows the same
+          feed. It is the one narrowing that is on by default — in Spanish. */}
+      <LanguageFilter
+        value={lang.filter}
+        onChange={(v) => {
+          lang.setFilter(v);
+          goTo(0);
+        }}
+        present={(list.data ?? []).map((p) => p.contentLanguage)}
+      />
       {user?.role === 'admin' && (
         <SketchButton variant="accent" onClick={() => navigate('/admin/projects/marketing')}>
           <Plus className="h-4 w-4" strokeWidth={2.5} />  {say("New post")}
