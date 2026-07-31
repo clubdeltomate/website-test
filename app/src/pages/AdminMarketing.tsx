@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BadgeCheck,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -27,6 +26,7 @@ import { cn } from '@/lib/utils';
 import { FONT, OUT_W, bandRgb, inkFor, tintsFrom, wordsOf } from '@/lib/caption-words';
 import { type ZipEntry, canvasBytes, makeZip } from '@/lib/zip';
 import { POST_CATEGORIES, type PostCategory } from '@contracts/post';
+import { LANGUAGES } from '@contracts/languages';
 import { useNavigate } from 'react-router';
 import { TEMPLATE_META } from '@/components/repo/shared';
 import { trpc } from '@/providers/trpc';
@@ -131,6 +131,22 @@ const COLORS = [
   { label: 'Black', hex: '#0B0B0B' },
   { label: 'White', hex: '#FFFFFF' },
 ];
+
+/**
+ * The editor's rooms. Everything used to sit in one scrolling column, so
+ * changing the band colour at the bottom meant scrolling back to the top to
+ * see what it did. One panel at a time keeps the preview in view.
+ */
+const SECTIONS = [
+  { id: 'cast' as const, label: 'Cast', icon: Users },
+  { id: 'story' as const, label: 'Story', icon: Wand2 },
+  { id: 'slide' as const, label: 'Slide', icon: Layers },
+  { id: 'follow' as const, label: 'Follow card', icon: UserPlus },
+  { id: 'design' as const, label: 'Design', icon: Type },
+  { id: 'words' as const, label: 'Words', icon: Eraser },
+  { id: 'share' as const, label: 'Post', icon: Send },
+];
+type SectionId = (typeof SECTIONS)[number]['id'];
 
 interface Slide {
   id: string;
@@ -306,7 +322,8 @@ function MarketingBody() {
   const [drawingLogo, setDrawingLogo] = useState(false);
   /** ids of the models this carousel may draw from */
   const [picked, setPicked] = useState<string[]>([]);
-  const [castOpen, setCastOpen] = useState(false);
+  const [section, setSection] = useState<SectionId>('story');
+  const [language, setLanguage] = useState('en');
   const [category, setCategory] = useState<PostCategory>('course');
   const [caption, setCaption] = useState('');
   const [posting, setPosting] = useState(false);
@@ -797,7 +814,8 @@ function MarketingBody() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
         {/* ---------------- preview + carousel strip ---------------- */}
-        <div className="flex flex-col gap-3">
+        {/* Pinned, so a change made in any panel is visible where it lands. */}
+        <div className="flex flex-col gap-3 lg:sticky lg:top-4 lg:self-start">
           <div
             className="relative mx-auto w-full max-w-[340px] overflow-hidden rounded-wobble-sm border-2 border-ink bg-paper-2 shadow-offset [container-type:inline-size]"
             style={{ aspectRatio: `${OUT_W} / ${outH}` }}
@@ -897,7 +915,10 @@ function MarketingBody() {
               <button
                 key={s.id}
                 type="button"
-                onClick={() => setActive(i)}
+                onClick={() => {
+                  setActive(i);
+                  setSection('slide');
+                }}
                 aria-label={`Slide ${i + 1}`}
                 aria-pressed={i === active}
                 className={cn(
@@ -914,7 +935,10 @@ function MarketingBody() {
             {follow.on && (
               <button
                 type="button"
-                onClick={() => setActive(slides.length)}
+                onClick={() => {
+                  setActive(slides.length);
+                  setSection('follow');
+                }}
                 aria-label="Follow card"
                 aria-pressed={onFollow}
                 title="The closing follow card"
@@ -936,6 +960,7 @@ function MarketingBody() {
               onClick={() => {
                 setSlides((s) => [...s, newSlide(s.length + 1)]);
                 setActive(slides.length);
+                setSection('slide');
               }}
               aria-label="Add slide"
               title="Add a slide"
@@ -1000,41 +1025,42 @@ function MarketingBody() {
 
         {/* ---------------- controls ---------------- */}
         <div className="flex flex-col gap-4">
+          {/* One panel at a time. The whole editor used to be a single column
+              you scrolled, which meant changing a colour at the bottom and
+              scrolling back to the top to see what it did. */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {SECTIONS.map((sec) => (
+              <button
+                key={sec.id}
+                type="button"
+                onClick={() => setSection(sec.id)}
+                aria-pressed={section === sec.id}
+                className={cn(
+                  'micro flex items-center gap-1.5 rounded-wobble-sm border-2 px-2.5 py-1.5 text-[0.6rem] font-bold transition-colors',
+                  section === sec.id
+                    ? 'border-ink bg-yellow text-ink shadow-offset'
+                    : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                )}
+              >
+                <sec.icon className="h-3.5 w-3.5" strokeWidth={2} />
+                {sec.label}
+              </button>
+            ))}
+          </div>
+
           {/* the cast */}
+          {section === 'cast' && (
           <SketchCard className="flex flex-col gap-3 p-5">
-            <button
-              type="button"
-              onClick={() => setCastOpen((o) => !o)}
-              aria-expanded={castOpen}
-              className="flex w-full items-center gap-2 text-left"
-            >
+            <div className="flex w-full items-center gap-2">
               <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
                 <Users className="h-3.5 w-3.5" strokeWidth={2} /> The cast
               </span>
               <span className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-1.5 text-[0.58rem] font-bold text-ink-soft">
                 {picked.length ? `${picked.length} picked` : 'nobody picked'}
               </span>
-              <ChevronDown
-                className={cn('ml-auto h-4 w-4 text-ink-soft transition-transform', castOpen && 'rotate-180')}
-                strokeWidth={2}
-              />
-            </button>
+            </div>
 
-            {/* who is picked, always visible so it reads at a glance */}
-            {picked.length > 0 && !castOpen && (
-              <div className="flex flex-wrap gap-1.5">
-                {pickedModels.map((m) => (
-                  <span
-                    key={m.id}
-                    className="micro rounded-wobble-sm border-2 border-ink bg-yellow-soft px-2 py-0.5 text-[0.58rem] font-bold text-ink"
-                  >
-                    {m.name}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {castOpen && (
+            {(
               <>
                 <div className="grid gap-1.5 sm:grid-cols-2">
                   {roster.map((m) => {
@@ -1159,8 +1185,10 @@ function MarketingBody() {
               </>
             )}
           </SketchCard>
+          )}
 
           {/* the story */}
+          {section === 'story' && (
           <SketchCard className="flex flex-col gap-3 p-5">
             <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
               <Wand2 className="h-3.5 w-3.5" strokeWidth={2} /> The story
@@ -1201,6 +1229,21 @@ function MarketingBody() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <label className="micro flex items-center gap-1.5 text-[0.6rem] text-ink-soft">
+                Written in
+                <select
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  aria-label="Language"
+                  className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-2 py-1 text-sm text-ink shadow-offset outline-none focus:border-blue"
+                >
+                  {LANGUAGES.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.endonym}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="micro flex items-center gap-1.5 text-[0.6rem] text-ink-soft">
                 Slides
                 <input
                   type="number"
@@ -1223,6 +1266,7 @@ function MarketingBody() {
                     slideCount,
                     format: design.format,
                     category,
+                    language,
                     cast: pickedModels.map((m) => ({
                       name: m.name,
                       headline: m.headline,
@@ -1250,8 +1294,10 @@ function MarketingBody() {
               hook, the steps in order, then a closing card. Everything stays editable below.
             </p>
           </SketchCard>
+          )}
 
           {/* this slide */}
+          {section === 'slide' && (
           <SketchCard className={cn('flex flex-col gap-3 p-5', onFollow && 'hidden')}>
             <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
               <Layers className="h-3.5 w-3.5" strokeWidth={2} /> Slide {active + 1}
@@ -1326,8 +1372,10 @@ function MarketingBody() {
               className="w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
             />
           </SketchCard>
+          )}
 
           {/* the closing follow card */}
+          {section === 'follow' && (
           <SketchCard className="flex flex-col gap-3 p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
@@ -1522,8 +1570,10 @@ function MarketingBody() {
               </>
             )}
           </SketchCard>
+          )}
 
           {/* design */}
+          {section === 'design' && (
           <SketchCard className="flex flex-col gap-3 p-5">
             <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
               <Type className="h-3.5 w-3.5" strokeWidth={2} /> Design — applies to every slide
@@ -1630,8 +1680,10 @@ function MarketingBody() {
               onChange={(v) => setDesign((d) => ({ ...d, subSize: v }))}
             />
           </SketchCard>
+          )}
 
-          {/* colour + export */}
+          {/* colour the words */}
+          {section === 'words' && (
           <SketchCard className="flex flex-col gap-3 p-5">
             <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
               <Eraser className="h-3.5 w-3.5" strokeWidth={2} /> Colour the words
@@ -1697,8 +1749,13 @@ function MarketingBody() {
               gets this the moment it is written. To change one word yourself, pick a colour and
               click it in the preview.
             </p>
-            {/* publish */}
-            <div className="flex flex-col gap-2 border-t-2 border-dashed border-pencil pt-3">
+          </SketchCard>
+          )}
+
+          {/* publish and export */}
+          {section === 'share' && (
+          <SketchCard className="flex flex-col gap-3 p-5">
+            <div className="flex flex-col gap-2">
               <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
                 <Send className="h-3.5 w-3.5" strokeWidth={2} /> Put it on the feed
               </span>
@@ -1752,6 +1809,7 @@ function MarketingBody() {
               )}
             </div>
           </SketchCard>
+          )}
         </div>
       </div>
     </div>
