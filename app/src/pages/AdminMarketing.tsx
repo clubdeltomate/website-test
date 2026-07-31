@@ -762,8 +762,13 @@ function MarketingBody() {
         format: design.format,
         cast: sheetsFor(slides[i].cast),
       });
-      patch(i, { imageUrl: await cleanBackdrop(r.url) });
-      toast.success(`Backdrop drawn — ${r.cost} 🪙`);
+      // The cast comes back with the picture: who the generator was actually
+      // told to put in it, which is who is in it. The chips then describe the
+      // image that exists rather than the one that was asked for.
+      patch(i, { imageUrl: await cleanBackdrop(r.url), cast: r.cast });
+      toast.success(
+        `Backdrop drawn — ${r.cost} 🪙${r.cast.length ? ` · ${r.cast.join(', ')}` : ''}`,
+      );
       void utils.auth.me.invalidate();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "That backdrop couldn't be drawn");
@@ -792,7 +797,7 @@ function MarketingBody() {
           format: design.format,
           cast: sheetsFor(s.cast),
         });
-        patch(i, { imageUrl: await cleanBackdrop(r.url) });
+        patch(i, { imageUrl: await cleanBackdrop(r.url), cast: r.cast });
         made++;
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'A backdrop failed');
@@ -1898,7 +1903,9 @@ function MarketingBody() {
                     who — which is the only thing worth knowing here. */}
                 <span className="micro text-[0.55rem] text-ink-faint">
                   {slide.cast.length === 0
-                    ? 'nobody — an object or a place'
+                    ? slide.imageUrl
+                      ? 'nobody named — whoever is in it, the generator invented'
+                      : 'nobody — an object or a place'
                     : slide.cast.join(', ')}
                   {slide.cast.length > MAX_IN_FRAME
                     ? ` — ${MAX_IN_FRAME} of them per picture`
@@ -1933,6 +1940,9 @@ function MarketingBody() {
                         if (!on) setPicked((p) => (p.includes(m.id) ? p : [...p, m.id]));
                       }}
                       aria-pressed={on}
+                      // Spelled out: the chip's own text is the initials in
+                      // the avatar followed by the name, which reads badly.
+                      aria-label={`${m.name} — ${on ? 'in this picture' : 'not in this picture'}`}
                       title={`${m.name} — ${m.headline}`}
                       className={cn(
                         'flex items-center gap-1.5 rounded-wobble-sm border-2 py-0.5 pl-0.5 pr-2 transition-colors',

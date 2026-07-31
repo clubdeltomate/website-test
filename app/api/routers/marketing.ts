@@ -761,23 +761,26 @@ export const marketingRouter = createRouter({
         cast: z.array(castMemberSchema).max(6).default([]),
       }),
     )
-    .mutation(async ({ ctx, input }): Promise<{ url: string; cost: number }> =>
-      drawAndStore(ctx.user.id, ctx.user.tokenBalance, {
+    .mutation(
+      async ({ ctx, input }): Promise<{ url: string; cost: number; cast: string[] }> => {
         // Everyone chosen for the slide appears, up to what one frame can
-        // carry; past that, four of them at random.
-        prompt: [
-          input.prompt,
-          castDirective(pickForFrame(input.cast)),
-          postDirective(input.format),
-        ]
-          .filter(Boolean)
-          .join("\n\n"),
-        what: "a post image",
-        note: `marketing post: ${input.prompt.slice(0, 55)}`,
-        // Ask for the frame the slide actually is, so the generator composes
-        // to fill it instead of letterboxing a tall scene inside a square.
-        aspect: input.format,
-      }),
+        // carry; past that, four of them at random. Which four is decided
+        // HERE, so it is decided once and can be reported back — the editor
+        // then shows who is actually in the picture it just paid for, rather
+        // than who was asked for.
+        const inFrame = pickForFrame(input.cast);
+        const made = await drawAndStore(ctx.user.id, ctx.user.tokenBalance, {
+          prompt: [input.prompt, castDirective(inFrame), postDirective(input.format)]
+            .filter(Boolean)
+            .join("\n\n"),
+          what: "a post image",
+          note: `marketing post: ${input.prompt.slice(0, 55)}`,
+          // Ask for the frame the slide actually is, so the generator composes
+          // to fill it instead of letterboxing a tall scene inside a square.
+          aspect: input.format,
+        });
+        return { ...made, cast: inFrame.map((m) => m.name) };
+      },
     ),
 
   /**
