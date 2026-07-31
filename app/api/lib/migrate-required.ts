@@ -143,6 +143,27 @@ export async function ensureRequiredSchema(): Promise<void> {
     await client.query(
       `CREATE INDEX IF NOT EXISTS "castModels_owner_idx" ON sketchlearn."castModels" ("ownerId")`,
     );
+    // Published carousels; the feed is the homepage, so this must exist.
+    await client.query(
+      `CREATE TABLE IF NOT EXISTS sketchlearn.posts (
+         id serial PRIMARY KEY,
+         slug varchar(191) NOT NULL UNIQUE,
+         "ownerId" integer NOT NULL,
+         caption varchar(2200) NOT NULL DEFAULT '',
+         category sketchlearn.template NOT NULL DEFAULT 'course',
+         "imageIds" json NOT NULL,
+         width integer NOT NULL DEFAULT 1080,
+         height integer NOT NULL DEFAULT 1350,
+         "isPublic" boolean NOT NULL DEFAULT true,
+         "createdAt" timestamp NOT NULL DEFAULT now()
+       )`,
+    );
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS "posts_owner_idx" ON sketchlearn.posts ("ownerId")`,
+    );
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS "posts_category_idx" ON sketchlearn.posts (category)`,
+    );
     // The saved follow card / business card the marketing tool starts from.
     await client.query(
       `CREATE TABLE IF NOT EXISTS sketchlearn."marketingProfiles" (

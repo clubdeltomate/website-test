@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Link, NavLink, useLocation } from 'react-router';
 import {
   Images,
+  Rows3,
   MessageCircle,
   Presentation,
   LibraryBig,
@@ -26,7 +27,8 @@ const ROLE_CHIP: Record<string, string> = {
 // Note: Lesson Path has no nav shortcut — it's reached via "New repository"
 // on the Repos page (the repo builder). The /lesson-path route still exists.
 const NAV_ITEMS = [
-  { to: '/', label: 'Repos', icon: LibraryBig, end: true },
+  { to: '/', label: 'Feed', icon: Rows3, end: true },
+  { to: '/repos', label: 'Repos', icon: LibraryBig },
   { to: '/slides', label: 'Slides', icon: Presentation },
   { to: '/gallery', label: 'Gallery', icon: Images },
   { to: '/users', label: 'Users', icon: Users },

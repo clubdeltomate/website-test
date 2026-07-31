@@ -19,6 +19,8 @@ import PresetPlay from './pages/PresetPlay';
 import PresetEditor from './pages/PresetEditor';
 import MyCustomizationPlay from './pages/MyCustomizationPlay';
 import About from './pages/About';
+import Feed from './pages/Feed';
+import Post from './pages/Post';
 import Settings from './pages/Settings';
 import Auth from './pages/Auth';
 import AdminDashboard from './pages/AdminDashboard';
@@ -39,8 +41,10 @@ export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        {/* The notebook shelf is the front door; slides are one step in. */}
-        <Route path="/" element={<Repos />} />
+        {/* The feed is the front door; the shelf is one step in. */}
+        <Route path="/" element={<Feed />} />
+        <Route path="/feed" element={<Feed />} />
+        <Route path="/feed/:slug" element={<Post />} />
         <Route path="/chat" element={<Home />} />
         <Route path="/lesson-path" element={<LessonPath />} />
         <Route path="/repos" element={<Repos />} />
@@ -83,7 +87,7 @@ export default function App() {
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/moderators" element={<AdminModerators />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
-        <Route path="*" element={<Repos />} />
+        <Route path="*" element={<Feed />} />
       </Route>
     </Routes>
   );

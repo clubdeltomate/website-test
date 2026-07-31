@@ -11,6 +11,7 @@ import {
   Palette,
   Plus,
   Save,
+  Send,
   Sparkles,
   Trash2,
   Type,
@@ -24,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { FONT, OUT_W, bandRgb, inkFor, tintsFrom, wordsOf } from '@/lib/caption-words';
 import { type ZipEntry, canvasBytes, makeZip } from '@/lib/zip';
 import { POST_CATEGORIES, type PostCategory } from '@contracts/post';
+import { useNavigate } from 'react-router';
 import { TEMPLATE_META } from '@/components/repo/shared';
 import { trpc } from '@/providers/trpc';
 import FollowPreview from '@/components/marketing/FollowPreview';
@@ -303,6 +305,8 @@ function MarketingBody() {
   const [picked, setPicked] = useState<string[]>([]);
   const [castOpen, setCastOpen] = useState(false);
   const [category, setCategory] = useState<PostCategory>('course');
+  const [caption, setCaption] = useState('');
+  const [posting, setPosting] = useState(false);
   const [modelNote, setModelNote] = useState('');
   const [reading, setReading] = useState(false);
   const confirm = useCostConfirm();
@@ -313,6 +317,7 @@ function MarketingBody() {
   }
 
   const utils = trpc.useUtils();
+  const navigate = useNavigate();
   const quote = trpc.marketing.quote.useQuery();
   /* Who is posting: this site's own name and bio, read from the same
    * description the About page renders. It seeds the card once, so the thing
@@ -631,6 +636,43 @@ function MarketingBody() {
       toast.error(err instanceof Error ? err.message : "Couldn't build the image");
     } finally {
       setBusy(false);
+    }
+  };
+
+  /**
+   * Publish the carousel to the feed.
+   *
+   * The finished PNGs are what get posted, not the editor state that made
+   * them — what people see stays what was published even if the cast, the
+   * band or the follow card change later. They go up one at a time: six
+   * 1080-wide slides in a single body would be past the request cap, and
+   * nowhere near it individually.
+   */
+  const publish = async () => {
+    if (!caption.trim()) return toast.error('Give the post a caption first');
+    setPosting(true);
+    try {
+      const imageIds: number[] = [];
+      for (let i = 0; i < total; i++) {
+        const canvas = await renderAt(i);
+        const r = await utils.client.posts.uploadSlide.mutate({
+          image: canvas.toDataURL('image/png'),
+        });
+        imageIds.push(r.id);
+      }
+      const r = await utils.client.posts.create.mutate({
+        caption: caption.trim(),
+        category,
+        imageIds,
+        width: OUT_W,
+        height: outH,
+      });
+      toast.success('Posted to the feed ✓');
+      navigate(`/feed/${r.slug}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "That post couldn't be published");
+    } finally {
+      setPosting(false);
     }
   };
 
@@ -1589,6 +1631,35 @@ function MarketingBody() {
               gets this the moment it is written. To change one word yourself, pick a colour and
               click it in the preview.
             </p>
+            {/* publish */}
+            <div className="flex flex-col gap-2 border-t-2 border-dashed border-pencil pt-3">
+              <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
+                <Send className="h-3.5 w-3.5" strokeWidth={2} /> Put it on the feed
+              </span>
+              <textarea
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                rows={2}
+                aria-label="Post caption"
+                placeholder="The caption under the post — the first line becomes its address"
+                className="w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <SketchButton
+                  variant="accent"
+                  loading={posting}
+                  disabled={caption.trim().length === 0}
+                  onClick={() => void publish()}
+                >
+                  <Send className="h-4 w-4" strokeWidth={2.5} /> Post {total} slide
+                  {total === 1 ? '' : 's'}
+                </SketchButton>
+                <span className="micro text-[0.58rem] text-ink-faint">
+                  Filed under {TEMPLATE_META[category].label}. Publishing is free — the pictures
+                  are already paid for.
+                </span>
+              </div>
+            </div>
             <div className="flex flex-wrap items-center gap-2 border-t-2 border-dashed border-pencil pt-3">
               <SketchButton variant="accent" loading={busy} onClick={() => void download(false)}>
                 <Download className="h-4 w-4" strokeWidth={2.5} /> Download slide
