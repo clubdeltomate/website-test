@@ -6,6 +6,7 @@ import {
   Palette,
   QrCode,
   Save,
+  RotateCcw,
   Sparkles,
   Upload,
   UserRound,
@@ -25,12 +26,13 @@ import {
   CARD_H,
   CARD_W,
   type BusinessCard,
+  type CardSide,
   type PaymentMethod,
   drawBusinessCard,
   emptyBusinessCard,
   layoutBusinessCard,
 } from '@/components/marketing/business-card';
-import { PAYMENT_KINDS, paymentUri } from '@/lib/qr';
+import { PAYMENT_KINDS, kindSpec, paymentFilled, paymentUri } from '@/lib/qr';
 import type { PostCategory } from '@contracts/post';
 import { measureCtx } from '@/lib/caption-words';
 
@@ -53,6 +55,7 @@ const KINDS = [
 const SECTIONS = [
   { id: 'who' as const, label: 'Who it is for', icon: UserRound },
   { id: 'pay' as const, label: 'Payments', icon: QrCode },
+  { id: 'back' as const, label: 'The back', icon: RotateCcw },
   { id: 'logo' as const, label: 'Logo', icon: ImageIcon },
   { id: 'colour' as const, label: 'Colour', icon: Palette },
 ];
@@ -73,9 +76,29 @@ const ACCENTS = ['#B4471F', '#0F6F86', '#5A6231', '#6B1D2B', '#43214F', '#0B0B0B
 const field =
   'w-full rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue';
 
+/**
+ * A card out of the database, brought up to the shape the code expects.
+ *
+ * Payment methods used to be one "value" per rail; they are named fields
+ * now. A card saved under the old shape still opens, with whatever it had
+ * landing in the address box, rather than throwing on the way in.
+ */
+function normaliseCard(saved: Partial<BusinessCard>): Partial<BusinessCard> {
+  const payments = (saved.payments ?? []).map((m) => {
+    const legacy = m as PaymentMethod & { value?: string };
+    return {
+      ...m,
+      values: m.values ?? (legacy.value ? { address: legacy.value } : {}),
+      qrImage: m.qrImage ?? null,
+    };
+  });
+  return { ...saved, payments };
+}
+
 function CardBody() {
   const [card, setCard] = useState<BusinessCard>(emptyBusinessCard);
   const [section, setSection] = useState<SectionId>('who');
+  const [side, setSide] = useState<CardSide>('front');
   const [note, setNote] = useState('');
   const [drawingLogo, setDrawingLogo] = useState(false);
   const { user } = useAuth();
@@ -99,7 +122,7 @@ function CardBody() {
     const d = saved.data;
     setCard((c) =>
       d.saved
-        ? { ...c, ...(d.saved as Partial<BusinessCard>) }
+        ? { ...c, ...normaliseCard(d.saved as Partial<BusinessCard>) }
         : { ...c, name: d.name, company: d.company, details: d.details },
     );
   }, [saved.data]);
@@ -151,19 +174,29 @@ function CardBody() {
     reader.readAsDataURL(file);
   };
 
-  const download = async () => {
+  /** One side as a PNG at print size. */
+  const renderSide = async (which: CardSide): Promise<HTMLCanvasElement> => {
     const canvas = document.createElement('canvas');
     canvas.width = CARD_W;
     canvas.height = CARD_H;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return toast.error('This browser has no canvas to draw on');
+    if (!ctx) throw new Error('This browser has no canvas to draw on');
+    await drawBusinessCard(ctx, card, layoutBusinessCard(card, measureCtx(), which));
+    return canvas;
+  };
+
+  const download = async () => {
+    const stem = pay ? 'sketchlearn-payment-card' : 'sketchlearn-business-card';
     try {
-      await drawBusinessCard(ctx, card, layoutBusinessCard(card, measureCtx()));
-      const a = document.createElement('a');
-      a.href = canvas.toDataURL('image/png');
-      a.download = pay ? 'sketchlearn-payment-card.png' : 'sketchlearn-business-card.png';
-      a.click();
-      toast.success('Card downloaded ✓');
+      const sides: CardSide[] = card.backOn ? ['front', 'back'] : ['front'];
+      for (const which of sides) {
+        const canvas = await renderSide(which);
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/png');
+        a.download = card.backOn ? `${stem}-${which}.png` : `${stem}.png`;
+        a.click();
+      }
+      toast.success(card.backOn ? 'Both sides downloaded ✓' : 'Card downloaded ✓');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't build the card");
     }
@@ -173,11 +206,22 @@ function CardBody() {
     set({
       payments: [
         ...card.payments,
-        { id: `m${Date.now().toString(36)}`, kind: 'bitcoin', value: '' },
+        { id: `m${Date.now().toString(36)}`, kind: 'binance', values: {}, qrImage: null },
       ],
     });
   const patchMethod = (id: string, p: Partial<PaymentMethod>) =>
     set({ payments: card.payments.map((m) => (m.id === id ? { ...m, ...p } : m)) });
+  const setField = (m: PaymentMethod, key: string, v: string) =>
+    patchMethod(m.id, { values: { ...m.values, [key]: v } });
+
+  /** A QR the exchange gave you, used instead of one we generate. */
+  const uploadQr = (m: PaymentMethod, file: File) => {
+    if (file.size > 3_000_000) return toast.error('That image is over 3 MB — try a smaller one');
+    const reader = new FileReader();
+    reader.onload = () => patchMethod(m.id, { qrImage: String(reader.result) });
+    reader.onerror = () => toast.error("That file couldn't be read");
+    reader.readAsDataURL(file);
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-3 px-4 py-4 lg:h-full lg:min-h-0 lg:px-8">
@@ -213,7 +257,25 @@ function CardBody() {
 
       <div className="grid gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <div className="flex flex-col gap-3 lg:min-h-0">
-          <CardPreview card={card} />
+          <CardPreview card={card} side={side} />
+          {card.backOn && (
+            <div className="flex w-fit overflow-hidden rounded-wobble-sm border-2 border-ink shadow-offset">
+              {(['front', 'back'] as CardSide[]).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setSide(f)}
+                  aria-pressed={side === f}
+                  className={cn(
+                    'micro px-3 py-1 text-[0.6rem] font-bold capitalize transition-colors',
+                    side === f ? 'bg-yellow text-ink' : 'bg-paper-3 text-ink-soft hover:text-ink',
+                  )}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          )}
           <span className="micro text-[0.58rem] text-ink-faint">
             PNG · {CARD_W} × {CARD_H} — 3.5 × 2in at 300dpi, the size a printer expects
           </span>
@@ -233,7 +295,7 @@ function CardBody() {
 
         <div className="flex flex-col gap-3 lg:min-h-0">
           <div className="flex flex-wrap items-center gap-1.5">
-            {SECTIONS.filter((s) => (s.id === 'pay' ? pay : s.id === 'logo' ? !pay : true)).map(
+            {SECTIONS.filter((s) => (s.id === 'pay' ? pay : true)).map(
               (sec) => (
                 <button
                   key={sec.id}
@@ -342,53 +404,98 @@ function CardBody() {
                     Nothing yet. Add an address and the card grows a code for it.
                   </p>
                 )}
-                {card.payments.map((m) => (
-                  <div key={m.id} className="flex flex-wrap items-center gap-2">
-                    <select
-                      value={m.kind}
-                      onChange={(e) => patchMethod(m.id, { kind: e.target.value })}
-                      aria-label="Payment method"
-                      className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-2 py-2 text-sm text-ink shadow-offset outline-none focus:border-blue"
+                {card.payments.map((m) => {
+                  const spec = kindSpec(m.kind);
+                  return (
+                    <div
+                      key={m.id}
+                      className="flex flex-col gap-2 rounded-wobble-sm border-2 border-dashed border-pencil p-2.5"
                     >
-                      {PAYMENT_KINDS.map((k) => (
-                        <option key={k.id} value={k.id}>
-                          {k.label}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      value={m.value}
-                      onChange={(e) => patchMethod(m.id, { value: e.target.value })}
-                      aria-label={`${m.kind} address`}
-                      placeholder={PAYMENT_KINDS.find((k) => k.id === m.kind)?.hint ?? 'address'}
-                      className={cn(field, 'min-w-[180px] flex-1')}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => set({ qrOf: m.id })}
-                      aria-pressed={card.qrOf === m.id}
-                      title="Put this one in the QR code"
-                      className={cn(
-                        'micro rounded-wobble-sm border-2 px-2 py-1.5 text-[0.58rem] font-bold transition-colors',
-                        card.qrOf === m.id
-                          ? 'border-ink bg-yellow text-ink shadow-offset'
-                          : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          value={m.kind}
+                          onChange={(e) => patchMethod(m.id, { kind: e.target.value })}
+                          aria-label="Payment method"
+                          className="rounded-wobble-sm border-2 border-ink bg-paper-3 px-2 py-1.5 text-sm text-ink shadow-offset outline-none focus:border-blue"
+                        >
+                          {PAYMENT_KINDS.map((k) => (
+                            <option key={k.id} value={k.id}>
+                              {k.label}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => set({ qrOf: m.id })}
+                          aria-pressed={card.qrOf === m.id}
+                          title="Put this one in the QR code"
+                          className={cn(
+                            'micro rounded-wobble-sm border-2 px-2 py-1.5 text-[0.58rem] font-bold transition-colors',
+                            card.qrOf === m.id
+                              ? 'border-ink bg-yellow text-ink shadow-offset'
+                              : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                          )}
+                        >
+                          QR
+                        </button>
+                        <label className="micro cursor-pointer rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1.5 text-[0.58rem] font-bold text-ink-soft hover:border-ink hover:text-ink">
+                          <Upload className="mr-1 inline h-3 w-3" strokeWidth={2} />
+                          {m.qrImage ? 'Replace code' : 'Upload their code'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            aria-label={`Upload a QR code for ${m.kind}`}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) uploadQr(m, f);
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+                        {m.qrImage && (
+                          <button
+                            type="button"
+                            onClick={() => patchMethod(m.id, { qrImage: null })}
+                            className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1.5 text-[0.58rem] font-bold text-ink-soft hover:border-red hover:text-red"
+                          >
+                            Use a generated code
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            set({ payments: card.payments.filter((x) => x.id !== m.id) })
+                          }
+                          aria-label={`Remove ${m.kind}`}
+                          className="micro ml-auto rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1.5 text-[0.58rem] font-bold text-ink-soft hover:border-red hover:text-red"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      {/* Every rail asks for what it actually needs — a Pago
+                          Móvil is a name, a cédula, a phone and a bank, not
+                          "an address". */}
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {(spec?.fields ?? []).map((f) => (
+                          <label key={f.key} className="flex flex-col gap-1">
+                            <span className="micro text-[0.55rem] text-ink-soft">{f.label}</span>
+                            <input
+                              value={m.values[f.key] ?? ''}
+                              onChange={(e) => setField(m, f.key, e.target.value)}
+                              aria-label={`${spec?.label ?? m.kind} — ${f.label}`}
+                              placeholder={f.hint ?? ''}
+                              className={field}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      {spec?.note && (
+                        <p className="micro text-[0.55rem] text-ink-faint">{spec.note}</p>
                       )}
-                    >
-                      QR
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        set({ payments: card.payments.filter((x) => x.id !== m.id) })
-                      }
-                      aria-label={`Remove ${m.kind}`}
-                      className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1.5 text-[0.58rem] font-bold text-ink-soft hover:border-red hover:text-red"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
                 <button
                   type="button"
                   onClick={addMethod}
@@ -411,16 +518,58 @@ function CardBody() {
                   these details and your contact lines. Save to apply it. The QR encodes{' '}
                   {(() => {
                     const chosen =
-                      card.payments.find((m) => m.id === card.qrOf && m.value.trim()) ??
-                      card.payments.find((m) => m.value.trim());
-                    return chosen ? paymentUri(chosen.kind, chosen.value) : 'nothing yet';
+                      card.payments.find((m) => m.id === card.qrOf && paymentFilled(m.values)) ??
+                      card.payments.find((m) => paymentFilled(m.values) || m.qrImage);
+                    if (!chosen) return 'nothing yet';
+                    if (chosen.qrImage) return 'the code you uploaded';
+                    return paymentUri(chosen.kind, chosen.values) || 'nothing scannable yet';
                   })()}
                   .
                 </p>
               </SketchCard>
             )}
 
-            {section === 'logo' && !pay && (
+            {section === 'back' && (
+              <SketchCard className="flex flex-col gap-3 p-5">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={card.backOn}
+                    onChange={(e) => {
+                      set({ backOn: e.target.checked });
+                      setSide(e.target.checked ? 'back' : 'front');
+                    }}
+                    className="h-4 w-4 accent-yellow"
+                  />
+                  <span className="text-sm font-bold text-ink">Give it a back</span>
+                </label>
+                <textarea
+                  value={card.quote}
+                  onChange={(e) => set({ quote: e.target.value })}
+                  rows={3}
+                  disabled={!card.backOn}
+                  aria-label="The back's big line"
+                  placeholder="A quote, a promise, what you actually do — the big line on the back"
+                  className={cn(field, 'resize-y disabled:opacity-50')}
+                />
+                <textarea
+                  value={card.backNote}
+                  onChange={(e) => set({ backNote: e.target.value })}
+                  rows={2}
+                  disabled={!card.backOn}
+                  aria-label="The back's small lines"
+                  placeholder={'Anything under it — hours, a site, a second address'}
+                  className={cn(field, 'resize-y disabled:opacity-50')}
+                />
+                <p className="micro text-[0.58rem] text-ink-faint">
+                  {pay
+                    ? 'On a payment card the back also carries every method the front had no room for, so the code gets a face of its own.'
+                    : 'The back keeps the same colours and logo. Download gives you both sides as two files.'}
+                </p>
+              </SketchCard>
+            )}
+
+            {section === 'logo' && (
               <SketchCard className="flex flex-col gap-3 p-5">
                 <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
                   <ImageIcon className="h-3.5 w-3.5" strokeWidth={2} /> Logo

@@ -1,5 +1,5 @@
 import { FONT, FONT_BODY, inkFor, wrapText } from '@/lib/caption-words';
-import { paymentLabel, paymentUri, qrMatrix } from '@/lib/qr';
+import { paymentFilled, paymentLabel, paymentLines, paymentUri, qrMatrix } from '@/lib/qr';
 
 /* A business card, laid out the same way the follow card is: geometry
  * computed once, walked by both the on-screen preview and the canvas export.
@@ -25,12 +25,30 @@ export interface PaymentMethod {
   id: string;
   /** a PAYMENT_KINDS id */
   kind: string;
-  value: string;
+  /** field key → what was typed; the keys a rail has are its own business */
+  values: Record<string, string>;
+  /**
+   * A QR photographed or downloaded from somewhere else.
+   *
+   * Binance's in-app code is a link only Binance can mint, so a generated
+   * one cannot stand in for it. When this is set it IS the code — the card
+   * shows exactly what the exchange showed you.
+   */
+  qrImage?: string | null;
 }
+
+/** Which face is being laid out. */
+export type CardSide = 'front' | 'back';
 
 export interface BusinessCard {
   /** which card this is: the one you hand over, or the one you get paid by */
   kind: 'business' | 'payment';
+  /** the back is optional — a one-sided card is a perfectly good card */
+  backOn: boolean;
+  /** the back's big line: a quote, a promise, a menu, whatever it is for */
+  quote: string;
+  /** the small line under it */
+  backNote: string;
   name: string;
   title: string;
   company: string;
@@ -51,6 +69,9 @@ export interface BusinessCard {
 
 export const emptyBusinessCard = (): BusinessCard => ({
   kind: 'business',
+  backOn: false,
+  quote: '',
+  backNote: '',
   payments: [],
   qrOf: '',
   shared: false,
@@ -82,6 +103,8 @@ export interface QrBlock {
   y: number;
   size: number;
   modules: boolean[][];
+  /** a code the user supplied instead of one we generated */
+  image: string | null;
   /** what a scanner will read, for the line printed under it */
   caption: string;
 }
@@ -123,6 +146,18 @@ function shortAddress(v: string): string {
   return `${s.slice(0, 12)}…${s.slice(-8)}`;
 }
 
+/** "Label: value" with the value shortened if it is an unbreakable address. */
+function shortLine(line: string): string {
+  const at = line.indexOf(': ');
+  if (at < 0) return shortAddress(line);
+  return `${line.slice(0, at + 2)}${shortAddress(line.slice(at + 2))}`;
+}
+
+/** The id of the method the code is for, so the back can skip it. */
+function chosenId(card: BusinessCard): string {
+  return qrMethod(card)?.id ?? '';
+}
+
 /**
  * Place the card. Text shrinks together — never past 60% — when someone types
  * more contact lines than the height allows, so a long card stays a card
@@ -131,13 +166,29 @@ function shortAddress(v: string): string {
 export function layoutBusinessCard(
   card: BusinessCard,
   measure: CanvasRenderingContext2D | null,
+  side: CardSide = 'front',
 ): CardLayout {
   const ink = inkFor(card.bg);
   const inkSoft = ink === '#FFFFFF' ? 'rgba(255,255,255,0.68)' : 'rgba(20,17,13,0.62)';
   const left = STRIPE + PAD;
+  const back = side === 'back';
   const pay = card.kind === 'payment';
-  // The payment card's top-right corner belongs to the code.
-  const hasLogo = card.logoUrl !== null && !pay;
+  /* The back is the same frame with different words in it: the quote takes
+     the big line, the note takes the contact block, and everything that is
+     the front's job — the role, the tagline — is simply absent. */
+  const text = back
+    ? { company: card.company, name: '', title: '', tagline: card.quote, details: card.backNote }
+    : {
+        company: card.company,
+        name: card.name,
+        title: card.title,
+        tagline: card.tagline,
+        details: card.details,
+      };
+  const hasTitleOut = !pay && !back && card.title.trim().length > 0;
+  /* The front's top-right corner belongs to the code on a payment card and
+     to the logo on a business one. The back has room for both. */
+  const hasLogo = card.logoUrl !== null && (back || !pay);
   const logoR = 64;
   /* A payment card gives its right-hand third to the QR; the words get what
      is left. On a business card that space is the logo's, or nobody's. */
@@ -154,20 +205,20 @@ export function layoutBusinessCard(
     const detailSize = 26 * s;
     const detailLead = detailSize * 1.5;
 
-    const taglineLines = !pay && card.tagline.trim()
-      ? wrapText(card.tagline, `400 ${taglineSize}px ${FONT_BODY}`, textW, measure)
+    const taglineLines = (back || !pay) && text.tagline.trim()
+      ? wrapText(text.tagline, `400 ${taglineSize}px ${FONT_BODY}`, textW, measure)
       : [];
-    const detailLines = card.details.trim()
-      ? wrapText(card.details, `400 ${detailSize}px ${FONT_BODY}`, textW, measure)
+    const detailLines = text.details.trim()
+      ? wrapText(text.details, `400 ${detailSize}px ${FONT_BODY}`, textW, measure)
       : [];
 
     // Top block grows down from the padding; contact details hang off the
     // bottom edge, which is where a reader's eye goes for them.
     const detailsH = detailLines.length * detailLead;
     let y = PAD;
-    const hasTitle = !pay && card.title.trim();
-    const companyY = card.company.trim() ? y : y - companySize * 1.3;
-    if (card.company.trim()) y += companySize * 1.35;
+    const hasTitle = hasTitleOut;
+    const companyY = text.company.trim() ? y : y - companySize * 1.3;
+    if (text.company.trim()) y += companySize * 1.35;
     const nameY = y;
     y += nameSize * 1.12;
     const titleY = y;
@@ -189,25 +240,34 @@ export function layoutBusinessCard(
   /* The code and the written list are the payment card's whole point, so
      they are built from the same methods — what a phone scans and what a
      person reads off the card say the same thing. */
-  const chosen = pay ? qrMethod(card) : null;
-  const uri = chosen ? paymentUri(chosen.kind, chosen.value) : '';
-  const modules = pay ? qrMatrix(uri) : null;
-  const qr: QrBlock | null =
-    pay && modules
-      ? {
-          x: CARD_W - PAD - qrSize,
-          y: (CARD_H - qrSize) / 2,
-          size: qrSize,
-          modules,
-          caption: chosen ? paymentLabel(chosen.kind) : '',
-        }
-      : null;
-  const methodLines = pay
-    ? card.payments
-        .filter((m) => m.value.trim())
-        .slice(0, 5)
-        .map((m) => `${paymentLabel(m.kind)}  ${shortAddress(m.value.trim())}`)
+  const chosen = pay && !back ? qrMethod(card) : null;
+  const uri = chosen ? paymentUri(chosen.kind, chosen.values) : '';
+  const modules = chosen && !chosen.qrImage ? qrMatrix(uri) : null;
+  /* An uploaded code takes the same box — the card cannot tell the
+     difference and neither can a phone. */
+  const qrHere = pay && !back && (modules != null || chosen?.qrImage);
+  const qr: QrBlock | null = qrHere
+    ? {
+        x: CARD_W - PAD - qrSize,
+        y: (CARD_H - qrSize) / 2,
+        size: qrSize,
+        modules: modules ?? [],
+        image: chosen?.qrImage ?? null,
+        caption: chosen ? paymentLabel(chosen.kind) : '',
+      }
+    : null;
+  /* The front carries the one method the code is for; the back carries the
+     rest, which is what a back is for. */
+  const shown = pay
+    ? back
+      ? card.payments.filter((m) => paymentFilled(m.values) && m.id !== chosenId(card))
+      : chosen
+        ? [chosen]
+        : card.payments.filter((m) => paymentFilled(m.values)).slice(0, 1)
     : [];
+  const methodLines = shown
+    .flatMap((m) => [paymentLabel(m.kind), ...paymentLines(m.kind, m.values).map(shortLine), ''])
+    .slice(0, back ? 14 : 5);
 
   return {
     bg: card.bg,
@@ -218,7 +278,7 @@ export function layoutBusinessCard(
     rule: { x: left, y: b.detailsY - 26, w: Math.min(120, textW), h: Math.max(3, 4 * s) },
     logo: hasLogo ? { cx: CARD_W - PAD - logoR, cy: PAD + logoR, r: logoR } : null,
     company: {
-      lines: card.company.trim() ? [card.company.toUpperCase()] : [],
+      lines: text.company.trim() ? [text.company.toUpperCase()] : [],
       x: left,
       y: b.companyY,
       size: b.companySize,
@@ -228,7 +288,7 @@ export function layoutBusinessCard(
       colour: card.accent,
     },
     name: {
-      lines: card.name.trim() ? [card.name] : [],
+      lines: text.name.trim() ? [text.name] : [],
       x: left,
       y: b.nameY,
       size: b.nameSize,
@@ -238,7 +298,7 @@ export function layoutBusinessCard(
       colour: ink,
     },
     title: {
-      lines: !pay && card.title.trim() ? [card.title] : [],
+      lines: hasTitleOut ? [text.title] : [],
       x: left,
       y: b.titleY,
       size: b.titleSize,
@@ -283,7 +343,7 @@ export function layoutBusinessCard(
 
 /** The method the QR encodes: the one chosen, or the first that has a value. */
 export function qrMethod(card: BusinessCard): PaymentMethod | null {
-  const filled = card.payments.filter((m) => m.value.trim());
+  const filled = card.payments.filter((m) => paymentFilled(m.values) || m.qrImage);
   return filled.find((m) => m.id === card.qrOf) ?? filled[0] ?? null;
 }
 
@@ -316,7 +376,25 @@ export async function drawBusinessCard(
   run(L.details);
   run(L.methods);
 
-  if (L.qr) {
+  if (L.qr?.image) {
+    // A code the user brought with them: drawn as the picture it is.
+    const img = new Image();
+    img.src = L.qr.image;
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("That QR image couldn't be loaded"));
+    });
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(L.qr.x, L.qr.y, L.qr.size, L.qr.size);
+    const inset = L.qr.size * 0.06;
+    ctx.drawImage(img, L.qr.x + inset, L.qr.y + inset, L.qr.size - inset * 2, L.qr.size - inset * 2);
+    if (L.qr.caption) {
+      ctx.font = `700 22px ${FONT_BODY}`;
+      ctx.fillStyle = L.inkSoft;
+      const w = ctx.measureText(L.qr.caption).width;
+      ctx.fillText(L.qr.caption, L.qr.x + (L.qr.size - w) / 2, L.qr.y + L.qr.size + 20);
+    }
+  } else if (L.qr && L.qr.modules.length > 0) {
     /* Drawn module by module rather than as an image: the same matrix the
        preview walks, so the printed code and the one on screen are the same
        code. The quiet zone is part of the spec — without it scanners miss. */

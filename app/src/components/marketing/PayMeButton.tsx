@@ -3,7 +3,7 @@ import { QrCode, X } from 'lucide-react';
 import { trpc } from '@/providers/trpc';
 import CardPreview from '@/components/marketing/CardPreview';
 import { emptyBusinessCard, type BusinessCard } from '@/components/marketing/business-card';
-import { PAYMENT_KINDS, paymentUri } from '@/lib/qr';
+import { kindSpec, paymentFilled, paymentUri } from '@/lib/qr';
 
 /**
  * "How to pay me" on somebody's profile.
@@ -59,39 +59,51 @@ export default function PayMeButton({ userId, name }: { userId: number; name: st
 
             <div className="flex flex-col gap-1.5">
               {(full.payments ?? [])
-                .filter((m) => m.value.trim())
+                .filter((m) => paymentFilled(m.values))
                 .map((m) => {
-                  const label = PAYMENT_KINDS.find((k) => k.id === m.kind)?.label ?? m.kind;
-                  const uri = paymentUri(m.kind, m.value);
-                  const isLink = /^https?:/i.test(uri);
+                  const spec = kindSpec(m.kind);
+                  const uri = paymentUri(m.kind, m.values);
                   return (
                     <div
                       key={m.id}
-                      className="flex flex-wrap items-center gap-2 rounded-wobble-sm border-2 border-dashed border-pencil px-3 py-2"
+                      className="flex flex-col gap-1 rounded-wobble-sm border-2 border-dashed border-pencil px-3 py-2"
                     >
-                      <span className="micro w-24 shrink-0 text-[0.58rem] font-bold text-ink-soft">
-                        {label}
-                      </span>
-                      <span className="min-w-0 flex-1 break-all font-mono text-[0.78rem] text-ink">
-                        {m.value.trim()}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => void navigator.clipboard?.writeText(m.value.trim())}
-                        className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-0.5 text-[0.55rem] font-bold text-ink-soft hover:border-ink hover:text-ink"
-                      >
-                        Copy
-                      </button>
-                      {isLink && (
-                        <a
-                          href={uri}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="micro rounded-wobble-sm border-2 border-ink bg-yellow px-2 py-0.5 text-[0.55rem] font-bold text-ink"
-                        >
-                          Open
-                        </a>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <span className="font-heading text-sm font-bold text-ink">
+                          {spec?.label ?? m.kind}
+                        </span>
+                        {uri && /^https?:/i.test(uri) && (
+                          <a
+                            href={uri}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="micro ml-auto rounded-wobble-sm border-2 border-ink bg-yellow px-2 py-0.5 text-[0.55rem] font-bold text-ink"
+                          >
+                            Open
+                          </a>
+                        )}
+                      </div>
+                      {(spec?.fields ?? [])
+                        .filter((f) => (m.values[f.key] ?? '').trim())
+                        .map((f) => (
+                          <div key={f.key} className="flex flex-wrap items-center gap-2">
+                            <span className="micro w-32 shrink-0 text-[0.55rem] text-ink-soft">
+                              {f.label}
+                            </span>
+                            <span className="min-w-0 flex-1 break-all font-mono text-[0.78rem] text-ink">
+                              {m.values[f.key].trim()}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void navigator.clipboard?.writeText(m.values[f.key].trim())
+                              }
+                              className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-0.5 text-[0.55rem] font-bold text-ink-soft hover:border-ink hover:text-ink"
+                            >
+                              Copy
+                            </button>
+                          </div>
+                        ))}
                     </div>
                   );
                 })}
