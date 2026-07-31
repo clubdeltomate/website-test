@@ -1,6 +1,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import { trpc } from '@/providers/trpc';
 import { authToken } from '@/lib/auth';
+import { getLang } from '@/lib/i18n';
 import type { Role, SessionUser } from '@contracts/types';
 
 export interface UseAuth {
@@ -45,7 +46,14 @@ export function useAuth(): UseAuth {
 
   const register = useCallback(
     async (name: string, email: string, password: string) => {
-      const res = await utils.client.auth.register.mutate({ name, email, password });
+      /* The new account starts in whatever language the sign-up form was
+         being read in — nobody should have to find the switch twice. */
+      const res = await utils.client.auth.register.mutate({
+        name,
+        email,
+        password,
+        language: getLang(),
+      });
       authToken.set(res.token);
       await utils.invalidate();
       return res.user;

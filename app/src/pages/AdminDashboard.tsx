@@ -74,7 +74,7 @@ function HomeBody() {
 
 export default function AdminDashboard() {
   return (
-    <AdminGate minRole="moderator">
+    <AdminGate minRole="admin">
       <HomeBody />
     </AdminGate>
   );

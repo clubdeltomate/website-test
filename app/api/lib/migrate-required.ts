@@ -238,6 +238,10 @@ export async function ensureRequiredSchema(): Promise<void> {
         `CREATE INDEX IF NOT EXISTS "${table}_lang_idx" ON sketchlearn."${table}" ("contentLanguage")`,
       );
     }
+    // The language each account last read the site in.
+    await client.query(
+      `ALTER TABLE sketchlearn.users ADD COLUMN IF NOT EXISTS "language" varchar(5) NOT NULL DEFAULT 'en'`,
+    );
   } finally {
     await client.end();
   }
