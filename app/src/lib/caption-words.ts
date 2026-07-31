@@ -14,6 +14,20 @@ export const FONT = "'Arial Black', 'Arial Bold', 'Helvetica Neue', Arial, sans-
 /** Body face, for the lines that must not shout. */
 export const FONT_BODY = "'Helvetica Neue', Arial, Helvetica, sans-serif";
 
+/**
+ * A throwaway 2D context used only to measure text. One per page rather than
+ * one per component: nothing is ever drawn on it, so sharing is free, and it
+ * keeps the measuring out of component state where it does not belong.
+ */
+let measure: CanvasRenderingContext2D | null | undefined;
+
+export function measureCtx(): CanvasRenderingContext2D | null {
+  if (measure === undefined) {
+    measure = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
+  }
+  return measure;
+}
+
 /** Split a line the way the layout does — whitespace-separated, no blanks. */
 export const wordsOf = (s: string): string[] => s.split(/\s+/).filter(Boolean);
 

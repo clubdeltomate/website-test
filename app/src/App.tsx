@@ -29,6 +29,7 @@ import AdminControls from './pages/AdminControls';
 import AdminProjects from './pages/AdminProjects';
 import AdminFinance from './pages/AdminFinance';
 import AdminMarketing from './pages/AdminMarketing';
+import AdminMarketingCard from './pages/AdminMarketingCard';
 import AdminAnalytics from './pages/AdminAnalytics';
 import AdminPayments from './pages/AdminPayments';
 import AdminFlags from './pages/AdminFlags';
@@ -81,6 +82,7 @@ export default function App() {
         <Route path="/admin/projects" element={<AdminProjects />} />
         <Route path="/admin/projects/finance" element={<AdminFinance />} />
         <Route path="/admin/projects/marketing" element={<AdminMarketing />} />
+        <Route path="/admin/projects/marketing/card" element={<AdminMarketingCard />} />
         <Route path="/admin/analytics" element={<AdminAnalytics />} />
         <Route path="/admin/payments" element={<AdminPayments />} />
         <Route path="/admin/flags" element={<AdminFlags />} />
