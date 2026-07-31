@@ -1,6 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { ChevronLeft, ChevronRight, Grid3x3, Plus, Rows3, Trash2 } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Grid3x3,
+  Plus,
+  Rows3,
+  Trash2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { trpc } from '@/providers/trpc';
@@ -21,40 +30,65 @@ import EmptyState from '@/components/sketch/EmptyState';
 type View = 'feed' | 'grid';
 
 /**
- * How tall a post's picture may get.
- *
- * Sized against the screen rather than the column, because a 9:16 carousel at
- * a fixed column width is about a thousand pixels tall — you saw a slice of it
- * and scrolled the rest, while the desktop's width went spare. Fitting the
- * viewport instead means the whole post is on screen at once and the width
- * follows from the shape, so a square or 4:5 post comes out wider than a story
- * does.
- *
- * The subtraction is everything else on screen, measured rather than guessed:
- * the app bar, the page padding, the heading and filter rows, the card's own
- * header and its caption. A caption of more than a couple of lines will still
- * push a little below the fold, which is what Instagram does too.
- *
- * The floor matters as much as the ceiling: on a short laptop, fitting a 9:16
- * post exactly would shrink it to a postage stamp, and a readable post you
- * scroll a little is worth more than a tiny one that fits.
+ * The width of a post when it is being read at its natural size — the phone
+ * layout of the single-post page, and the fallback anywhere a fixed column is
+ * wanted. Instagram's own feed column is about this wide.
  */
-export const MEDIA_MAX_H = 'clamp(420px, calc(100dvh - 330px), 900px)';
+export const POST_W = 'min(100%, 520px)';
+
+/**
+ * How tall a post stands in the feed.
+ *
+ * The feed shows one post at a time and sizes it to the window, the way TikTok
+ * does, with buttons to step to the next. Our posts are mostly 9:16, and a
+ * 9:16 post in a scrolling column is either a sliver (narrow enough to fit the
+ * height) or a thing you scroll past in pieces. One at a time solves both: the
+ * post is always exactly as tall as there is room for, and moving on is a
+ * click rather than a hunt.
+ *
+ * The subtraction is everything else on screen, measured: the app bar, the
+ * page padding, the heading and filter rows, the card's own header, the dots
+ * and the caption.
+ */
+const FEED_PANE_H = 'clamp(300px, calc(100dvh - 330px), 900px)';
+
+/**
+ * A ceiling, only so a pathological upload cannot produce a mile of page. Set
+ * far above any real post — a 9:16 at full column width is about 920px — so
+ * in practice nothing is ever cropped by it.
+ */
+const MEDIA_MAX_H = '1400px';
 
 /** Swipe through one post's slides in place. */
-function Carousel({ post, maxHeight = MEDIA_MAX_H }: { post: PostSummary; maxHeight?: string }) {
+/**
+ * Swipe through one post's slides.
+ *
+ * Two ways to be sized. In the feed the picture fills the column's width and
+ * the height follows — the normal way a post is read. Given a `height`, it
+ * fills that instead and the width follows, which is what the desktop
+ * lightbox wants: the picture as tall as the window allows, with the caption
+ * beside it rather than under it.
+ */
+export function Carousel({ post, height }: { post: PostSummary; height?: string }) {
   const [at, setAt] = useState(0);
   const many = post.imageUrls.length > 1;
+  const ratio = `${post.width} / ${post.height}`;
   return (
-    <div className="relative flex max-w-full overflow-hidden bg-ink/5">
-      {/* The picture sizes the frame. An <img> with an aspect ratio and both
-          caps scales itself down preserving shape, which no amount of
-          height-on-a-div does without either cropping or letterboxing. */}
+    // A column of its own, so the dots sit under the picture whichever
+    // direction the parent happens to lay its children out in.
+    <div className="flex min-w-0 flex-col items-center">
+    <div
+      className={cn(
+        'relative flex justify-center overflow-hidden bg-ink/5',
+        height ? 'w-auto' : 'w-full',
+      )}
+      style={height ? { height } : { aspectRatio: ratio, maxHeight: MEDIA_MAX_H }}
+    >
       <img
         src={post.imageUrls[at]}
         alt={`Slide ${at + 1} of ${post.imageUrls.length}`}
-        className="block h-auto w-auto max-w-full object-cover"
-        style={{ aspectRatio: `${post.width} / ${post.height}`, maxHeight }}
+        className={cn('object-cover', height ? 'block h-full w-auto max-w-full' : 'h-full w-full')}
+        style={height ? { aspectRatio: ratio } : undefined}
       />
       {many && (
         <>
@@ -76,35 +110,57 @@ function Carousel({ post, maxHeight = MEDIA_MAX_H }: { post: PostSummary; maxHei
           >
             <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
           </button>
-          <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1">
-            {post.imageUrls.map((_, i) => (
-              <span
-                key={i}
-                className={cn(
-                  'h-1.5 w-1.5 rounded-full border border-ink',
-                  i === at ? 'bg-ink' : 'bg-paper-3/70',
-                )}
-              />
-            ))}
-          </div>
           <span className="absolute right-2 top-2 rounded-full border-2 border-ink bg-paper-3/90 px-2 font-mono text-[0.6rem] text-ink">
             {at + 1}/{post.imageUrls.length}
           </span>
         </>
       )}
     </div>
+    <Dots count={post.imageUrls.length} at={at} />
+    </div>
   );
 }
 
-function PostCard({ post, onRemove }: { post: PostSummary; onRemove: (slug: string) => void }) {
+/** The swipe dots, under the picture rather than over it — on a 9:16 post the
+ *  bottom of the frame is the caption band, and dots do not belong on it. */
+function Dots({ count, at }: { count: number; at: number }) {
+  if (count < 2) return null;
+  return (
+    <div className="flex justify-center gap-1.5 py-2">
+      {Array.from({ length: count }, (_, i) => (
+        <span
+          key={i}
+          className={cn(
+            'h-1.5 w-1.5 rounded-full border border-ink transition-colors',
+            i === at ? 'bg-ink' : 'bg-transparent',
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+function PostCard({
+  post,
+  onRemove,
+  height,
+}: {
+  post: PostSummary;
+  onRemove: (slug: string) => void;
+  height?: string;
+}) {
   const meta = TEMPLATE_META[post.category as PostCategory] ?? TEMPLATE_META.course;
   const Icon = meta.icon;
   const { user } = useAuth();
   const canRemove = post.mine || user?.role === 'admin';
   return (
-    // w-fit so the header and caption line up with the picture's edges,
-    // whatever width fitting the screen gave it.
-    <article className="flex w-fit max-w-full flex-col overflow-hidden rounded-wobble-2 border-2 border-ink bg-paper-3 shadow-offset">
+    <article
+      className={cn(
+        'flex flex-col overflow-hidden rounded-wobble-2 border-2 border-ink bg-paper-3 shadow-offset',
+        height ? 'w-fit max-w-full' : 'w-full',
+      )}
+      style={height ? undefined : { width: POST_W }}
+    >
       <header className="flex items-center gap-2 px-3 py-2">
         <Link
           to={`/users/${post.ownerId}`}
@@ -139,7 +195,7 @@ function PostCard({ post, onRemove }: { post: PostSummary; onRemove: (slug: stri
         )}
       </header>
       <Link to={`/feed/${post.slug}`} className="flex border-y-2 border-ink">
-        <Carousel post={post} />
+        <Carousel post={post} height={height} />
       </Link>
       {post.caption && (
         <p className="max-w-full whitespace-pre-wrap break-words px-3 py-2 text-[0.92rem] leading-relaxed text-ink">
@@ -153,6 +209,7 @@ function PostCard({ post, onRemove }: { post: PostSummary; onRemove: (slug: stri
 export default function Feed() {
   const [view, setView] = useState<View>('feed');
   const [category, setCategory] = useState<PostCategory | null>(null);
+  const [atPost, setAtPost] = useState(0);
   const navigate = useNavigate();
   const { user } = useAuth();
   const utils = trpc.useUtils();
@@ -169,6 +226,25 @@ export default function Feed() {
   };
 
   const feed = list.data ?? [];
+  /* Clamped rather than reset, so a post disappearing — deleted, or filtered
+     out — leaves you next to where you were instead of back at the top. */
+  const shown = Math.min(atPost, Math.max(0, feed.length - 1));
+
+  /* Arrow keys step posts too. Skipped while something is focused that wants
+     the arrows for itself, so typing in a field never jumps the feed. */
+  useEffect(() => {
+    if (view !== 'feed') return;
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === 'ArrowDown') setAtPost((a) => a + 1);
+      else if (e.key === 'ArrowUp') setAtPost((a) => Math.max(0, a - 1));
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [view]);
   /** Every slide of every post, flattened — the grid shows pictures, not posts. */
   const tiles = feed.flatMap((p) =>
     p.imageUrls.map((url, i) => ({ url, slug: p.slug, key: `${p.slug}-${i}` })),
@@ -218,7 +294,10 @@ export default function Feed() {
       <div className="flex flex-wrap items-center gap-1.5">
         <button
           type="button"
-          onClick={() => setCategory(null)}
+          onClick={() => {
+            setCategory(null);
+            setAtPost(0);
+          }}
           aria-pressed={category === null}
           className={cn(
             'micro rounded-wobble-sm border-2 px-2.5 py-1 text-[0.6rem] font-bold transition-colors',
@@ -236,7 +315,10 @@ export default function Feed() {
             <button
               key={c}
               type="button"
-              onClick={() => setCategory(c)}
+              onClick={() => {
+                setCategory(c);
+                setAtPost(0);
+              }}
               aria-pressed={category === c}
               className={cn(
                 'micro flex items-center gap-1 rounded-wobble-sm border-2 px-2.5 py-1 text-[0.6rem] font-bold transition-colors',
@@ -267,6 +349,47 @@ export default function Feed() {
           ctaLabel={user?.role === 'admin' ? 'Open the marketing tool' : undefined}
           onCta={user?.role === 'admin' ? () => navigate('/admin/projects/marketing') : undefined}
         />
+      ) : view === 'feed' ? (
+        <div className="flex items-center justify-center gap-3">
+          {/* Keyed by slug so stepping to another post mounts a fresh
+              carousel, rather than opening it on whatever slide the last one
+              was left showing. */}
+          <PostCard
+            key={feed[shown].slug}
+            post={feed[shown]}
+            onRemove={(x) => void remove(x)}
+            height={FEED_PANE_H}
+          />
+          {/* Stepping between posts, TikTok's way: the post stays put and the
+              next one takes its place, rather than the page moving under you. */}
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              disabled={shown === 0}
+              onClick={() => setAtPost(shown - 1)}
+              aria-label="Previous post"
+              className="rounded-full border-2 border-ink bg-paper-3 p-2 text-ink shadow-offset transition-transform hover:-translate-y-0.5 disabled:opacity-30 disabled:hover:translate-y-0"
+            >
+              <ChevronUp className="h-4 w-4" strokeWidth={2.5} />
+            </button>
+            <span
+              aria-label={`Post ${shown + 1} of ${feed.length}`}
+              aria-live="polite"
+              className="micro text-center text-[0.55rem] tabular-nums text-ink-faint"
+            >
+              {shown + 1}/{feed.length}
+            </span>
+            <button
+              type="button"
+              disabled={shown >= feed.length - 1}
+              onClick={() => setAtPost(shown + 1)}
+              aria-label="Next post"
+              className="rounded-full border-2 border-ink bg-paper-3 p-2 text-ink shadow-offset transition-transform hover:-translate-y-0.5 disabled:opacity-30 disabled:hover:translate-y-0"
+            >
+              <ChevronDown className="h-4 w-4" strokeWidth={2.5} />
+            </button>
+          </div>
+        </div>
       ) : view === 'grid' ? (
         <div className="grid grid-cols-3 gap-1 sm:gap-2">
           {tiles.map((t) => (
@@ -283,15 +406,7 @@ export default function Feed() {
             </Link>
           ))}
         </div>
-      ) : (
-        <div className="flex w-full flex-col items-center gap-8">
-          {feed.map((p) => (
-            <PostCard key={p.slug} post={p} onRemove={(s) => void remove(s)} />
-          ))}
-        </div>
-      )}
+      ) : null}
     </div>
   );
 }
-
-export { Carousel };
