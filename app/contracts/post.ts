@@ -30,3 +30,24 @@ export const CATEGORY_BRIEF: Record<PostCategory, string> = {
   walkthrough: "a walkthrough or a how-to — the reader should want to follow along",
   news: "a piece of news or an announcement — the reader should want to know",
 };
+
+/**
+ * A published post as the feed reads it. Declared here rather than beside the
+ * router so the page and the endpoint agree on one shape.
+ */
+export interface PostSummary {
+  slug: string;
+  caption: string;
+  category: string;
+  /** every slide, in carousel order */
+  imageUrls: string[];
+  width: number;
+  height: number;
+  ownerId: number;
+  ownerName: string;
+  ownerAvatarUrl: string | null;
+  ownerVerified: boolean;
+  createdAt: Date;
+  /** the viewer made this one */
+  mine: boolean;
+}

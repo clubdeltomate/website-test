@@ -498,6 +498,34 @@ export const castModels = appSchema.table(
 );
 
 /**
+ * A published carousel, as it appears on the feed.
+ *
+ * The slides are stored as the finished PNGs rather than as the editor state
+ * that produced them: what was posted is what people see, and it stays that
+ * way even if the cast, the band colours or the follow card change
+ * afterwards. Re-editing a post means making a new one, which is how a feed
+ * works anyway.
+ */
+export const posts = appSchema.table(
+  "posts",
+  {
+    id: serial("id").primaryKey(),
+    slug: varchar("slug", { length: 191 }).notNull().unique(),
+    ownerId: fk("ownerId").notNull(),
+    caption: varchar("caption", { length: 2200 }).notNull().default(""),
+    category: templateEnum("category").notNull().default("course"),
+    /** slideImages ids, in carousel order */
+    imageIds: json("imageIds").$type<number[]>().notNull(),
+    /** the shape they were exported at, so the feed reserves the right space */
+    width: integer("width").notNull().default(1080),
+    height: integer("height").notNull().default(1350),
+    isPublic: boolean("isPublic").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [index("posts_owner_idx").on(t.ownerId), index("posts_category_idx").on(t.category)],
+);
+
+/**
  * One account's standing marketing identity.
  *
  * The follow card that closes a carousel — logo, name, counts, bio — should

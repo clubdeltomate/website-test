@@ -12,6 +12,7 @@ import { unitImagesRouter } from "./routers/unitImages.js";
 import { assignmentsRouter } from "./routers/assignments.js";
 import { marketingRouter } from "./routers/marketing.js";
 import { castRouter } from "./routers/cast.js";
+import { postsRouter } from "./routers/posts.js";
 import { keysRouter } from "./routers/keys.js";
 import { tokensRouter } from "./routers/tokens.js";
 import { paymentsRouter } from "./routers/payments.js";
@@ -68,6 +69,7 @@ export const appRouter = createRouter({
   assignments: assignmentsRouter,
   marketing: marketingRouter,
   cast: castRouter,
+  posts: postsRouter,
   keys: keysRouter,
   tokens: tokensRouter,
   payments: paymentsRouter,
