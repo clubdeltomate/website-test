@@ -470,8 +470,12 @@ export const reposRouter = createRouter({
         .where(conds.length ? and(...conds) : undefined)
         .orderBy(desc(repos.createdAt))
         .limit(input?.limit ?? 50);
-      // The personal shelf also carries what a moderator handed this user:
-      // assigned repos appear beside their own, tagged so the card says why.
+      /* The personal shelf also carries what a moderator handed this user:
+         assigned repos appear beside their own, tagged so the card says why.
+         Fetched by slug rather than through the query above, which means the
+         language filter never hides them — that is deliberate. Being sent an
+         English lesson and then not being able to find it on a Spanish shelf
+         would make the assignment useless. */
       const assignedSet = new Set<string>();
       if (input?.mine && ctx.user) {
         for (const slug of await assignedSlugs(ctx.user.id, "repo")) {

@@ -653,4 +653,6 @@ export const ES: Record<string, string> = {
   'Every language': 'Todos los idiomas',
   'Language updated': 'Idioma actualizado',
   'Language of this post': 'Idioma de esta publicación',
+  'The Coach — admin only while it is being built':
+    'El Coach — solo para administración mientras se construye',
 };

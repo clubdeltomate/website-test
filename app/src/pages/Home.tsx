@@ -24,6 +24,7 @@ import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 import type { CoachAction } from '@contracts/types';
 import { say } from '@/lib/i18n';
+import AdminGate from '@/components/admin/AdminGate';
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -414,6 +415,17 @@ function ContextRailContent() {
 /* ------------------------------------------------------------------ */
 
 export default function Home() {
+  /* The Coach is admin-only for now. It is wrapped here rather than at the
+     route so every way in — a bookmark, a link in a lesson — lands on the
+     same gate rather than only the ones that go through the router entry. */
+  return (
+    <AdminGate minRole="admin">
+      <ChatBody />
+    </AdminGate>
+  );
+}
+
+function ChatBody() {
   const navigate = useNavigate();
   const { isGuest } = useAuth();
   const coachChat = trpc.coach.chat.useMutation();

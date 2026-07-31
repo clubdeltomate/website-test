@@ -1,4 +1,4 @@
-import { Landmark, Megaphone, Sparkles } from 'lucide-react';
+import { Landmark, MessageCircle, Megaphone, Sparkles } from 'lucide-react';
 import AdminGate from '@/components/admin/AdminGate';
 import { HubHeader, PanelTileCard, type PanelTile } from '@/components/admin/PanelTiles';
 import { say } from '@/lib/i18n';
@@ -20,6 +20,16 @@ const PROJECT_TILES: PanelTile[] = [
     tone: 'purple',
     title: 'Marketing',
     blurb: 'Compose 9:16 posts — AI backdrop, caption band, colour by the word',
+  },
+  /* The Coach used to sit in everybody's rail. It is not finished enough for
+     that, so it lives here instead — reachable, admin only, and off the road
+     for everyone else rather than a dead button in their sidebar. */
+  {
+    to: '/chat',
+    icon: MessageCircle,
+    tone: 'blue',
+    title: 'Chat',
+    blurb: 'The Coach — admin only while it is being built',
   },
 ];
 

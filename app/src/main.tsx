@@ -8,17 +8,17 @@ import App from './App.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
-    {/* Outermost of the app providers: every string below it, including the
-        ones in error boundaries and toasts, is rendered in the chosen
-        language. */}
-    <I18nProvider>
     <TRPCProvider>
+      {/* Inside tRPC, because the language follows the signed-in account and
+          that needs a session to read. Still above everything that renders a
+          word, which is what matters. */}
+      <I18nProvider>
       {/* Above the router on purpose: a lesson generation has to survive the
           author navigating to another page and back. */}
       <LessonGenerationProvider>
         <App />
       </LessonGenerationProvider>
+      </I18nProvider>
     </TRPCProvider>
-    </I18nProvider>
   </BrowserRouter>,
 )

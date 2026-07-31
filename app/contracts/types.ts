@@ -376,6 +376,8 @@ export interface SessionUser {
   tokenBalance: number;
   /** moderator's pool of un-gifted customization tickets */
   ticketBalance: number;
+  /** the language this account last read the site in */
+  language: string;
   createdAt: Date;
   /** public contact shown at the end of a commercial showcase */
   whatsapp: string | null;

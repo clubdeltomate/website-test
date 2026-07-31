@@ -22,6 +22,7 @@ function toSessionUser(u: User): SessionUser {
     whatsapp: u.whatsapp ?? null,
     socials: Array.isArray(u.socials) ? (u.socials as string[]) : [],
     contactNote: u.contactNote ?? null,
+    language: u.language ?? "en",
   };
 }
 
@@ -60,6 +61,10 @@ export const authRouter = createRouter({
         // Raw input: normalizeUsername closes up spaces and clips to
         // USERNAME_MAX_LENGTH, so this bound only rejects absurd payloads.
         name: z.string().min(1).max(255),
+        /* Whatever language they were reading the sign-up form in. The
+           account starts in the language they were already using rather than
+           making them find the switch again on their first visit. */
+        language: z.string().max(5).default("en"),
       }),
     )
     .mutation(async ({ input }) => {
@@ -91,6 +96,7 @@ export const authRouter = createRouter({
           passwordHash: hashPassword(input.password),
           role: "user",
           tokenBalance: STARTER_TOKENS,
+          language: input.language,
         })
         .returning({ id: users.id });
       // No row for a zero bonus — an empty movement is noise in the ledger.
@@ -152,6 +158,24 @@ export const authRouter = createRouter({
         10000,
         "Sign-in is taking too long. Please try again.",
       );
+    }),
+
+  /**
+   * Remember the language this account is reading in.
+   *
+   * Written on every toggle rather than on some "save settings" button: the
+   * switch IS the setting, and a preference that needs confirming somewhere
+   * else is one people will lose. Cheap enough to write on each flip — it is
+   * one small column and nobody toggles languages in a loop.
+   */
+  setLanguage: authedProcedure
+    .input(z.object({ language: z.string().max(5) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      await getDb()
+        .update(users)
+        .set({ language: input.language })
+        .where(eq(users.id, ctx.user.id));
+      return { ok: true };
     }),
 
   me: publicQuery.query(({ ctx }) => {

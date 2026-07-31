@@ -143,7 +143,22 @@ export const postsRouter = createRouter({
             input.category ? eq(posts.category, input.category) : undefined,
             input.saved ? inArray(posts.slug, [...saved]) : undefined,
             input.ownerId ? eq(posts.ownerId, input.ownerId) : undefined,
-            input.language ? eq(posts.contentLanguage, input.language) : undefined,
+            /* Language narrows the shelf, but never hides something handed
+               to you by name. A verified moderator or an admin assigning an
+               English lesson to a Spanish reader has made a decision about
+               that reader, and a filter should not quietly overrule it —
+               being sent something and then not being able to find it is
+               worse than seeing one post in the wrong language. `canSend`
+               already limits who may assign, so an assignment on the table is
+               privileged by construction. */
+            input.language
+              ? given.size > 0
+                ? or(
+                    eq(posts.contentLanguage, input.language),
+                    inArray(posts.slug, [...given]),
+                  )
+                : eq(posts.contentLanguage, input.language)
+              : undefined,
           ),
         )
         .orderBy(desc(posts.id))

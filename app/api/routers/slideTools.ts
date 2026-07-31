@@ -225,8 +225,10 @@ export const slideToolsRouter = createRouter({
         .where(conds.length ? and(...conds) : undefined)
         .orderBy(desc(slideTools.createdAt))
         .limit(input?.limit ?? 50);
-      // The personal shelf also carries what a moderator handed this user:
-      // assigned tools appear beside their own, tagged so the card says why.
+      /* The personal shelf also carries what a moderator handed this user:
+         assigned tools appear beside their own, tagged so the card says why.
+         Fetched by slug rather than through the query above, so the language
+         filter never hides them — deliberate, same as in repos.list. */
       const assignedSet = new Set<string>();
       if (input?.mine && ctx.user) {
         for (const slug of await assignedSlugs(ctx.user.id, "slideTool")) {

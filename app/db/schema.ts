@@ -55,6 +55,15 @@ export const users = appSchema.table(
     // the admin (paid for in credits). They gift them to users, one ticket =
     // one paid customization on one of the moderator's repos.
     ticketBalance: integer("ticketBalance").notNull().default(0),
+    /**
+     * The language this account last read the site in.
+     *
+     * On the account rather than only in the browser, so signing in on a
+     * different machine still greets you in the language you left in. The
+     * browser copy stays as the answer for signed-out visitors and as the
+     * value to seed a new account with.
+     */
+    language: varchar("language", { length: 5 }).notNull().default("en"),
     // Public contact details a poster shows at the end of a commercial
     // (menu/service/shop) presentation so viewers can reach out to order/hire.
     whatsapp: varchar("whatsapp", { length: 40 }),

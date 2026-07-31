@@ -35,11 +35,13 @@ const NAV_ITEMS = [
   { to: '/slides', label: 'Slides', icon: Presentation },
   { to: '/gallery', label: 'Gallery', icon: Images },
   { to: '/users', label: 'Users', icon: Users },
-  { to: '/chat', label: 'Chat', icon: MessageCircle },
   { to: '/card', label: 'Card', icon: CreditCard },
   { to: '/about', label: 'About', icon: Info },
 ];
 
+/* The Dashboard is ADMIN only — a moderator has no control panel. Their own
+   pages (the flag queue, the runs) keep their moderator gates and stay
+   reachable, but the hub that lists everything is not theirs. */
 // Staff-only. The Dashboard is a control panel: every other staff page
 // (Manage users, Moderators, Presentation runs, Slide templates, Platform,
 // Analytics, Payments, Flags) is reached from its launcher tiles, so the
@@ -98,7 +100,7 @@ function RailLink({
 
 function RailContent({ onClose }: { onClose?: () => void }) {
   const { user, role, logout } = useAuth();
-  const isStaff = role === 'moderator' || role === 'admin';
+  const isStaff = role === 'admin';
   const staffItems = ADMIN_ITEMS;
 
   return (
@@ -134,7 +136,7 @@ function RailContent({ onClose }: { onClose?: () => void }) {
       {isStaff && (
         <>
           <p className="micro mt-4 px-3 text-ink-faint">
-            {role === 'admin' ? say('Admin') : say('Moderation')}
+            {say('Admin')}
           </p>
           <nav className="flex flex-col gap-1">
             {staffItems.map((item) => (
