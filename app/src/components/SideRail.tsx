@@ -7,6 +7,7 @@ import {
   Presentation,
   LibraryBig,
   Info,
+  CreditCard,
   LayoutDashboard,
   Users,
   Settings,
@@ -33,6 +34,7 @@ const NAV_ITEMS = [
   { to: '/gallery', label: 'Gallery', icon: Images },
   { to: '/users', label: 'Users', icon: Users },
   { to: '/chat', label: 'Chat', icon: MessageCircle },
+  { to: '/card', label: 'Card', icon: CreditCard },
   { to: '/about', label: 'About', icon: Info },
 ];
 
@@ -41,8 +43,10 @@ const NAV_ITEMS = [
 // Analytics, Payments, Flags) is reached from its launcher tiles, so the
 // rail keeps a single entry.
 const ADMIN_ITEMS = [
-  // no `end` — stays highlighted on /admin/* sub-pages
-  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  // no `end` — stays highlighted on /admin/* sub-pages, EXCEPT the marketing
+  // tool: that is reached from the feed's "New post" and belongs to the feed,
+  // whatever its address happens to be.
+  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, notUnder: '/admin/projects/marketing' },
 ];
 
 function RailLink({
@@ -50,12 +54,17 @@ function RailLink({
   label,
   icon: Icon,
   end,
+  notUnder,
 }: {
   to: string;
   label: string;
   icon: typeof MessageCircle;
   end?: boolean;
+  /** a sub-path that belongs somewhere else, so this entry stays unlit on it */
+  notUnder?: string;
 }) {
+  const here = useLocation().pathname;
+  const exiled = notUnder != null && here.startsWith(notUnder);
   return (
     <NavLink
       to={to}
@@ -63,7 +72,7 @@ function RailLink({
       className={({ isActive }) =>
         cn(
           'group relative flex items-center gap-2.5 rounded-wobble-sm border-2 px-3 py-2 font-heading text-[0.95rem] no-underline transition-all duration-150',
-          isActive
+          isActive && !exiled
             ? 'border-ink bg-yellow/70 text-ink shadow-offset'
             : 'border-transparent text-ink-soft hover:border-dashed hover:border-ink hover:text-ink',
         )

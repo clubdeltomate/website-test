@@ -92,12 +92,13 @@ export default function Layout() {
      the bar stays, because the hamburger inside it is the only way to open the
      rail on a phone. */
   const isFeedFocus = location.pathname === '/' || location.pathname === '/feed';
-  /* The marketing tool is a workbench, not a document: the preview on the
-     left has to stay in sight of the panel on the right, and scrolling the
-     page moves one away from the other. So it gets the window's height and
-     scrolls inside itself instead — the top bar stays, because the coin
-     balance beside every price is part of using the thing. */
-  const isFitToWindow = location.pathname === '/admin/projects/marketing';
+  /* The making pages are workbenches, not documents: the preview on the left
+     has to stay in sight of the panel on the right, and scrolling the page
+     moves one away from the other. So they get the window's height and scroll
+     inside themselves — and, like the feed they belong to, they drop the top
+     bar. A page whose whole job is one canvas should be that canvas. */
+  const isFitToWindow =
+    location.pathname === '/admin/projects/marketing' || location.pathname === '/card';
   useLenis();
 
   return (
@@ -111,7 +112,9 @@ export default function Layout() {
           isFeedFocus || isFitToWindow ? 'min-h-[100dvh] lg:h-[100dvh]' : 'min-h-[100dvh]',
         )}
       >
-        <div className={cn(isFeedFocus && 'lg:hidden')}>
+        {/* Below lg the bar stays wherever it is dropped: the hamburger inside
+            it is the only way to open the rail on a phone. */}
+        <div className={cn((isFeedFocus || isFitToWindow) && 'lg:hidden')}>
           <TopBar onMenuClick={() => setRailOpen(true)} />
         </div>
         <main className={cn('flex-1', (isFeedFocus || isFitToWindow) && 'lg:min-h-0')}>

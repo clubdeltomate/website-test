@@ -58,7 +58,6 @@ import SketchToaster from '@/components/admin/SketchToaster';
 import SketchButton from '@/components/sketch/SketchButton';
 import SketchCard from '@/components/sketch/SketchCard';
 import { HubHeader } from '@/components/admin/PanelTiles';
-import MarketingTabs from '@/components/marketing/MarketingTabs';
 
 /* Marketing: a small Canva for Instagram carousels.
  *
@@ -1177,15 +1176,12 @@ function MarketingBody() {
      * phone, and pretending otherwise only makes both of them tiny. */
     <div className="mx-auto flex w-full max-w-content flex-col gap-3 px-4 py-4 lg:h-full lg:min-h-0 lg:px-8">
       <SketchToaster />
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <HubHeader
-          backTo="/feed"
-          backLabel="Feed"
-          title="Marketing"
-          blurb="Write a carousel, draw its pictures, set the words — then post it."
-        />
-        <MarketingTabs />
-      </div>
+      <HubHeader
+        backTo="/feed"
+        backLabel="Feed"
+        title="New post"
+        blurb="Write a carousel, draw its pictures, set the words — then post it."
+      />
 
       <div className="grid gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
         {/* ---------------- preview + carousel strip ---------------- */}
