@@ -13,6 +13,7 @@ import { IMAGE_URL_PREFIX } from "../deck-images.js";
 import { SITE, siteBrief } from "../../contracts/site.js";
 import { castDirective, castRoster } from "../../contracts/cast.js";
 import { CATEGORY_BRIEF, POST_CATEGORIES } from "../../contracts/post.js";
+import { LANGUAGE_CODES, languageRule } from "../../contracts/languages.js";
 
 /** What one storyboard costs. Text-only, so a flat small fee like the other
  *  short AI writes (grading, recalibration) rather than an image price. */
@@ -352,6 +353,8 @@ export const marketingRouter = createRouter({
         cast: z.array(castMemberSchema).max(12).default([]),
         /** what kind of thing is being sold, in the shelf's own vocabulary */
         category: z.enum(POST_CATEGORIES).default("course"),
+        /** what the reader reads it in; picture briefs stay English */
+        language: z.enum(LANGUAGE_CODES).default("en"),
       }),
     )
     .mutation(
@@ -380,6 +383,7 @@ export const marketingRouter = createRouter({
           "description of a photograph for that slide's backdrop (setting, subject, action, " +
           "light), showing adults, no text in the picture. Write for adults. " +
           castRule(input.cast) +
+          languageRule(input.language) +
           KEYWORD_RULE +
           " The carousel closes with a follow card for the account posting it. Write its two " +
           "lines from the account description below, bent towards this carousel's subject: " +
