@@ -473,6 +473,30 @@ export const slideImages = appSchema.table(
   (t) => [index("slideImages_owner_idx").on(t.ownerId)],
 );
 
+/**
+ * A model in the marketing cast — a written character sheet, not a picture.
+ *
+ * The ten that ship with the tool live in code (contracts/cast.ts); this
+ * table holds only the ones someone made themselves, usually by uploading a
+ * photograph and letting the vision model describe the person. photoId keeps
+ * that original around as a thumbnail for the picker; the sheet is what
+ * actually reaches the image generator.
+ */
+export const castModels = appSchema.table(
+  "castModels",
+  {
+    id: serial("id").primaryKey(),
+    ownerId: fk("ownerId"),
+    name: varchar("name", { length: 120 }).notNull(),
+    headline: varchar("headline", { length: 200 }).notNull(),
+    sheet: text("sheet").notNull(),
+    /** the uploaded photograph in slideImages, if it came from one */
+    photoId: fk("photoId"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("castModels_owner_idx").on(t.ownerId)],
+);
+
 /* Inferred types */
 export type User = typeof users.$inferSelect;
 export type ApiKey = typeof apiKeys.$inferSelect;

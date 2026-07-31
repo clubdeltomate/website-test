@@ -128,6 +128,21 @@ export async function ensureRequiredSchema(): Promise<void> {
        WHERE l."presetDeckJson" IS NOT NULL
        ON CONFLICT (slug) DO NOTHING`,
     );
+    // The marketing cast's user-made models; the picker lists them.
+    await client.query(
+      `CREATE TABLE IF NOT EXISTS sketchlearn."castModels" (
+         id serial PRIMARY KEY,
+         "ownerId" integer,
+         name varchar(120) NOT NULL,
+         headline varchar(200) NOT NULL,
+         sheet text NOT NULL,
+         "photoId" integer,
+         "createdAt" timestamp NOT NULL DEFAULT now()
+       )`,
+    );
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS "castModels_owner_idx" ON sketchlearn."castModels" ("ownerId")`,
+    );
     // Items handed to a user by a moderator; shelf queries read it.
     await client.query(
       `CREATE TABLE IF NOT EXISTS sketchlearn.assignments (
