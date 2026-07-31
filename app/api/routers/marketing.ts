@@ -637,11 +637,10 @@ export const marketingRouter = createRouter({
           prompt: `${input.prompt.trim()}\n\nAn instrumental background bed for a short social media carousel: no vocals, no lyrics, no sudden silences, even loudness throughout so it can be looped.`,
           seconds: input.seconds,
         });
-        if (!made) {
+        if (!made.ok) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
-            message:
-              "AI_UNAVAILABLE: no ElevenLabs key answered — nothing was charged. Add an ElevenLabs key under Settings → AI keys and try again.",
+            message: `AI_UNAVAILABLE: ${made.reason} — nothing was charged.`,
           });
         }
         const m = /^data:([^;,]+);base64,(.+)$/s.exec(made.audio);

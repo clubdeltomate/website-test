@@ -4,7 +4,8 @@ import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { createRouter, publicQuery } from "../middleware.js";
 import { adminProcedure, authedProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
-import { assignments, posts, slideImages, users } from "../../db/schema.js";
+import { assignments, favorites, posts, slideImages, users } from "../../db/schema.js";
+import { favoriteSlugs } from "./repos.js";
 import { IMAGE_URL_PREFIX } from "../deck-images.js";
 import {
   POST_CATEGORIES,
@@ -71,11 +72,17 @@ export const postsRouter = createRouter({
       z
         .object({
           category: z.enum(POST_CATEGORIES).optional(),
+          /** only the ones this viewer saved */
+          saved: z.boolean().default(false),
           limit: z.number().int().min(1).max(60).default(30),
         })
-        .default({ limit: 30 }),
+        .default({ limit: 30, saved: false }),
     )
     .query(async ({ ctx, input }): Promise<PostSummary[]> => {
+      const saved = await favoriteSlugs(ctx.user?.id, "post");
+      // Nobody signed in has saved anything, so the saved shelf is empty
+      // rather than "everything".
+      if (input.saved && saved.size === 0) return [];
       const given = await assignedToViewer(ctx.user?.id);
       /* Everything public, everything of yours whatever it is set to, and
          anything made out to you by name. Narrowed in SQL rather than after
@@ -96,11 +103,17 @@ export const postsRouter = createRouter({
         })
         .from(posts)
         .leftJoin(users, eq(users.id, posts.ownerId))
-        .where(input.category ? and(audience, eq(posts.category, input.category)) : audience)
+        .where(
+          and(
+            audience,
+            input.category ? eq(posts.category, input.category) : undefined,
+            input.saved ? inArray(posts.slug, [...saved]) : undefined,
+          ),
+        )
         .orderBy(desc(posts.id))
         .limit(input.limit);
       const counts = await assignedCounts(rows.map((r) => r.post));
-      return rows.map((r) => toSummary(r, ctx.user?.id, counts));
+      return rows.map((r) => toSummary(r, ctx.user?.id, counts, saved));
     }),
 
   /** One post, for its own page. */
@@ -122,7 +135,12 @@ export const postsRouter = createRouter({
       if (!row || !canSee(row.post, ctx.user?.id, await assignedToViewer(ctx.user?.id))) {
         throw new TRPCError({ code: "NOT_FOUND", message: "That post isn't here" });
       }
-      return toSummary(row, ctx.user?.id, await assignedCounts([row.post]));
+      return toSummary(
+        row,
+        ctx.user?.id,
+        await assignedCounts([row.post]),
+        await favoriteSlugs(ctx.user?.id, "post"),
+      );
     }),
 
   /**
@@ -235,6 +253,39 @@ export const postsRouter = createRouter({
       return { slug };
     }),
 
+  /**
+   * Save a post, or un-save it — the same shelf repos and people use, so the
+   * heart means one thing across the site. Only on a post you can see, so
+   * saving cannot be used to find out whether a private one exists.
+   */
+  toggleSaved: authedProcedure
+    .input(z.object({ slug: z.string().max(191) }))
+    .mutation(async ({ ctx, input }): Promise<{ saved: boolean }> => {
+      const db = getDb();
+      const [row] = await db.select().from(posts).where(eq(posts.slug, input.slug));
+      if (!row || !canSee(row, ctx.user.id, await assignedToViewer(ctx.user.id))) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "That post isn't here" });
+      }
+      const [existing] = await db
+        .select({ id: favorites.id })
+        .from(favorites)
+        .where(
+          and(
+            eq(favorites.userId, ctx.user.id),
+            eq(favorites.targetType, "post"),
+            eq(favorites.targetSlug, input.slug),
+          ),
+        );
+      if (existing) {
+        await db.delete(favorites).where(eq(favorites.id, existing.id));
+        return { saved: false };
+      }
+      await db
+        .insert(favorites)
+        .values({ userId: ctx.user.id, targetType: "post", targetSlug: input.slug });
+      return { saved: true };
+    }),
+
   /** Take a post down. Yours, or anyone's if you are an admin. */
   remove: authedProcedure
     .input(z.object({ slug: z.string().max(191) }))
@@ -281,12 +332,14 @@ function toSummary(
   },
   viewerId: number | undefined,
   counts: Map<string, number>,
+  saved: Set<string>,
 ): PostSummary {
   const who = (POST_VISIBILITY as readonly string[]).includes(r.post.visibility)
     ? (r.post.visibility as PostVisibility)
     : "public";
   return {
     who,
+    saved: saved.has(r.post.slug),
     assignedCount: counts.get(r.post.slug) ?? 0,
     slug: r.post.slug,
     caption: r.post.caption,

@@ -76,6 +76,8 @@ export interface PostSummary {
   createdAt: Date;
   /** the viewer made this one */
   mine: boolean;
+  /** the viewer saved it */
+  saved: boolean;
   who: PostVisibility;
   /** how many people it was assigned to; 0 unless `who` is "assigned" */
   assignedCount: number;

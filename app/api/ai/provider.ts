@@ -201,6 +201,24 @@ function envKeyCandidates(capability: AiCapability): ResolvedKey[] {
     return out;
   }
 
+  if (capability === "tts") {
+    // ElevenLabs from the environment. Read-aloud is deliberately BYOK-only
+    // (the listener pays for their own narration), but music on a post is
+    // charged in coins by us, so it has to be able to run on a key the
+    // platform holds — and a key set in the host's environment is the
+    // ordinary way that gets configured.
+    const k = val("ELEVENLABS_API_KEY") ?? val("ELEVEN_API_KEY");
+    if (k) {
+      out.push({
+        provider: "elevenlabs",
+        apiKey: k,
+        baseUrl: val("ELEVENLABS_API_URL") ?? undefined,
+        source: "env",
+      });
+    }
+    return out;
+  }
+
   if (capability === "text") {
     // Each entry is built only when its key is present. The ORDER here is the
     // fallback order, and it matters a lot: the first provider that answers
@@ -1103,11 +1121,26 @@ export async function ttsSpeak(opts: {
 /* ------------------------------------------------------------------ */
 
 /**
- * Where a music request goes. The endpoint moved once already, so both are
- * tried in turn rather than pinning the one that happens to be current — a
- * 404 on the first is a reason to try the second, not to fail the request.
+ * Where a music request goes, and in what shape.
+ *
+ * The endpoint has moved and the body has grown a required field before, so
+ * these are tried in turn rather than pinning whichever spelling happens to
+ * be current: a 404 or a 422 on the first is a reason to try the next, not
+ * to fail the request. Whatever the last one said is reported back, because
+ * "the provider refused" and "there is no key" are different problems and
+ * only one of them is fixable from the settings page.
  */
-const ELEVENLABS_MUSIC_PATHS = ["/music", "/music/compose"];
+const ELEVENLABS_MUSIC_ATTEMPTS: {
+  path: string;
+  body: (prompt: string, ms: number) => Record<string, unknown>;
+}[] = [
+  { path: "/music", body: (prompt, ms) => ({ prompt, music_length_ms: ms }) },
+  {
+    path: "/music",
+    body: (prompt, ms) => ({ prompt, music_length_ms: ms, model_id: "music_v1" }),
+  },
+  { path: "/music/compose", body: (prompt, ms) => ({ prompt, music_length_ms: ms }) },
+];
 
 /** The longest bed we will ask for. A carousel is looked at, not listened to;
  *  past a minute the cost climbs and nobody hears the end of it. */
@@ -1115,61 +1148,82 @@ export const MUSIC_MAX_SECONDS = 60;
 export const MUSIC_MIN_SECONDS = 10;
 
 /**
- * Compose a music bed and return it as an audio data URI, or null when there
- * is no ElevenLabs key or the call fails. Never throws: a failed soundtrack
- * must not cost the carousel it was going under, and the caller only charges
- * when something actually came back.
+ * The outcome of a music request. A failure carries what actually went wrong
+ * — no key configured reads nothing like a provider rejecting the prompt, and
+ * the person looking at the toast is the one who has to fix it.
+ */
+export type MusicResult =
+  | { ok: true; audio: string; mime: string; provider: string }
+  | { ok: false; reason: string };
+
+/**
+ * Compose a music bed. Never throws: a failed soundtrack must not cost the
+ * carousel it was going under, and the caller only charges when something
+ * actually came back.
  */
 export async function generateMusic(opts: {
   userId?: number;
   prompt: string;
   seconds: number;
-}): Promise<{ audio: string; mime: string; provider: string } | null> {
+}): Promise<MusicResult> {
   const seconds = Math.min(
     MUSIC_MAX_SECONDS,
     Math.max(MUSIC_MIN_SECONDS, Math.round(opts.seconds)),
   );
   const prompt = opts.prompt.trim().slice(0, 900);
-  if (!prompt) return null;
+  if (!prompt) return { ok: false, reason: "there was no brief to work from" };
 
   if (process.env.SKETCHLEARN_ALLOW_MOCK_AI === "1") {
-    return { audio: mockMusicDataUri(seconds), mime: "audio/mpeg", provider: "mock" };
+    return { ok: true, audio: mockMusicDataUri(seconds), mime: "audio/mpeg", provider: "mock" };
   }
 
   const key = await resolveKey(opts.userId, "tts").catch(() => null);
-  if (!key || key.provider !== "elevenlabs" || !key.apiKey.trim()) return null;
+  if (!key || key.provider !== "elevenlabs" || !key.apiKey.trim()) {
+    return {
+      ok: false,
+      reason:
+        "no ElevenLabs key is configured — add one under Settings → AI keys, or set ELEVENLABS_API_KEY on the server",
+    };
+  }
   const base = (key.baseUrl || ELEVENLABS_BASE_URL).replace(/\/$/, "");
 
-  for (const path of ELEVENLABS_MUSIC_PATHS) {
+  let last = "ElevenLabs did not answer";
+  for (const attempt of ELEVENLABS_MUSIC_ATTEMPTS) {
     try {
-      const res = await fetch(`${base}${path}`, {
+      const res = await fetch(`${base}${attempt.path}`, {
         method: "POST",
         headers: {
           "xi-api-key": key.apiKey.trim(),
           "content-type": "application/json",
           accept: "audio/mpeg",
         },
-        body: JSON.stringify({ prompt, music_length_ms: seconds * 1000 }),
+        body: JSON.stringify(attempt.body(prompt, seconds * 1000)),
         signal: AbortSignal.timeout(180_000),
       });
       if (!res.ok) {
-        console.warn(
-          `[ai/music] ElevenLabs ${res.status} on ${path}: ${(await res.text()).slice(0, 200)}`,
-        );
+        const text = (await res.text()).slice(0, 300);
+        last = `ElevenLabs ${res.status} on ${attempt.path}: ${text}`;
+        console.warn(`[ai/music] ${last}`);
         continue;
       }
       const buf = Buffer.from(await res.arrayBuffer());
-      if (buf.length < 1000) continue; // an error page, not a song
+      if (buf.length < 1000) {
+        last = `ElevenLabs returned ${buf.length} bytes on ${attempt.path} — not a song`;
+        console.warn(`[ai/music] ${last}`);
+        continue;
+      }
       return {
+        ok: true,
         audio: `data:audio/mpeg;base64,${buf.toString("base64")}`,
         mime: "audio/mpeg",
         provider: "elevenlabs",
       };
     } catch (err) {
-      console.warn("[ai/music] request failed:", err instanceof Error ? err.message : err);
+      last = err instanceof Error ? err.message : String(err);
+      console.warn("[ai/music] request failed:", last);
     }
   }
-  return null;
+  return { ok: false, reason: last };
 }
 
 /**
