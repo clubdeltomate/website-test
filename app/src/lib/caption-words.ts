@@ -4,8 +4,54 @@
  * is the part that decides what the AI's highlight actually paints, and it
  * runs on text the user may have edited since the AI last read it. */
 
+/** Every marketing export is 1080 wide; the height follows the chosen ratio. */
+export const OUT_W = 1080;
+
+/** Display face. A plain heavy sans, so the browser preview and the canvas
+ *  export resolve to the same glyphs — a webfont would drift between them. */
+export const FONT = "'Arial Black', 'Arial Bold', 'Helvetica Neue', Arial, sans-serif";
+
+/** Body face, for the lines that must not shout. */
+export const FONT_BODY = "'Helvetica Neue', Arial, Helvetica, sans-serif";
+
 /** Split a line the way the layout does — whitespace-separated, no blanks. */
 export const wordsOf = (s: string): string[] => s.split(/\s+/).filter(Boolean);
+
+/**
+ * Wrap a paragraph to a width, honouring the line breaks the author typed.
+ * Returns finished strings rather than word indices — used where the words
+ * are not individually clickable.
+ */
+export function wrapText(
+  text: string,
+  font: string,
+  maxW: number,
+  measure: CanvasRenderingContext2D | null,
+): string[] {
+  const paras = text.split("\n");
+  if (!measure) return paras;
+  measure.font = font;
+  const out: string[] = [];
+  for (const para of paras) {
+    const words = wordsOf(para);
+    if (words.length === 0) {
+      out.push("");
+      continue;
+    }
+    let line = words[0];
+    for (let i = 1; i < words.length; i++) {
+      const trial = `${line} ${words[i]}`;
+      if (measure.measureText(trial).width > maxW) {
+        out.push(line);
+        line = words[i];
+      } else {
+        line = trial;
+      }
+    }
+    out.push(line);
+  }
+  return out;
+}
 
 /** Compare words the way a reader would: "Brew," and "brew" are the word. */
 export const normWord = (s: string): string => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');

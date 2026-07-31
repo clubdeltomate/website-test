@@ -9,6 +9,7 @@ import { extractJson } from "../ai/prompts.js";
 import { applyTokenDelta } from "../tokens.js";
 import { getSettings } from "../settings.js";
 import { IMAGE_URL_PREFIX } from "../deck-images.js";
+import { SITE, siteBrief } from "../../contracts/site.js";
 
 /** What one storyboard costs. Text-only, so a flat small fee like the other
  *  short AI writes (grading, recalibration) rather than an image price. */
@@ -31,6 +32,19 @@ const FORMAT_SHAPE: Record<string, string> = {
  * the band won't eat it — the same "compose for the real frame" rule the
  * banners follow.
  */
+/**
+ * A logo mark, not a photograph — the one image here that is deliberately flat
+ * and graphic, because it ends up inside a small circle on the follow card and
+ * a photo would turn to mud at that size.
+ */
+const LOGO_DIRECTIVE =
+  "Design this as a LOGO MARK: a single centred emblem on a plain solid " +
+  "background, flat vector look, clean bold shapes, high contrast, generous " +
+  "empty margin around the mark. It will be shown small inside a circle, so no " +
+  "fine detail, no photographic texture, no gradients, no drop shadows, no " +
+  "mockup, no business card, and absolutely no lettering or words unless the " +
+  "brief asks for a specific letter.";
+
 function postDirective(format: string): string {
   const shape = FORMAT_SHAPE[format] ?? FORMAT_SHAPE["9:16"];
   return (
@@ -59,6 +73,13 @@ const slideSchema = z
   })
   .merge(keywordsSchema);
 
+/** The two lines of the closing follow card the AI is allowed to write. The
+ *  rest of that card — handle, counts, logo — is the user's to set. */
+const endCardSchema = z.object({
+  headline: z.string().max(200).default(""),
+  bio: z.string().max(200).default(""),
+});
+
 /** How the keyword half of a reply is asked for, shared by both endpoints so
  *  a story write and a later re-highlight pick words the same way. */
 const KEYWORD_RULE =
@@ -71,14 +92,26 @@ const KEYWORD_RULE =
 export const marketingRouter = createRouter({
   /** What a backdrop and a storyboard cost — quoted on their buttons. */
   quote: adminProcedure.query(
-    async (): Promise<{ image: number; storyboard: number; highlight: number }> => {
+    async (): Promise<{ image: number; storyboard: number; highlight: number; logo: number }> => {
       const { prices } = await getSettings();
-      return {
-        image: Math.max(1, Math.ceil(prices.perImageSlide)),
-        storyboard: STORYBOARD_COST,
-        highlight: HIGHLIGHT_COST,
-      };
+      const image = Math.max(1, Math.ceil(prices.perImageSlide));
+      return { image, storyboard: STORYBOARD_COST, highlight: HIGHLIGHT_COST, logo: image };
     },
+  ),
+
+  /**
+   * How the closing follow card starts out: this site's own name, handle and
+   * bio, so the card is already correct before anyone types. Free and
+   * AI-free — it reads the same description the About page renders, which is
+   * what makes it right rather than guessed.
+   */
+  brand: adminProcedure.query(
+    (): { name: string; handle: string; headline: string; bio: string } => ({
+      name: SITE.name,
+      handle: SITE.handle,
+      headline: `You will never see this page again unless you follow us right now 👇`,
+      bio: SITE.bio.join("\n"),
+    }),
   ),
 
   /**
@@ -96,7 +129,14 @@ export const marketingRouter = createRouter({
       }),
     )
     .mutation(
-      async ({ ctx, input }): Promise<{ slides: z.infer<typeof slideSchema>[]; cost: number }> => {
+      async ({
+        ctx,
+        input,
+      }): Promise<{
+        slides: z.infer<typeof slideSchema>[];
+        endCard: z.infer<typeof endCardSchema> | null;
+        cost: number;
+      }> => {
         if (ctx.user.tokenBalance < STORYBOARD_COST) {
           throw new TRPCError({
             code: "FORBIDDEN",
@@ -113,9 +153,16 @@ export const marketingRouter = createRouter({
           "description of a photograph for that slide's backdrop (setting, subject, action, " +
           "light), showing adults, no text in the picture. Write for adults. " +
           KEYWORD_RULE +
-          ' Reply STRICT JSON ONLY: {"slides":[{"title":"…","subtitle":"…","imagePrompt":"…",' +
-          '"titleKeywords":["…"],"subtitleKeywords":["…"]}]}';
-        let parsed: { slides?: unknown } | null = null;
+          " The carousel closes with a follow card for the account posting it. Write its two " +
+          "lines from the account description below, bent towards this carousel's subject: " +
+          "endCard.headline — one short line telling the reader to follow, in the voice of the " +
+          "account; endCard.bio — at most two short lines for under the account name, the second " +
+          "may be a contact line. " +
+          `The account: ${siteBrief()} ` +
+          'Reply STRICT JSON ONLY: {"slides":[{"title":"…","subtitle":"…","imagePrompt":"…",' +
+          '"titleKeywords":["…"],"subtitleKeywords":["…"]}],' +
+          '"endCard":{"headline":"…","bio":"…"}}';
+        let parsed: { slides?: unknown; endCard?: unknown } | null = null;
         for (let attempt = 0; attempt < 2 && parsed === null; attempt++) {
           try {
             const result = await completeText({
@@ -133,7 +180,10 @@ export const marketingRouter = createRouter({
               maxTokens: 3000,
             });
             if (!result) break;
-            parsed = JSON.parse(extractJson(result.text)) as { slides?: unknown };
+            parsed = JSON.parse(extractJson(result.text)) as {
+              slides?: unknown;
+              endCard?: unknown;
+            };
           } catch (err) {
             console.warn(`[marketing.storyboard] attempt ${attempt + 1} failed:`, err);
           }
@@ -147,7 +197,14 @@ export const marketingRouter = createRouter({
           });
         }
         await applyTokenDelta(ctx.user.id, -STORYBOARD_COST, `carousel storyboard: ${input.topic.slice(0, 55)}`);
-        return { slides: slides.data.slice(0, input.slideCount), cost: STORYBOARD_COST };
+        // The follow card is a bonus, not the deliverable — a model that skips
+        // it must not cost the user a written carousel.
+        const endCard = endCardSchema.safeParse(parsed?.endCard);
+        return {
+          slides: slides.data.slice(0, input.slideCount),
+          endCard: endCard.success ? endCard.data : null,
+          cost: STORYBOARD_COST,
+        };
       },
     ),
 
@@ -162,24 +219,37 @@ export const marketingRouter = createRouter({
         slides: z
           .array(z.object({ title: z.string().max(120), subtitle: z.string().max(300) }))
           .min(1)
-          .max(10),
+          .max(20),
+        /** which half of the card to repaint — the other is left alone */
+        scope: z.enum(["title", "subtitle", "both"]).default("both"),
       }),
     )
     .mutation(
       async ({
         ctx,
         input,
-      }): Promise<{ slides: z.infer<typeof keywordsSchema>[]; cost: number }> => {
+      }): Promise<{
+        slides: z.infer<typeof keywordsSchema>[];
+        scope: "title" | "subtitle" | "both";
+        cost: number;
+      }> => {
         if (ctx.user.tokenBalance < HIGHLIGHT_COST) {
           throw new TRPCError({
             code: "FORBIDDEN",
             message: `INSUFFICIENT_TOKENS: highlighting costs ${HIGHLIGHT_COST} 🪙, you have ${ctx.user.tokenBalance} 🪙`,
           });
         }
+        const only =
+          input.scope === "title"
+            ? " Only the title matters this time: always return subtitleKeywords as an empty array."
+            : input.scope === "subtitle"
+              ? " Only the subtitle matters this time: always return titleKeywords as an empty array."
+              : "";
         const system =
           "You are a marketing designer choosing which words on a social card get painted " +
           "a bright accent colour. You are given the cards of one carousel, in order. " +
           KEYWORD_RULE +
+          only +
           " Return one entry per card, in the same order as given, even if a card is empty " +
           "(use empty arrays then). " +
           'Reply STRICT JSON ONLY: {"slides":[{"titleKeywords":["…"],"subtitleKeywords":["…"]}]}';
@@ -219,11 +289,17 @@ export const marketingRouter = createRouter({
         }
         await applyTokenDelta(ctx.user.id, -HIGHLIGHT_COST, `carousel keywords: ${input.slides.length} cards`);
         // Pad a short reply so slide N of the answer always lines up with slide N
-        // of the editor rather than silently sliding onto the wrong card.
-        const slides = input.slides.map(
-          (_, i) => picked.data[i] ?? { titleKeywords: [], subtitleKeywords: [] },
-        );
-        return { slides, cost: HIGHLIGHT_COST };
+        // of the editor rather than silently sliding onto the wrong card, and
+        // hold the model to the scope — asking for the title only must never
+        // come back and repaint the subtitle.
+        const slides = input.slides.map((_, i) => {
+          const k = picked.data[i] ?? { titleKeywords: [], subtitleKeywords: [] };
+          return {
+            titleKeywords: input.scope === "subtitle" ? [] : k.titleKeywords,
+            subtitleKeywords: input.scope === "title" ? [] : k.subtitleKeywords,
+          };
+        });
+        return { slides, scope: input.scope, cost: HIGHLIGHT_COST };
       },
     ),
 
@@ -238,37 +314,66 @@ export const marketingRouter = createRouter({
         format: z.enum(["9:16", "4:5", "1:1"]).default("9:16"),
       }),
     )
-    .mutation(async ({ ctx, input }): Promise<{ url: string; cost: number }> => {
-      const { prices } = await getSettings();
-      const cost = Math.max(1, Math.ceil(prices.perImageSlide));
-      if (ctx.user.tokenBalance < cost) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: `INSUFFICIENT_TOKENS: a post image costs ${cost} 🪙, you have ${ctx.user.tokenBalance} 🪙`,
-        });
-      }
-      const url = await generateImage({
-        userId: ctx.user.id,
+    .mutation(async ({ ctx, input }): Promise<{ url: string; cost: number }> =>
+      drawAndStore(ctx.user.id, ctx.user.tokenBalance, {
         prompt: `${input.prompt}\n\n${postDirective(input.format)}`,
-      });
-      if (!url) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "AI_UNAVAILABLE: no image generator answered — nothing was charged",
-        });
-      }
-      const m = /^data:([^;,]+);base64,(.+)$/s.exec(url);
-      if (!m) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "The generator returned an image in a form we can't store",
-        });
-      }
-      await applyTokenDelta(ctx.user.id, -cost, `marketing post: ${input.prompt.slice(0, 55)}`);
-      const [row] = await getDb()
-        .insert(slideImages)
-        .values({ ownerId: ctx.user.id, mime: m[1], data: m[2] })
-        .returning({ id: slideImages.id });
-      return { url: `${IMAGE_URL_PREFIX}${row.id}`, cost };
-    }),
+        what: "a post image",
+        note: `marketing post: ${input.prompt.slice(0, 55)}`,
+      }),
+    ),
+
+  /**
+   * Draw the logo that sits in the follow card's circle. Same price and same
+   * path as a backdrop — only the art direction differs, because a photograph
+   * shrunk into that circle reads as a smudge.
+   */
+  logo: adminProcedure
+    .input(z.object({ prompt: z.string().min(3).max(600) }))
+    .mutation(async ({ ctx, input }): Promise<{ url: string; cost: number }> =>
+      drawAndStore(ctx.user.id, ctx.user.tokenBalance, {
+        prompt: `Logo brief: ${input.prompt}\n\n${LOGO_DIRECTIVE}`,
+        what: "a logo",
+        note: `marketing logo: ${input.prompt.slice(0, 55)}`,
+      }),
+    ),
 });
+
+/**
+ * Charge for a picture, draw it, and park it in slideImages so the page gets a
+ * URL instead of a megabyte of base64. Nothing is charged unless a generator
+ * actually answered.
+ */
+async function drawAndStore(
+  userId: number,
+  balance: number,
+  opts: { prompt: string; what: string; note: string },
+): Promise<{ url: string; cost: number }> {
+  const { prices } = await getSettings();
+  const cost = Math.max(1, Math.ceil(prices.perImageSlide));
+  if (balance < cost) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: `INSUFFICIENT_TOKENS: ${opts.what} costs ${cost} 🪙, you have ${balance} 🪙`,
+    });
+  }
+  const url = await generateImage({ userId, prompt: opts.prompt });
+  if (!url) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "AI_UNAVAILABLE: no image generator answered — nothing was charged",
+    });
+  }
+  const m = /^data:([^;,]+);base64,(.+)$/s.exec(url);
+  if (!m) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "The generator returned an image in a form we can't store",
+    });
+  }
+  await applyTokenDelta(userId, -cost, opts.note);
+  const [row] = await getDb()
+    .insert(slideImages)
+    .values({ ownerId: userId, mime: m[1], data: m[2] })
+    .returning({ id: slideImages.id });
+  return { url: `${IMAGE_URL_PREFIX}${row.id}`, cost };
+}

@@ -13,15 +13,24 @@ import { usePrefersReducedMotion } from './usePrefersReducedMotion';
  */
 
 const ROLES: { kind: 'guest' | 'user' | 'moderator' | 'admin'; label: string; power: string }[] = [
-  { kind: 'guest', label: 'Guest', power: 'Browse galleries & About, try the Coach, play one demo deck.' },
-  { kind: 'user', label: 'User', power: 'Create repos & slide tools, play decks, bring your own AI keys, buy tokens.' },
-  { kind: 'moderator', label: 'Moderator', power: "See all students' runs, flag content, credit manual payments." },
-  { kind: 'admin', label: 'Admin', power: 'Manage moderators, token prices & packs, platform keys, feature flags.' },
+  { kind: 'guest', label: 'Guest', power: 'Browse the shelf, the gallery and this page, and try the Coach.' },
+  { kind: 'user', label: 'User', power: 'Build repos and decks, play and be graded, bring your own AI keys, buy tokens.' },
+  {
+    kind: 'moderator',
+    label: 'Moderator',
+    power: 'See everyone’s runs, flag content, credit manual payments — and, once verified, hand their own work to a learner.',
+  },
+  {
+    kind: 'admin',
+    label: 'Admin',
+    power: 'Grant the verified badge, assign anything to anyone, set token prices and packs, hold the platform keys and flags.',
+  },
 ];
 
 const TOKEN_POINTS = [
-  'See the cost before you generate — a sticky note estimates every run.',
-  'Bring your own AI keys and pay 0 tokens for text.',
+  'See the cost before you spend — every generation is quoted on its own button.',
+  'Text is what costs; bring your own AI key and it costs nothing. Pictures are priced per image.',
+  'Playing is free. Only the AI marking of a written answer is charged, and you are told before you start.',
   'Top-ups are manual and human — pay via our Google Sheet, a moderator credits you, done.',
 ];
 
