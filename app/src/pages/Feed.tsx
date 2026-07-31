@@ -8,14 +8,15 @@ import {
   Grid3x3,
   Plus,
   Rows3,
-  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { POST_CATEGORIES, type PostCategory, type PostSummary } from '@contracts/post';
-import { TEMPLATE_META, VerifiedBadge } from '@/components/repo/shared';
+import { TEMPLATE_META } from '@/components/repo/shared';
+import PostDetails from '@/components/feed/PostDetails';
 import SketchButton from '@/components/sketch/SketchButton';
 import EmptyState from '@/components/sketch/EmptyState';
 
@@ -39,18 +40,18 @@ export const POST_W = 'min(100%, 520px)';
 /**
  * How tall a post stands in the feed.
  *
- * The feed shows one post at a time and sizes it to the window, the way TikTok
- * does, with buttons to step to the next. Our posts are mostly 9:16, and a
- * 9:16 post in a scrolling column is either a sliver (narrow enough to fit the
- * height) or a thing you scroll past in pieces. One at a time solves both: the
- * post is always exactly as tall as there is room for, and moving on is a
- * click rather than a hunt.
+ * Nearly the whole window, because on a wide screen the feed is the window:
+ * the shell drops its top bar and footer here, the filters float over the
+ * page instead of taking a row of it, and the caption moved into the panel on
+ * the right. What is left to subtract is a margin and the swipe dots.
  *
- * The subtraction is everything else on screen, measured: the app bar, the
- * page padding, the heading and filter rows, the card's own header, the dots
- * and the caption.
+ * A 9:16 post in a scrolling column was either a sliver narrow enough to fit
+ * the height or something you met in pieces. Filling the height and stepping
+ * between posts — TikTok's answer — is the one that suits this content.
+ *
+ * What is subtracted: the slim bar of filters at the top, and a margin.
  */
-const FEED_PANE_H = 'clamp(300px, calc(100dvh - 330px), 900px)';
+const FEED_PANE_H = 'calc(100dvh - 104px)';
 
 /**
  * A ceiling, only so a pathological upload cannot produce a mile of page. Set
@@ -140,78 +141,13 @@ function Dots({ count, at }: { count: number; at: number }) {
   );
 }
 
-function PostCard({
-  post,
-  onRemove,
-  height,
-}: {
-  post: PostSummary;
-  onRemove: (slug: string) => void;
-  height?: string;
-}) {
-  const meta = TEMPLATE_META[post.category as PostCategory] ?? TEMPLATE_META.course;
-  const Icon = meta.icon;
-  const { user } = useAuth();
-  const canRemove = post.mine || user?.role === 'admin';
-  return (
-    <article
-      className={cn(
-        'flex flex-col overflow-hidden rounded-wobble-2 border-2 border-ink bg-paper-3 shadow-offset',
-        height ? 'w-fit max-w-full' : 'w-full',
-      )}
-      style={height ? undefined : { width: POST_W }}
-    >
-      <header className="flex items-center gap-2 px-3 py-2">
-        <Link
-          to={`/users/${post.ownerId}`}
-          className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-ink bg-paper-2 font-heading text-[0.7rem] font-bold text-ink"
-        >
-          {post.ownerAvatarUrl ? (
-            <img src={post.ownerAvatarUrl} alt="" className="h-full w-full object-cover" />
-          ) : (
-            post.ownerName.slice(0, 1).toUpperCase()
-          )}
-        </Link>
-        <Link to={`/users/${post.ownerId}`} className="text-sm font-bold text-ink hover:underline">
-          {post.ownerName}
-        </Link>
-        {post.ownerVerified && <VerifiedBadge />}
-        <span
-          title={meta.label}
-          className="micro ml-auto flex items-center gap-1 rounded-wobble-sm border-2 border-dashed border-pencil px-1.5 py-0.5 text-[0.55rem] font-bold text-ink-soft"
-        >
-          <Icon className="h-3 w-3" strokeWidth={2} />
-          {meta.label}
-        </span>
-        {canRemove && (
-          <button
-            type="button"
-            onClick={() => onRemove(post.slug)}
-            aria-label={`Delete ${post.slug}`}
-            className="text-ink-faint hover:text-red"
-          >
-            <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
-          </button>
-        )}
-      </header>
-      <Link to={`/feed/${post.slug}`} className="flex border-y-2 border-ink">
-        <Carousel post={post} height={height} />
-      </Link>
-      {post.caption && (
-        <p className="max-w-full whitespace-pre-wrap break-words px-3 py-2 text-[0.92rem] leading-relaxed text-ink">
-          {post.caption}
-        </p>
-      )}
-    </article>
-  );
-}
-
 export default function Feed() {
   const [view, setView] = useState<View>('feed');
   const [category, setCategory] = useState<PostCategory | null>(null);
   const [atPost, setAtPost] = useState(0);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const utils = trpc.useUtils();
   const list = trpc.posts.list.useQuery({ category: category ?? undefined, limit: 30 });
 
@@ -250,119 +186,153 @@ export default function Feed() {
     p.imageUrls.map((url, i) => ({ url, slug: p.slug, key: `${p.slug}-${i}` })),
   );
 
-  return (
-    <div className="mx-auto flex w-full max-w-content flex-col gap-4 px-4 py-5 lg:px-8">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-3xl text-ink">The feed</h1>
-        {feed.length > 0 && (
-          <span className="micro rounded-wobble-sm border-2 border-ink bg-yellow-soft px-2 py-0.5 text-[0.6rem] font-bold text-ink">
-            {feed.length}
-          </span>
+  const empty = (
+    <EmptyState
+      image="/empty-repos.svg"
+      imageAlt="Empty notebook doodle"
+      headline={category ? 'Nothing filed under that yet' : 'Nothing posted yet'}
+      explainer={
+        user?.role === 'admin'
+          ? 'Build a carousel in the marketing tool, then publish it here.'
+          : 'Posts made with the marketing tool show up here.'
+      }
+      ctaLabel={user?.role === 'admin' ? 'Open the marketing tool' : undefined}
+      onCta={user?.role === 'admin' ? () => navigate('/admin/projects/marketing') : undefined}
+    />
+  );
+
+  /* One slim bar instead of the old heading, count, toggle and filter rows —
+     everything that used to stack above the post now fits in its height. */
+  const controls = (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex overflow-hidden rounded-wobble-sm border-2 border-ink shadow-offset">
+        {(
+          [
+            { id: 'feed' as const, label: 'Feed', icon: Rows3 },
+            { id: 'grid' as const, label: 'Grid', icon: Grid3x3 },
+          ]
+        ).map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            onClick={() => setView(v.id)}
+            aria-pressed={view === v.id}
+            className={cn(
+              'micro flex items-center gap-1 px-2.5 py-1.5 text-[0.6rem] font-bold transition-colors',
+              view === v.id ? 'bg-yellow text-ink' : 'bg-paper-3 text-ink-soft hover:text-ink',
+            )}
+          >
+            <v.icon className="h-3.5 w-3.5" strokeWidth={2} />
+            {v.label}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => {
+          setCategory(null);
+          setAtPost(0);
+        }}
+        aria-pressed={category === null}
+        className={cn(
+          'micro rounded-wobble-sm border-2 px-2.5 py-1.5 text-[0.6rem] font-bold transition-colors',
+          category === null
+            ? 'border-ink bg-yellow text-ink shadow-offset'
+            : 'border-dashed border-pencil bg-paper-3/80 text-ink-soft hover:border-ink hover:text-ink',
         )}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <div className="flex overflow-hidden rounded-wobble-sm border-2 border-ink shadow-offset">
-            {(
-              [
-                { id: 'feed' as const, label: 'Feed', icon: Rows3 },
-                { id: 'grid' as const, label: 'Grid', icon: Grid3x3 },
-              ]
-            ).map((v) => (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() => setView(v.id)}
-                aria-pressed={view === v.id}
-                className={cn(
-                  'micro flex items-center gap-1 px-2.5 py-1.5 text-[0.6rem] font-bold transition-colors',
-                  view === v.id ? 'bg-yellow text-ink' : 'bg-paper-3 text-ink-soft hover:text-ink',
-                )}
+      >
+        All
+      </button>
+      {POST_CATEGORIES.map((c) => {
+        const meta = TEMPLATE_META[c];
+        const Icon = meta.icon;
+        return (
+          <button
+            key={c}
+            type="button"
+            onClick={() => {
+              setCategory(c);
+              setAtPost(0);
+            }}
+            aria-pressed={category === c}
+            title={meta.label}
+            className={cn(
+              'micro flex items-center gap-1 rounded-wobble-sm border-2 px-2.5 py-1.5 text-[0.6rem] font-bold transition-colors',
+              category === c
+                ? 'border-ink bg-yellow text-ink shadow-offset'
+                : 'border-dashed border-pencil bg-paper-3/80 text-ink-soft hover:border-ink hover:text-ink',
+            )}
+          >
+            <Icon className="h-3 w-3" strokeWidth={2} />
+            {meta.label}
+          </button>
+        );
+      })}
+      {user?.role === 'admin' && (
+        <SketchButton variant="accent" onClick={() => navigate('/admin/projects/marketing')}>
+          <Plus className="h-4 w-4" strokeWidth={2.5} /> New post
+        </SketchButton>
+      )}
+    </div>
+  );
+
+  if (view === 'grid') {
+    return (
+      <div className="mx-auto flex w-full max-w-content flex-col gap-3 px-4 py-3 lg:px-8">
+        {controls}
+        {list.isLoading ? (
+          <p className="micro text-[0.62rem] text-ink-faint">Loading the feed…</p>
+        ) : feed.length === 0 ? (
+          empty
+        ) : (
+          <div className="grid grid-cols-3 gap-1 sm:gap-2">
+            {tiles.map((t) => (
+              <Link
+                key={t.key}
+                to={`/feed/${t.slug}`}
+                className="group relative aspect-square overflow-hidden rounded-wobble-sm border-2 border-ink bg-paper-2"
               >
-                <v.icon className="h-3.5 w-3.5" strokeWidth={2} />
-                {v.label}
-              </button>
+                <img
+                  src={t.url}
+                  alt=""
+                  className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                />
+              </Link>
             ))}
           </div>
-          {user?.role === 'admin' && (
-            <SketchButton variant="accent" onClick={() => navigate('/admin/projects/marketing')}>
-              <Plus className="h-4 w-4" strokeWidth={2.5} /> New post
-            </SketchButton>
-          )}
-        </div>
+        )}
       </div>
+    );
+  }
 
-      {/* the shelf's filter, over the same six categories */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => {
-            setCategory(null);
-            setAtPost(0);
-          }}
-          aria-pressed={category === null}
-          className={cn(
-            'micro rounded-wobble-sm border-2 px-2.5 py-1 text-[0.6rem] font-bold transition-colors',
-            category === null
-              ? 'border-ink bg-yellow text-ink shadow-offset'
-              : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
-          )}
-        >
-          All
-        </button>
-        {POST_CATEGORIES.map((c) => {
-          const meta = TEMPLATE_META[c];
-          const Icon = meta.icon;
-          return (
-            <button
-              key={c}
-              type="button"
-              onClick={() => {
-                setCategory(c);
-                setAtPost(0);
-              }}
-              aria-pressed={category === c}
-              className={cn(
-                'micro flex items-center gap-1 rounded-wobble-sm border-2 px-2.5 py-1 text-[0.6rem] font-bold transition-colors',
-                category === c
-                  ? 'border-ink bg-yellow text-ink shadow-offset'
-                  : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
-              )}
-            >
-              <Icon className="h-3 w-3" strokeWidth={2} />
-              {meta.label}
-            </button>
-          );
-        })}
-      </div>
-
+  return (
+    /* One post, the height of the window, with what you read beside it — the
+       shape TikTok uses, and the one that suits a 9:16 carousel. */
+    <div className="flex h-full w-full flex-col px-4 py-3 lg:px-6">
+      {controls}
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row lg:items-center lg:justify-center lg:gap-4">
       {list.isLoading ? (
-        <p className="micro text-[0.62rem] text-ink-faint">Loading the feed…</p>
+        <p className="micro m-auto text-[0.62rem] text-ink-faint">Loading the feed…</p>
       ) : feed.length === 0 ? (
-        <EmptyState
-          image="/empty-repos.svg"
-          imageAlt="Empty notebook doodle"
-          headline={category ? 'Nothing filed under that yet' : 'Nothing posted yet'}
-          explainer={
-            user?.role === 'admin'
-              ? 'Build a carousel in the marketing tool, then publish it here.'
-              : 'Posts made with the marketing tool show up here.'
-          }
-          ctaLabel={user?.role === 'admin' ? 'Open the marketing tool' : undefined}
-          onCta={user?.role === 'admin' ? () => navigate('/admin/projects/marketing') : undefined}
-        />
-      ) : view === 'feed' ? (
-        <div className="flex items-center justify-center gap-3">
-          {/* Keyed by slug so stepping to another post mounts a fresh
-              carousel, rather than opening it on whatever slide the last one
-              was left showing. */}
-          <PostCard
-            key={feed[shown].slug}
-            post={feed[shown]}
-            onRemove={(x) => void remove(x)}
-            height={FEED_PANE_H}
-          />
-          {/* Stepping between posts, TikTok's way: the post stays put and the
-              next one takes its place, rather than the page moving under you. */}
-          <div className="flex flex-col gap-2">
+        <div className="m-auto">{empty}</div>
+      ) : (
+        <>
+          <div className="flex min-w-0 shrink-0 justify-center lg:h-full lg:items-center">
+            {/* Keyed by slug so stepping to another post mounts a fresh
+                carousel, rather than opening it on whatever slide the last one
+                was left showing. */}
+            <Link
+              key={feed[shown].slug}
+              to={`/feed/${feed[shown].slug}`}
+              className="flex overflow-hidden rounded-wobble-2 border-2 border-ink bg-paper-3 shadow-offset"
+            >
+              <Carousel post={feed[shown]} height={isMobile ? undefined : FEED_PANE_H} />
+            </Link>
+          </div>
+
+          {/* Stepping between posts: the post stays put and the next one takes
+              its place, rather than the page moving under you. */}
+          <div className="flex shrink-0 items-center justify-center gap-2 py-3 lg:flex-col lg:py-0">
             <button
               type="button"
               disabled={shown === 0}
@@ -389,24 +359,25 @@ export default function Feed() {
               <ChevronDown className="h-4 w-4" strokeWidth={2.5} />
             </button>
           </div>
-        </div>
-      ) : view === 'grid' ? (
-        <div className="grid grid-cols-3 gap-1 sm:gap-2">
-          {tiles.map((t) => (
-            <Link
-              key={t.key}
-              to={`/feed/${t.slug}`}
-              className="group relative aspect-square overflow-hidden rounded-wobble-sm border-2 border-ink bg-paper-2"
-            >
-              <img
-                src={t.url}
-                alt=""
-                className="h-full w-full object-cover transition-transform group-hover:scale-105"
-              />
-            </Link>
-          ))}
-        </div>
-      ) : null}
+
+          {/* What you read, in a column of its own, the way TikTok puts the
+              comments beside the video instead of under it. */}
+          <div
+            className="flex w-full min-w-0 shrink-0 overflow-hidden rounded-wobble-2 border-2 border-ink bg-paper-3 shadow-offset lg:w-[min(32vw,400px)]"
+            style={{ height: isMobile ? undefined : FEED_PANE_H }}
+          >
+            <PostDetails
+              key={feed[shown].slug}
+              post={feed[shown]}
+              onRemove={
+                feed[shown].mine || user?.role === 'admin' ? (x) => void remove(x) : undefined
+              }
+              className="w-full"
+            />
+          </div>
+        </>
+      )}
+      </div>
     </div>
   );
 }
