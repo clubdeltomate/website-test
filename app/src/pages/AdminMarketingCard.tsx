@@ -215,8 +215,8 @@ function CardBody() {
     <div className="mx-auto flex w-full max-w-content flex-col gap-6 px-4 py-8 lg:px-8">
       <SketchToaster />
       <HubHeader
-        backTo="/admin/projects"
-        backLabel="Projects"
+        backTo="/feed"
+        backLabel="Feed"
         title="Marketing"
         blurb="A business card built from the same parts as the post's closing card."
       />

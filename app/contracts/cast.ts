@@ -185,6 +185,32 @@ export const DEFAULT_CAST: CastModel[] = [
 export const MAX_IN_FRAME = 4;
 
 /**
+ * Does this picture brief have people in it?
+ *
+ * The point of a cast is that the same faces recur, and that only works if
+ * every frame with a person in it is cast from the ten rather than left to
+ * the generator to invent. But a close-up of a plate or an empty workshop
+ * should not have someone dropped into it, so the brief is read first.
+ *
+ * A word list rather than an AI call: this runs before every drawing, and
+ * spending a text request to answer "does this sentence mention a person"
+ * would cost more than the question is worth.
+ */
+const PEOPLE_WORDS =
+  /\b(person|people|someone|somebody|man|men|woman|women|adult|adults|guy|lady|human|customer|client|shopper|student|teacher|chef|cook|barista|owner|worker|staff|crew|team|couple|pair|friends?|family|colleague|hands?|arms?|forearms?|fingers?|shoulders?|face|smiling|laughing|holding|pointing|serving|working|standing|sitting|walking|talking|reading|writing|cooking|eating|drinking)\b/i;
+
+/** A hint that more than one person is wanted. */
+const PLURAL_WORDS =
+  /\b(people|two|three|four|couple|pair|friends|family|group|team|crew|colleagues|together|customers|clients|students|men|women|adults)\b/i;
+
+export function peopleWanted(prompt: string): number {
+  if (!PEOPLE_WORDS.test(prompt)) return 0;
+  if (/\bthree\b|\bfour\b|\bgroup\b|\bteam\b|\bcrew\b/i.test(prompt)) return 3;
+  if (PLURAL_WORDS.test(prompt)) return 2;
+  return 1;
+}
+
+/**
  * Whittle a slide's cast down to what one frame can carry.
  *
  * Random rather than the first four, so a carousel that casts the same six
