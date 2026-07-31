@@ -130,7 +130,9 @@ export default function PostDetails({
         )}
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      {/* Its own scrollbar, so the wheel reads a long caption here instead of
+          stepping the feed to the next post. */}
+      <div data-own-scroll className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {post.caption ? (
           <p className="whitespace-pre-wrap break-words text-[0.95rem] leading-relaxed text-ink">
             <Link to={`/users/${post.ownerId}`} className="font-bold hover:underline">

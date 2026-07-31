@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
   Grid3x3,
+  Layers,
   Plus,
   Rows3,
   Volume2,
@@ -186,6 +187,7 @@ export default function Feed() {
   const [view, setView] = useState<View>('feed');
   const [category, setCategory] = useState<PostCategory | null>(null);
   const [atPost, setAtPost] = useState(0);
+  const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const isMobile = useIsMobile();
@@ -202,10 +204,36 @@ export default function Feed() {
     }
   };
 
-  const feed = list.data ?? [];
+  const feed = useMemo(() => list.data ?? [], [list.data]);
+
+  /* Arriving from the marketing tool: ?post=<slug> opens the feed standing on
+     the post that was just published, rather than on a page of its own. Read
+     rather than copied into state — the address is the answer until you move,
+     and the first step clears it. */
+  const wanted = params.get('post');
+  const wantedAt = useMemo(
+    () => (wanted ? feed.findIndex((p) => p.slug === wanted) : -1),
+    [wanted, feed],
+  );
   /* Clamped rather than reset, so a post disappearing — deleted, or filtered
      out — leaves you next to where you were instead of back at the top. */
-  const shown = Math.min(atPost, Math.max(0, feed.length - 1));
+  const shown = wantedAt >= 0 ? wantedAt : Math.min(atPost, Math.max(0, feed.length - 1));
+
+  const goTo = useCallback(
+    (i: number) => {
+      setAtPost(Math.max(0, i));
+      if (!wanted) return;
+      setParams(
+        (p) => {
+          const next = new URLSearchParams(p);
+          next.delete('post');
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [wanted, setParams],
+  );
 
   /* Arrow keys step posts too. Skipped while something is focused that wants
      the arrows for itself, so typing in a field never jumps the feed. */
@@ -214,18 +242,41 @@ export default function Feed() {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      if (e.key === 'ArrowDown') setAtPost((a) => a + 1);
-      else if (e.key === 'ArrowUp') setAtPost((a) => Math.max(0, a - 1));
+      if (e.key === 'ArrowDown') goTo(shown + 1);
+      else if (e.key === 'ArrowUp') goTo(shown - 1);
       else return;
       e.preventDefault();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [view]);
-  /** Every slide of every post, flattened — the grid shows pictures, not posts. */
-  const tiles = feed.flatMap((p) =>
-    p.imageUrls.map((url, i) => ({ url, slug: p.slug, key: `${p.slug}-${i}` })),
-  );
+  }, [view, shown, goTo]);
+
+  /**
+   * The wheel steps posts instead of scrolling the page.
+   *
+   * There is nothing to scroll — one post fills the window — so a flick of
+   * the wheel means "the next one", the way it does on TikTok. Rate-limited,
+   * because a trackpad sends a burst of events for one flick and stepping
+   * once per event would fly past four posts. Anything with its own
+   * scrollbar (the caption column) keeps the wheel for itself.
+   */
+  const pane = useRef<HTMLDivElement | null>(null);
+  const lastStep = useRef(0);
+  useEffect(() => {
+    const el = pane.current;
+    if (!el || view !== 'feed') return;
+    const onWheel = (e: WheelEvent) => {
+      if ((e.target as HTMLElement | null)?.closest('[data-own-scroll]')) return;
+      if (Math.abs(e.deltaY) < 8) return;
+      e.preventDefault();
+      const now = performance.now();
+      if (now - lastStep.current < 420) return;
+      lastStep.current = now;
+      goTo(shown + (e.deltaY > 0 ? 1 : -1));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [view, shown, goTo]);
 
   const empty = (
     <EmptyState
@@ -272,7 +323,7 @@ export default function Feed() {
         type="button"
         onClick={() => {
           setCategory(null);
-          setAtPost(0);
+          goTo(0);
         }}
         aria-pressed={category === null}
         className={cn(
@@ -293,7 +344,7 @@ export default function Feed() {
             type="button"
             onClick={() => {
               setCategory(c);
-              setAtPost(0);
+              goTo(0);
             }}
             aria-pressed={category === c}
             title={meta.label}
@@ -319,35 +370,64 @@ export default function Feed() {
 
   if (view === 'grid') {
     return (
-      <div className="mx-auto flex w-full max-w-content flex-col gap-3 px-4 py-3 lg:px-8">
+      /* Its own scrollbar: the shell gives this page the window's height for
+         the feed's sake, so the grid has to scroll inside that rather than
+         run off the bottom of it. */
+      <div className="mx-auto flex w-full max-w-content flex-col gap-3 px-4 py-3 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:px-8">
         {controls}
         {list.isLoading ? (
           <p className="micro text-[0.62rem] text-ink-faint">Loading the feed…</p>
         ) : feed.length === 0 ? (
           empty
         ) : (
-          <div className="grid grid-cols-3 gap-1 sm:gap-2">
-            {tiles.map((t) => (
-              /* A thumbnail opens its post in the feed here, rather than on a
-                 page of its own — the feed is where a post is read. */
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => {
-                  const i = feed.findIndex((p) => p.slug === t.slug);
-                  if (i >= 0) setAtPost(i);
-                  setView('feed');
-                }}
-                aria-label={`Open ${t.slug}`}
-                className="group relative aspect-square overflow-hidden rounded-wobble-sm border-2 border-ink bg-paper-2"
-              >
-                <img
-                  src={t.url}
-                  alt=""
-                  className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                />
-              </button>
-            ))}
+          /* One card per post, not one per picture. The grid is the index —
+             what has been posted, three across — and a card opens that post
+             on a page of its own. The feed beside it is for reading them one
+             after another; this is for finding one. */
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+            {feed.map((p) => {
+              const meta = TEMPLATE_META[p.category as PostCategory] ?? TEMPLATE_META.course;
+              const Icon = meta.icon;
+              return (
+                <Link
+                  key={p.slug}
+                  to={`/feed/${p.slug}`}
+                  aria-label={`Open ${p.slug}`}
+                  className="group flex flex-col overflow-hidden rounded-wobble-sm border-2 border-ink bg-paper-3 shadow-offset transition-transform hover:-translate-y-0.5"
+                >
+                  <div className="relative aspect-square overflow-hidden bg-paper-2">
+                    <img
+                      src={p.imageUrls[0]}
+                      alt=""
+                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                    />
+                    {p.imageUrls.length > 1 && (
+                      <span className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-full border-2 border-ink bg-paper-3/90 px-1.5 font-mono text-[0.6rem] text-ink">
+                        <Layers className="h-3 w-3" strokeWidth={2} />
+                        {p.imageUrls.length}
+                      </span>
+                    )}
+                    {p.audioUrl && (
+                      <span
+                        title="Has music"
+                        className="absolute left-1.5 top-1.5 rounded-full border-2 border-ink bg-paper-3/90 p-1 text-ink"
+                      >
+                        <Volume2 className="h-3 w-3" strokeWidth={2} />
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-1 border-t-2 border-ink px-2 py-1.5">
+                    <p className="line-clamp-2 break-words text-[0.72rem] leading-snug text-ink">
+                      {p.caption || <span className="text-ink-faint">No caption.</span>}
+                    </p>
+                    <span className="micro flex items-center gap-1 text-[0.52rem] text-ink-faint">
+                      <Icon className="h-2.5 w-2.5" strokeWidth={2} />
+                      {meta.label} · {p.ownerName}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
@@ -357,7 +437,7 @@ export default function Feed() {
   return (
     /* One post, the height of the window, with what you read beside it — the
        shape TikTok uses, and the one that suits a 9:16 carousel. */
-    <div className="flex h-full w-full flex-col px-4 py-3 lg:px-6">
+    <div ref={pane} className="flex h-full w-full flex-col px-4 py-3 lg:px-6">
       {controls}
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row lg:items-center lg:justify-center lg:gap-4">
       {list.isLoading ? (
@@ -390,7 +470,7 @@ export default function Feed() {
             <button
               type="button"
               disabled={shown === 0}
-              onClick={() => setAtPost(shown - 1)}
+              onClick={() => goTo(shown - 1)}
               aria-label="Previous post"
               className="rounded-full border-2 border-ink bg-paper-3 p-2 text-ink shadow-offset transition-transform hover:-translate-y-0.5 disabled:opacity-30 disabled:hover:translate-y-0"
             >
@@ -406,7 +486,7 @@ export default function Feed() {
             <button
               type="button"
               disabled={shown >= feed.length - 1}
-              onClick={() => setAtPost(shown + 1)}
+              onClick={() => goTo(shown + 1)}
               aria-label="Next post"
               className="rounded-full border-2 border-ink bg-paper-3 p-2 text-ink shadow-offset transition-transform hover:-translate-y-0.5 disabled:opacity-30 disabled:hover:translate-y-0"
             >

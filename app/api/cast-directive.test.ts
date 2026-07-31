@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_CAST, castDirective, castRoster } from "../contracts/cast.js";
+import {
+  DEFAULT_CAST,
+  MAX_IN_FRAME,
+  castDirective,
+  castRoster,
+  pickForFrame,
+} from "../contracts/cast.js";
 
 describe("the default cast", () => {
   it("ships ten models with unique ids and names", () => {
@@ -52,6 +58,56 @@ describe("castDirective", () => {
     const out = castDirective([{ name: "A", sheet: "A, someone." }]);
     expect(out).toMatch(/Do not substitute anyone else/);
     expect(out).toMatch(/do not add extra people/);
+  });
+
+  /* The bug: two people cast for a slide, one of them in the picture. A list
+   * of descriptions reads as a set of options unless the count is spelled
+   * out, so it is spelled out. */
+  it("states the count, so a second person cannot quietly go missing", () => {
+    const two = castDirective([
+      { name: "Marisol Rivera", sheet: "Marisol Rivera, a woman." },
+      { name: "Grace Yoon", sheet: "Grace Yoon, a woman." },
+    ]);
+    expect(two).toMatch(/exactly 2 people/);
+    expect(two).toMatch(/ALL 2 must be visible in the frame together/);
+    expect(two).toMatch(/Marisol Rivera, Grace Yoon/);
+    expect(two).toMatch(/fewer than 2 of them is wrong/);
+    expect(two).toMatch(/do not drop one of them/);
+  });
+
+  it("says one person plainly rather than counting to one", () => {
+    const one = castDirective([{ name: "Theo Achebe", sheet: "Theo Achebe, a man." }]);
+    expect(one).toMatch(/exactly ONE person in this image: Theo Achebe\./);
+    expect(one).not.toMatch(/must be visible in the frame together/);
+  });
+});
+
+describe("pickForFrame", () => {
+  const people = Array.from({ length: 9 }, (_, i) => ({ name: `P${i}`, sheet: `P${i}, someone.` }));
+
+  it("keeps every one of a small cast — the whole point of choosing them", () => {
+    for (let n = 0; n <= MAX_IN_FRAME; n++) {
+      expect(pickForFrame(people.slice(0, n))).toHaveLength(n);
+    }
+    expect(pickForFrame(people.slice(0, 3))).toEqual(people.slice(0, 3));
+  });
+
+  it("caps a crowd at what one frame can carry", () => {
+    for (let n = MAX_IN_FRAME + 1; n <= 9; n++) {
+      expect(pickForFrame(people.slice(0, n))).toHaveLength(MAX_IN_FRAME);
+    }
+  });
+
+  it("only ever returns people who were cast, without repeating one", () => {
+    const got = pickForFrame(people);
+    expect(new Set(got).size).toBe(got.length);
+    for (const g of got) expect(people).toContain(g);
+  });
+
+  it("does not always land on the same four", () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 40; i++) seen.add(pickForFrame(people).map((p) => p.name).sort().join());
+    expect(seen.size).toBeGreaterThan(1);
   });
 });
 

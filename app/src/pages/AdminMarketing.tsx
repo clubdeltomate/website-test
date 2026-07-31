@@ -37,6 +37,7 @@ import {
   type PostVisibility,
 } from '@contracts/post';
 import { LANGUAGES } from '@contracts/languages';
+import { MAX_IN_FRAME } from '@contracts/cast';
 import { useNavigate } from 'react-router';
 import { TEMPLATE_META } from '@/components/repo/shared';
 import { trpc } from '@/providers/trpc';
@@ -781,7 +782,9 @@ function MarketingBody() {
             ? 'Posted — only you can see it ✓'
             : `Posted to ${sendTo.length} ${sendTo.length === 1 ? 'feed' : 'feeds'} ✓`,
       );
-      navigate(`/feed/${r.slug}`);
+      // Onto the feed standing on what was just posted, not onto a page of
+      // its own — you should be able to carry on scrolling from there.
+      navigate(`/feed?post=${encodeURIComponent(r.slug)}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "That post couldn't be published");
     } finally {
@@ -922,23 +925,38 @@ function MarketingBody() {
   const missing = slides.filter((s) => !s.imageUrl && s.imagePrompt.trim().length > 2).length;
 
   return (
-    <div className="mx-auto flex w-full max-w-content flex-col gap-6 px-4 py-8 lg:px-8">
+    /* The whole tool inside the window.
+     *
+     * It is a workbench, not a document: the preview on the left has to stay
+     * in sight of the panel on the right, and scrolling the page moved one
+     * away from the other. So the page takes the window's height, the
+     * preview shrinks to whatever is left after the header, and each column
+     * scrolls inside itself. Below lg it goes back to being an ordinary
+     * scrolling page — there is no room to keep two things in view on a
+     * phone, and pretending otherwise only makes both of them tiny. */
+    <div className="mx-auto flex w-full max-w-content flex-col gap-3 px-4 py-4 lg:h-full lg:min-h-0 lg:px-8">
       <SketchToaster />
-      <HubHeader
-        backTo="/admin/projects"
-        backLabel="Projects"
-        title="Marketing"
-        blurb="Write a carousel, draw its pictures, set the words — then post it."
-      />
-      <MarketingTabs />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <HubHeader
+          backTo="/admin/projects"
+          backLabel="Projects"
+          title="Marketing"
+          blurb="Write a carousel, draw its pictures, set the words — then post it."
+        />
+        <MarketingTabs />
+      </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+      <div className="grid gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
         {/* ---------------- preview + carousel strip ---------------- */}
-        {/* Pinned, so a change made in any panel is visible where it lands. */}
-        <div className="flex flex-col gap-3 lg:sticky lg:top-4 lg:self-start">
+        <div className="flex flex-col gap-3 lg:min-h-0">
           <div
-            className="relative mx-auto w-full max-w-[340px] overflow-hidden rounded-wobble-sm border-2 border-ink bg-paper-2 shadow-offset [container-type:inline-size]"
-            style={{ aspectRatio: `${OUT_W} / ${outH}` }}
+            className="relative mx-auto w-full max-w-[340px] overflow-hidden rounded-wobble-sm border-2 border-ink bg-paper-2 shadow-offset [container-type:inline-size] lg:w-auto lg:min-h-0 lg:flex-1"
+            style={{
+              aspectRatio: `${OUT_W} / ${outH}`,
+              // Never wider than the column: cap the height at the one that
+              // makes a 340px-wide frame, and let a short window shrink it.
+              maxHeight: `${Math.round((340 * outH) / OUT_W)}px`,
+            }}
           >
             {onFollow && <FollowPreview card={follow} layout={followLayout} />}
             {!onFollow &&
@@ -1144,10 +1162,12 @@ function MarketingBody() {
         </div>
 
         {/* ---------------- controls ---------------- */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 lg:min-h-0">
           {/* One panel at a time. The whole editor used to be a single column
               you scrolled, which meant changing a colour at the bottom and
-              scrolling back to the top to see what it did. */}
+              scrolling back to the top to see what it did. The menu stays
+              put; only the panel under it scrolls, and only when its own
+              contents are taller than the window. */}
           <div className="flex flex-wrap items-center gap-1.5">
             {SECTIONS.map((sec) => (
               <button
@@ -1168,6 +1188,9 @@ function MarketingBody() {
             ))}
           </div>
 
+          {/* Only the open panel scrolls, and only when it has to — the menu
+              above it stays where you left it. */}
+          <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-1 lg:pr-1">
           {/* the cast */}
           {section === 'cast' && (
           <SketchCard className="flex flex-col gap-3 p-5">
@@ -1471,7 +1494,9 @@ function MarketingBody() {
                 <span className="micro text-[0.55rem] text-ink-faint">
                   {slide.cast.length === 0
                     ? 'nobody — an object or a place'
-                    : `${slide.cast.length} cast`}
+                    : slide.cast.length > MAX_IN_FRAME
+                      ? `${slide.cast.length} cast — ${MAX_IN_FRAME} of them per picture`
+                      : `${slide.cast.length} cast`}
                 </span>
                 {slide.cast.length > 0 && (
                   <button
@@ -1527,9 +1552,11 @@ function MarketingBody() {
                 })}
               </div>
               <p className="micro text-[0.55rem] text-ink-faint">
-                Everyone chosen here is described to the generator when this picture is drawn, so
-                two people in one frame both come back looking like themselves. Redraw the slide
-                after changing it.
+                Everyone chosen here is in the picture — the generator is told how many people to
+                fit and held to it, so two names means two faces, both looking like themselves.
+                Past {MAX_IN_FRAME} it draws {MAX_IN_FRAME} of them at random, because more than
+                that in one frame is where a generator starts blending faces. Say who is in the
+                shot in the brief above too, then redraw.
               </p>
             </div>
             <input
@@ -2167,6 +2194,7 @@ function MarketingBody() {
             </div>
           </SketchCard>
           )}
+          </div>
         </div>
       </div>
     </div>
