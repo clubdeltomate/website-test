@@ -34,25 +34,24 @@ export const CATEGORY_BRIEF: Record<PostCategory, string> = {
 /**
  * Who a post is for.
  *
- * Three states rather than the boolean this started as, because "not public"
- * turned out to mean two different things: a draft nobody but you should see,
- * and something made for particular people. The middle case is the one that
- * needed saying — a post written for one customer does not belong on
- * everybody's feed, and hiding it entirely would make it useless.
+ * Two questions, not one list. The first is whether it is on the open feed
+ * or not; the second is who it is sent to by name. They are independent
+ * because the useful combination is both at once — private AND sent to one
+ * person means only that person and you, which a single three-way choice
+ * could not say. A public post can be sent to someone too; that just puts it
+ * in front of them, it does not take it off the feed.
  */
-export const POST_VISIBILITY = ["public", "private", "assigned"] as const;
+export const POST_VISIBILITY = ["public", "private"] as const;
 export type PostVisibility = (typeof POST_VISIBILITY)[number];
 
 export const VISIBILITY_LABEL: Record<PostVisibility, string> = {
   public: "Public",
   private: "Private",
-  assigned: "Assigned",
 };
 
 export const VISIBILITY_BRIEF: Record<PostVisibility, string> = {
   public: "On the feed for everyone, signed in or not.",
-  private: "Only you see it — it stays on your own feed.",
-  assigned: "Only the people you pick see it, on their feed.",
+  private: "Off the feed — only you, and anyone you send it to.",
 };
 
 /**

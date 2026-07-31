@@ -41,7 +41,7 @@ async function assignedToViewer(viewerId: number | undefined): Promise<Set<strin
 /**
  * May this viewer see this post?
  *
- * Public is public. Everything else is yours or given to you — and that is
+ * Public is public. Everything else is yours or sent to you — and that is
  * true of admins too: "private" would not mean much if it meant "private
  * unless someone has the admin flag". Taking a post down is a separate power
  * and lives on `remove`.
@@ -54,7 +54,7 @@ export function canSee(
   if (post.visibility === "public") return true;
   if (viewerId == null) return false; // a guest sees only the public feed
   if (post.ownerId === viewerId) return true;
-  return post.visibility === "assigned" && given.has(post.slug);
+  return given.has(post.slug);
 }
 
 const slugify = (s: string) =>
@@ -90,9 +90,7 @@ export const postsRouter = createRouter({
       const audience = or(
         eq(posts.visibility, "public"),
         ctx.user ? eq(posts.ownerId, ctx.user.id) : undefined,
-        given.size > 0
-          ? and(eq(posts.visibility, "assigned"), inArray(posts.slug, [...given]))
-          : undefined,
+        given.size > 0 ? inArray(posts.slug, [...given]) : undefined,
       );
       const rows = await getDb()
         .select({
@@ -207,21 +205,19 @@ export const postsRouter = createRouter({
         if (!clash) break;
         slug = `${base}-${n}`;
       }
-      /* Who it is made out to — real accounts only, so an id typed by hand
-         never becomes a row that quietly matches nobody. An assigned post
-         with none of them left is a private post with a misleading label, so
-         it is stored as what it actually is. */
+      /* Who it is sent to — real accounts only, so an id typed by hand never
+         becomes a row that quietly matches nobody. Independent of whether it
+         is public: sending a public post to someone puts it in front of them
+         without taking it off the feed, and sending a private one is the only
+         way anybody but the owner ever sees it. */
       const named = [...new Set(input.assignedUserIds)].filter((id) => id !== ctx.user.id);
       const recipients =
-        input.visibility === "assigned" && named.length > 0
+        named.length > 0
           ? (
               await getDb().select({ id: users.id }).from(users).where(inArray(users.id, named))
             ).map((u) => u.id)
           : [];
-      const visibility: PostVisibility =
-        input.visibility === "assigned" && recipients.length === 0
-          ? "private"
-          : input.visibility;
+      const visibility: PostVisibility = input.visibility;
       await getDb()
         .insert(posts)
         .values({
@@ -305,10 +301,8 @@ export const postsRouter = createRouter({
 });
 
 /** How many people each of these posts was made out to. */
-async function assignedCounts(
-  rows: { slug: string; visibility: string }[],
-): Promise<Map<string, number>> {
-  const slugs = rows.filter((r) => r.visibility === "assigned").map((r) => r.slug);
+async function assignedCounts(rows: { slug: string }[]): Promise<Map<string, number>> {
+  const slugs = rows.map((r) => r.slug);
   const counts = new Map<string, number>();
   if (slugs.length === 0) return counts;
   try {

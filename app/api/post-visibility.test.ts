@@ -28,22 +28,23 @@ describe("canSee", () => {
     expect(canSee(post("private"), undefined, nothing)).toBe(false);
   });
 
-  it("does not let an assignment open a private post", () => {
-    // The same slug handed to someone: private still means private.
-    expect(canSee(post("private"), ASSIGNEE, given)).toBe(false);
+  /* The combination the two controls exist for: off the feed AND sent to one
+   * person means exactly those two people. */
+  it("opens a private post to the people it was sent to, and nobody else", () => {
+    expect(canSee(post("private"), ASSIGNEE, given)).toBe(true);
+    expect(canSee(post("private"), STRANGER, nothing)).toBe(false);
+    expect(canSee(post("private"), STRANGER, new Set(["something-else"]))).toBe(false);
   });
 
-  it("shows an assigned post to the people it was made out to, and no one else", () => {
-    expect(canSee(post("assigned"), ASSIGNEE, given)).toBe(true);
-    expect(canSee(post("assigned"), OWNER, nothing)).toBe(true);
-    expect(canSee(post("assigned"), STRANGER, nothing)).toBe(false);
-    expect(canSee(post("assigned"), undefined, given)).toBe(false);
+  it("still refuses a guest, however the post was sent", () => {
+    expect(canSee(post("private"), undefined, given)).toBe(false);
   });
 
   it("refuses a visibility it does not recognise", () => {
-    // A value that arrived from somewhere unexpected must fail closed.
-    expect(canSee(post("everyone"), STRANGER, given)).toBe(false);
-    expect(canSee(post(""), STRANGER, given)).toBe(false);
+    // A value that arrived from somewhere unexpected must fail closed — for
+    // a stranger who was not sent it.
+    expect(canSee(post("everyone"), STRANGER, nothing)).toBe(false);
+    expect(canSee(post(""), STRANGER, nothing)).toBe(false);
   });
 
   it("covers every visibility the contract offers", () => {

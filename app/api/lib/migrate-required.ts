@@ -189,6 +189,11 @@ export async function ensureRequiredSchema(): Promise<void> {
     await client.query(
       `UPDATE sketchlearn.posts SET visibility = 'private' WHERE "isPublic" = false AND visibility = 'public'`,
     );
+    // "assigned" was briefly a third value; it is now the same thing as
+    // private with people named on it, which the assignment rows already say.
+    await client.query(
+      `UPDATE sketchlearn.posts SET visibility = 'private' WHERE visibility = 'assigned'`,
+    );
     await client.query(
       `CREATE INDEX IF NOT EXISTS "posts_owner_idx" ON sketchlearn.posts ("ownerId")`,
     );

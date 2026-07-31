@@ -1538,31 +1538,62 @@ export async function generateImageDetailed(opts: {
   const directive = opts.style ? IMAGE_STYLE_DIRECTIVES[opts.style] : undefined;
   const prompt = directive ? `${opts.prompt}\n\nStyle: ${directive}.` : opts.prompt;
   const aspect = opts.aspect ?? "1:1";
-  for (const key of candidates) {
-    try {
-      switch (key.provider) {
-        case "gemini":
-          return { url: await callGeminiImage(key, prompt, aspect), provider: "gemini" };
-        case "openai":
-          return { url: await callOpenAIImage(key, prompt, aspect), provider: "openai" };
-        case "leonardo":
-          return { url: await callLeonardoImage(key, prompt, aspect), provider: "leonardo" };
-        case "unsplash":
-          // Searches for the subject, so it gets the un-art-directed prompt.
-          return { url: await fetchUnsplashImage(key, opts.prompt), provider: "unsplash" };
-        case "anthropic":
-        case "elevenlabs":
-          continue; // no image API
-      }
-    } catch (err) {
-      console.warn(
-        `[ai/image] ${key.provider} (${key.source}) failed, trying next candidate:`,
-        err instanceof Error ? err.message : err,
-      );
+
+  const draw = (key: ResolvedKey): Promise<{ url: string; provider: ImageProvider }> | null => {
+    switch (key.provider) {
+      case "gemini":
+        return callGeminiImage(key, prompt, aspect).then((url) => ({ url, provider: "gemini" as const }));
+      case "openai":
+        return callOpenAIImage(key, prompt, aspect).then((url) => ({ url, provider: "openai" as const }));
+      case "leonardo":
+        return callLeonardoImage(key, prompt, aspect).then((url) => ({ url, provider: "leonardo" as const }));
+      case "unsplash":
+        // Searches for the subject, so it gets the un-art-directed prompt.
+        return fetchUnsplashImage(key, opts.prompt).then((url) => ({ url, provider: "unsplash" as const }));
+      default:
+        return null; // anthropic, elevenlabs — no image API
     }
+  };
+
+  /* Every configured generator is tried in turn, and each gets a second go
+   * before the next one is asked. A refusal is usually about this prompt on
+   * this model — a safety filter, a rate limit, a bad minute — so the retry
+   * is often all it takes, and it matters most when only one provider is
+   * configured and there is nothing else to fall back to. */
+  const tried: string[] = [];
+  lastImageFailure = null;
+  for (const key of candidates) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const call = draw(key);
+      if (!call) break;
+      try {
+        return await call;
+      } catch (err) {
+        const why = err instanceof Error ? err.message : String(err);
+        lastImageFailure = `${key.provider}: ${why}`;
+        tried.push(`${key.provider}${attempt ? " (retry)" : ""}`);
+        console.warn(`[ai/image] ${key.provider} (${key.source}) attempt ${attempt + 1} failed: ${why}`);
+      }
+    }
+  }
+  if (tried.length > 0) {
+    lastImageFailure = `tried ${[...new Set(tried.map((t) => t.split(" ")[0]))].join(", ")} — last error: ${lastImageFailure}`;
   }
   console.warn(`[ai/image] all ${candidates.length} image candidate(s) failed`);
   return null;
+}
+
+/**
+ * Why the last image request failed, for the message the user sees.
+ *
+ * Module-level rather than returned, so every existing caller of
+ * generateImage keeps its `string | null` contract; the ones that show an
+ * error read this straight afterwards. Requests do not interleave within one
+ * of those handlers, so the value belongs to the call that just returned.
+ */
+let lastImageFailure: string | null = null;
+export function lastImageError(): string | null {
+  return lastImageFailure;
 }
 
 /** A hand-labelled placeholder for SKETCHLEARN_ALLOW_MOCK_AI — sketch-styled

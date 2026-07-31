@@ -10,8 +10,10 @@ import {
   MUSIC_MAX_SECONDS,
   MUSIC_MIN_SECONDS,
   completeText,
+  completeVision,
   generateImage,
   generateMusic,
+  lastImageError,
 } from "../ai/provider.js";
 import { extractJson } from "../ai/prompts.js";
 import { applyTokenDelta } from "../tokens.js";
@@ -29,6 +31,10 @@ const STORYBOARD_COST = 2;
 /** Picking out the words worth colouring is a much smaller read than writing
  *  the whole carousel, so it is priced below one. */
 const HIGHLIGHT_COST = 1;
+
+/** The ceiling when the AI is left to decide how many slides it takes. Past
+ *  ten a carousel stops being read to the end, whatever the subject. */
+const AUTO_MAX_SLIDES = 10;
 
 /**
  * What a music bed costs, in coins.
@@ -105,6 +111,83 @@ const castMemberSchema = z.object({
   headline: z.string().max(200).default(""),
   sheet: z.string().max(2000),
 });
+
+/** One slide of a worked solution: the working, and the line under it. */
+const mathSlideSchema = z.object({
+  title: z.string().max(120).default(""),
+  steps: z.array(z.string().max(200)).min(1).max(5),
+  note: z.string().max(300).default(""),
+});
+
+/**
+ * Something the user attached for context.
+ *
+ * Two kinds, because two kinds are what people actually have: a photograph
+ * of the thing (a page of homework, a menu, a whiteboard), which goes to a
+ * vision model, and a text file (notes, a brief, a CSV), which is simply put
+ * in front of the writer. Anything else the browser cannot read as one of
+ * those never gets this far.
+ */
+const attachmentSchema = z.object({
+  kind: z.enum(["image", "text"]),
+  /** for an image: the mime type; for text: the file name, for the prompt */
+  label: z.string().max(200).default(""),
+  /** base64 for an image, the file's text for text */
+  data: z.string().max(4_000_000),
+});
+type Attachment = z.infer<typeof attachmentSchema>;
+
+/**
+ * Ask for JSON, with an attachment folded in if there is one.
+ *
+ * An image goes through the vision path and a text file is pasted into the
+ * prompt, but the caller writes one system prompt either way — the shape of
+ * the answer does not change because someone attached a photograph.
+ */
+async function askForJson(opts: {
+  userId: number;
+  system: string;
+  userText: string;
+  attachment: Attachment | null;
+  maxTokens: number;
+  label: string;
+}): Promise<unknown> {
+  const withFile =
+    opts.attachment?.kind === "text"
+      ? `${opts.userText}\n\nATTACHED — ${opts.attachment.label || "notes"}:\n${opts.attachment.data.slice(0, 12_000)}`
+      : opts.userText;
+  const image =
+    opts.attachment?.kind === "image"
+      ? { mime: opts.attachment.label || "image/png", b64: opts.attachment.data }
+      : null;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const nudge = attempt === 0 ? "" : "\n\nReminder: STRICT JSON ONLY, exactly the requested shape.";
+    try {
+      const result = image
+        ? await completeVision({
+            userId: opts.userId,
+            system: opts.system,
+            userText: `${withFile}${nudge}\n\nThe attached picture is part of the brief — read it.`,
+            images: [image],
+            maxTokens: opts.maxTokens,
+          })
+        : await completeText({
+            userId: opts.userId,
+            messages: [
+              { role: "system", content: opts.system },
+              { role: "user", content: `${withFile}${nudge}` },
+            ],
+            maxTokens: opts.maxTokens,
+          });
+      if (!result) break;
+      return JSON.parse(extractJson(result.text));
+    } catch (err) {
+      console.warn(`[${opts.label}] attempt ${attempt + 1} failed:`, err);
+    }
+  }
+  return null;
+}
 
 /** The two lines of the closing follow card the AI is allowed to write. The
  *  rest of that card — handle, counts, logo — is the user's to set. */
@@ -382,7 +465,10 @@ export const marketingRouter = createRouter({
     .input(
       z.object({
         topic: z.string().min(3).max(500),
-        slideCount: z.number().int().min(2).max(10).default(5),
+        /** null = as many as the explanation needs, up to the cap */
+        slideCount: z.number().int().min(2).max(10).nullable().default(5),
+        /** a photo or a text file the writer should read first */
+        attachment: attachmentSchema.nullable().default(null),
         format: z.enum(["9:16", "4:5", "1:1"]).default("9:16"),
         /** the models available to cast from; may be empty */
         cast: z.array(castMemberSchema).max(12).default([]),
@@ -407,10 +493,19 @@ export const marketingRouter = createRouter({
             message: `INSUFFICIENT_TOKENS: a storyboard costs ${STORYBOARD_COST} 🪙, you have ${ctx.user.tokenBalance} 🪙`,
           });
         }
+        /* An explicit count is honoured exactly; "auto" hands the decision to
+           the writer, which is the honest answer when the person asking does
+           not yet know how much explaining the subject takes. */
+        const cap = input.slideCount ?? AUTO_MAX_SLIDES;
+        const howMany =
+          input.slideCount == null
+            ? `carousel of as many slides as the subject genuinely needs — at least 3, at most ${AUTO_MAX_SLIDES}, no padding — that tells `
+            : `carousel of exactly ${input.slideCount} slides that tells `;
         const system =
           "You write Instagram carousels for a marketing team. The subject is " +
           `${CATEGORY_BRIEF[input.category]}. Given it, plan a ` +
-          `carousel of exactly ${input.slideCount} slides that tells one small, complete story: ` +
+          howMany +
+          "one small, complete story: " +
           "slide 1 hooks the reader, the middle slides walk through the steps or ideas one at a " +
           "time in order, and the last slide closes with a takeaway or invitation. " +
           "For EVERY slide give: title — 2 to 6 punchy words, the big line on the card; " +
@@ -429,32 +524,14 @@ export const marketingRouter = createRouter({
           'Reply STRICT JSON ONLY: {"slides":[{"title":"…","subtitle":"…","imagePrompt":"…",' +
           '"titleKeywords":["…"],"subtitleKeywords":["…"],"cast":["…"]}],' +
           '"endCard":{"headline":"…","bio":"…"}}';
-        let parsed: { slides?: unknown; endCard?: unknown } | null = null;
-        for (let attempt = 0; attempt < 2 && parsed === null; attempt++) {
-          try {
-            const result = await completeText({
-              userId: ctx.user.id,
-              messages: [
-                { role: "system", content: system },
-                {
-                  role: "user",
-                  content:
-                    attempt === 0
-                      ? input.topic
-                      : `${input.topic}\n\nReminder: STRICT JSON ONLY, exactly the requested shape.`,
-                },
-              ],
-              maxTokens: 3000,
-            });
-            if (!result) break;
-            parsed = JSON.parse(extractJson(result.text)) as {
-              slides?: unknown;
-              endCard?: unknown;
-            };
-          } catch (err) {
-            console.warn(`[marketing.storyboard] attempt ${attempt + 1} failed:`, err);
-          }
-        }
+        const parsed = (await askForJson({
+          userId: ctx.user.id,
+          system,
+          userText: input.topic,
+          attachment: input.attachment,
+          maxTokens: 3000,
+          label: "marketing.storyboard",
+        })) as { slides?: unknown; endCard?: unknown } | null;
         const slides = z.array(slideSchema).min(1).safeParse(parsed?.slides);
         if (!slides.success) {
           throw new TRPCError({
@@ -468,8 +545,109 @@ export const marketingRouter = createRouter({
         // it must not cost the user a written carousel.
         const endCard = endCardSchema.safeParse(parsed?.endCard);
         return {
-          slides: slides.data.slice(0, input.slideCount),
+          slides: slides.data.slice(0, cap),
           endCard: endCard.success ? endCard.data : null,
+          cost: STORYBOARD_COST,
+        };
+      },
+    ),
+
+  /**
+   * Work a problem out across a carousel: one slide per phase of the
+   * solution, with the working set on the slide and the plain-language
+   * explanation in the band underneath it.
+   *
+   * The maths is written in UNICODE, not LaTeX. A post is a picture — it is
+   * exported as a PNG and read on a phone — so the notation has to be
+   * something the same canvas that draws every other slide can draw, and
+   * something that survives being screenshotted. LaTeX would mean a second
+   * renderer and a second set of fonts, and the preview and the export would
+   * stop agreeing with each other, which is the one rule this tool keeps.
+   *
+   * The AI decides how many slides it takes, because the person asking does
+   * not know yet — that is the whole reason they are asking.
+   */
+  mathboard: adminProcedure
+    .input(
+      z.object({
+        problem: z.string().min(3).max(1500),
+        /** cap; the AI uses fewer when the problem is shorter than that */
+        maxSlides: z.number().int().min(2).max(10).default(8),
+        language: z.enum(LANGUAGE_CODES).default("en"),
+        /** a photo of the problem, or notes read out of a file */
+        attachment: attachmentSchema.nullable().default(null),
+      }),
+    )
+    .mutation(
+      async ({
+        ctx,
+        input,
+      }): Promise<{
+        slides: z.infer<typeof mathSlideSchema>[];
+        footer: { title: string; blurb: string };
+        answer: string;
+        cost: number;
+      }> => {
+        if (ctx.user.tokenBalance < STORYBOARD_COST) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `INSUFFICIENT_TOKENS: working a problem costs ${STORYBOARD_COST} 🪙, you have ${ctx.user.tokenBalance} 🪙`,
+          });
+        }
+        const system =
+          "You are a rigorous step-by-step solver writing an Instagram carousel. Solve the " +
+          "problem COMPLETELY and lay the working out across slides — one slide per phase of " +
+          `the solution ("Set up", "Apply the rule", "Simplify", "Check"). Use as many slides ` +
+          `as the problem genuinely needs and NO MORE than ${input.maxSlides}: a short ` +
+          "equation may take three, a long integral eight. " +
+          "For EVERY slide give: title — 2 to 5 words naming that phase; steps — 1 to 4 lines " +
+          "of actual working, each line one equation or one manipulation; note — one short " +
+          "sentence in plain language saying what was done and why, for the band under the " +
+          "working. " +
+          "MATHS IS WRITTEN IN PLAIN UNICODE TEXT, NEVER LaTeX and never markdown: use × ÷ ± √ " +
+          "² ³ ⁿ ₁ ₂ π ∫ ∑ ≤ ≥ ≠ ≈ → ∞ Δ θ and a/b for fractions. No backslashes, no $ signs, " +
+          "no \\frac, no \\begin. Each line must read correctly as one line of text — these " +
+          "are drawn as text on a picture, not typeset. " +
+          "Also give: footer.title — 2 to 4 words naming the formula or method used; " +
+          "footer.blurb — one or two short sentences explaining that formula to someone " +
+          "meeting it for the first time; answer — the final result, one line of Unicode maths. " +
+          "Verify the final answer with a quick independent check before writing it. " +
+          languageRule(input.language) +
+          'Reply STRICT JSON ONLY: {"slides":[{"title":"…","steps":["…"],"note":"…"}],' +
+          '"footer":{"title":"…","blurb":"…"},"answer":"…"}';
+        const parsed = await askForJson({
+          userId: ctx.user.id,
+          system,
+          userText: `PROBLEM: ${input.problem}`,
+          attachment: input.attachment,
+          maxTokens: 3000,
+          label: "marketing.mathboard",
+        });
+        const board = z
+          .object({
+            slides: z.array(mathSlideSchema).min(1),
+            footer: z
+              .object({ title: z.string().max(80).default(""), blurb: z.string().max(400).default("") })
+              .default({ title: "", blurb: "" }),
+            answer: z.string().max(300).default(""),
+          })
+          .safeParse(parsed);
+        if (!board.success) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "AI_UNAVAILABLE: no AI provider worked the problem — nothing was charged. Check the server AI keys and try again.",
+          });
+        }
+        await applyTokenDelta(
+          ctx.user.id,
+          -STORYBOARD_COST,
+          `carousel solution: ${input.problem.slice(0, 55)}`,
+        );
+        return {
+          slides: board.data.slides.slice(0, input.maxSlides),
+          footer: board.data.footer,
+          answer: board.data.answer,
           cost: STORYBOARD_COST,
         };
       },
@@ -701,9 +879,13 @@ async function drawAndStore(
   }
   const url = await generateImage({ userId, prompt: opts.prompt, aspect: opts.aspect });
   if (!url) {
+    // Naming the providers that were tried and what the last one said: with
+    // one key configured "no generator answered" is indistinguishable from
+    // "the only generator refused this prompt", and they need different fixes.
+    const why = lastImageError();
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
-      message: "AI_UNAVAILABLE: no image generator answered — nothing was charged",
+      message: `AI_UNAVAILABLE: no image generator answered${why ? ` — ${why}` : ""} — nothing was charged`,
     });
   }
   const m = /^data:([^;,]+);base64,(.+)$/s.exec(url);

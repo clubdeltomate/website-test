@@ -97,13 +97,16 @@ export default function PostDetails({
         {/* Only ever on a post that is not public, and only for someone who
             can already see it — so it tells you why this is on your feed
             rather than leaking that anything else exists. */}
-        {post.who !== 'public' && (
+        {(post.who !== 'public' || post.assignedCount > 0) && (
           <span
             title={
               post.mine
-                ? post.who === 'private'
-                  ? 'Only you can see this'
-                  : `Sent to ${post.assignedCount} ${post.assignedCount === 1 ? 'person' : 'people'}`
+                ? [
+                    post.who === 'private' ? 'Off the feed' : 'On the feed',
+                    post.assignedCount > 0
+                      ? `sent to ${post.assignedCount} ${post.assignedCount === 1 ? 'person' : 'people'}`
+                      : 'only you can see it',
+                  ].join(' · ')
                 : 'Sent to you'
             }
             className="micro ml-auto flex items-center gap-1 rounded-wobble-sm border-2 border-ink bg-yellow-soft px-1.5 py-0.5 text-[0.55rem] font-bold text-ink"
@@ -113,11 +116,11 @@ export default function PostDetails({
             ) : (
               <Users className="h-3 w-3" strokeWidth={2} />
             )}
-            {post.who === 'private'
-              ? 'Private'
-              : post.mine
-                ? `${post.assignedCount} sent`
-                : 'For you'}
+            {!post.mine
+              ? 'For you'
+              : post.assignedCount > 0
+                ? `${post.who === 'private' ? 'Private · ' : ''}${post.assignedCount} sent`
+                : 'Private'}
           </span>
         )}
         <span
