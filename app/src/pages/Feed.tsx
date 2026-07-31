@@ -414,7 +414,10 @@ export default function Feed() {
       /* Its own scrollbar: the shell gives this page the window's height for
          the feed's sake, so the grid has to scroll inside that rather than
          run off the bottom of it. */
-      <div className="mx-auto flex w-full max-w-content flex-col gap-3 px-4 py-3 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:px-8">
+      <div
+        data-lenis-prevent
+        className="mx-auto flex w-full max-w-content flex-col gap-3 px-4 py-3 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:px-8"
+      >
         {controls}
         {list.isLoading ? (
           <p className="micro text-[0.62rem] text-ink-faint">Loading the feed…</p>

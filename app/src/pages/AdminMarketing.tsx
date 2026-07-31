@@ -7,13 +7,16 @@ import {
   Eraser,
   Eye,
   Image as ImageIcon,
+  Check,
   Layers,
   Music,
+  Paperclip,
   Palette,
   Plus,
   RefreshCw,
   Save,
   Send,
+  Sigma,
   Sparkles,
   Trash2,
   Type,
@@ -160,12 +163,29 @@ const SECTIONS = [
 ];
 type SectionId = (typeof SECTIONS)[number]['id'];
 
+/**
+ * What a carousel is made of.
+ *
+ * "Photos" is the marketing carousel this tool started as. "Working" solves a
+ * problem across the slides instead — the maths set large on the card, the
+ * plain-language line for that step in the band underneath, and a closing
+ * card naming the formula. Same band, same words, same export; only what
+ * fills the picture area changes.
+ */
+const MODES = [
+  { id: 'photos' as const, label: 'Pictures', icon: ImageIcon },
+  { id: 'math' as const, label: 'Working', icon: Sigma },
+];
+type ModeId = (typeof MODES)[number]['id'];
+
 interface Slide {
   id: string;
   imageUrl: string | null;
   imagePrompt: string;
   /** names of the cast members this slide's picture shows */
   cast: string[];
+  /** lines of working, set on the card itself — a "working" carousel only */
+  steps: string[];
   title: string;
   subtitle: string;
   /** word index → hex. Absent = the band's default ink. */
@@ -219,11 +239,93 @@ const newSlide = (n: number): Slide => ({
   imageUrl: null,
   imagePrompt: '',
   cast: [],
+  steps: [],
   title: '',
   subtitle: '',
   titleTints: {},
   subTints: {},
 });
+
+/* ------------------------------------------------------------------ */
+/* Working slides: the maths on the card                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The paper a worked step is set on, and the ink it is set in.
+ *
+ * Deliberately not a photograph: a page of working wants to look like a page
+ * of working. The band underneath keeps whatever colour and finish the rest
+ * of the carousel uses, so a solution still looks like it came from the same
+ * account as the pictures.
+ */
+const MATH_PAPER = '#FFFDF6';
+const MATH_INK = '#12294B';
+
+/** Space the working gets: everything above the band, less a margin. */
+const MATH_PAD = 90;
+
+interface StepLayout {
+  lines: string[];
+  size: number;
+  lineH: number;
+  top: number;
+}
+
+/**
+ * Lay the working out above the band.
+ *
+ * One function for the preview and the export, like everything else here.
+ * The size comes down until the lines fit the space the band leaves — a
+ * six-step page on a square post gets smaller type, and nothing runs off the
+ * card or under the band.
+ */
+function layoutSteps(
+  steps: string[],
+  measure: CanvasRenderingContext2D | null,
+  bandTop: number,
+): StepLayout {
+  const empty: StepLayout = { lines: [], size: 0, lineH: 0, top: 0 };
+  const text = steps.map((s) => s.trim()).filter(Boolean);
+  if (!measure || text.length === 0) return empty;
+  const maxW = OUT_W - MATH_PAD * 2;
+  const room = Math.max(200, bandTop - MATH_PAD * 2);
+
+  for (let size = 74; size >= 26; size -= 2) {
+    measure.font = `700 ${size}px ${FONT}`;
+    const lines: string[] = [];
+    let tooWide = false;
+    for (const line of text) {
+      if (measure.measureText(line).width <= maxW) {
+        lines.push(line);
+        continue;
+      }
+      // A step too long for one line is broken on spaces rather than
+      // shrunk further — a wrapped equation still reads, a tiny one doesn't.
+      const words = line.split(/\s+/);
+      let cur = '';
+      for (const w of words) {
+        const next = cur ? `${cur} ${w}` : w;
+        if (measure.measureText(next).width <= maxW) cur = next;
+        else if (cur) {
+          lines.push(cur);
+          cur = w;
+        } else {
+          tooWide = true;
+          cur = w;
+        }
+      }
+      if (cur) lines.push(cur);
+    }
+    const lineH = size * 1.55;
+    if (!tooWide && lines.length * lineH <= room) {
+      return { lines, size, lineH, top: MATH_PAD + (room - lines.length * lineH) / 2 };
+    }
+    if (size === 26) {
+      return { lines, size, lineH, top: MATH_PAD };
+    }
+  }
+  return empty;
+}
 
 
 /** Wrap one run of words to a width, returning lines of word indices. */
@@ -351,7 +453,16 @@ function MarketingBody() {
     bandFinish: 'solid',
   });
   const [topic, setTopic] = useState('');
-  const [slideCount, setSlideCount] = useState(5);
+  /** null = let the AI decide how many it takes */
+  const [slideCount, setSlideCount] = useState<number | null>(5);
+  const [mode, setMode] = useState<ModeId>('photos');
+  /** a photo or a text file the writer should read first */
+  const [attachment, setAttachment] = useState<{
+    kind: 'image' | 'text';
+    label: string;
+    data: string;
+    name: string;
+  } | null>(null);
   const [activeColor, setActiveColor] = useState(COLORS[1].hex);
   const [busy, setBusy] = useState(false);
   /** Index currently being drawn, so only that slide's button spins. */
@@ -368,6 +479,7 @@ function MarketingBody() {
   /** Who the post is for, and — when that is "assigned" — exactly whom. */
   const [who, setWho] = useState<PostVisibility>('public');
   const [sendTo, setSendTo] = useState<number[]>([]);
+  const [sending, setSending] = useState(false);
   const [userQuery, setUserQuery] = useState('');
   const [modelNote, setModelNote] = useState('');
   const [reading, setReading] = useState(false);
@@ -416,7 +528,7 @@ function MarketingBody() {
      actually "assigned" — the feed does not need a user list to publish. */
   const directory = trpc.users.directory.useQuery(
     { q: userQuery.trim() || undefined },
-    { enabled: who === 'assigned' },
+    { enabled: sending },
   );
 
   const brand = trpc.marketing.brand.useQuery();
@@ -456,6 +568,10 @@ function MarketingBody() {
     () => layoutCard(slide, design, measureRef.current, outH),
     [slide, design, outH],
   );
+  const stepLayout = useMemo(
+    () => layoutSteps(slide.steps, measureRef.current, layout.bandY),
+    [slide.steps, layout.bandY],
+  );
   const followLayout = useMemo(
     () => layoutFollow(follow, measureRef.current, outH),
     [follow, outH],
@@ -492,6 +608,82 @@ function MarketingBody() {
         }));
       }
       toast.success(`Story written — ${r.slides.length} slides, ${r.cost} 🪙`);
+      void utils.auth.me.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  /**
+   * Read a file the AI should see first.
+   *
+   * A picture goes to the vision model as bytes; anything the browser will
+   * hand over as text is pasted into the brief. Nothing else is accepted —
+   * a PDF read as text is line noise, and pretending otherwise would send
+   * the AI a page of nonsense and charge for it.
+   */
+  const attachFile = async (file: File) => {
+    if (file.size > 3_000_000) return toast.error('That file is over 3 MB — try a smaller one');
+    const isImage = file.type.startsWith('image/');
+    const isText = file.type.startsWith('text/') || /\.(txt|md|csv|json)$/i.test(file.name);
+    if (!isImage && !isText) {
+      return toast.error('Attach a picture, or a text file (.txt, .md, .csv, .json)');
+    }
+    try {
+      if (isImage) {
+        const url = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(String(r.result));
+          r.onerror = () => reject(new Error('unreadable'));
+          r.readAsDataURL(file);
+        });
+        const m = /^data:(image\/[a-z+.-]+);base64,(.+)$/s.exec(url);
+        if (!m) throw new Error('unreadable');
+        setAttachment({ kind: 'image', label: m[1], data: m[2], name: file.name });
+      } else {
+        const text = await file.text();
+        setAttachment({ kind: 'text', label: file.name, data: text.slice(0, 12_000), name: file.name });
+      }
+      toast.success(`${file.name} attached — the AI will read it`);
+    } catch {
+      toast.error("That file couldn't be read");
+    }
+  };
+
+  /** The attachment in the shape the endpoints take. */
+  const attachmentForApi = () =>
+    attachment ? { kind: attachment.kind, label: attachment.label, data: attachment.data } : null;
+
+  /**
+   * Work a problem out across the slides.
+   *
+   * The steps land on the cards, the plain-language line lands in the band,
+   * and the closing card explains the formula — which is what the follow
+   * card's two lines become when the carousel is a solution rather than an
+   * advert.
+   */
+  const solve = trpc.marketing.mathboard.useMutation({
+    onSuccess: (r) => {
+      setSlides(
+        r.slides.map((s, i) => ({
+          ...newSlide(i + 1),
+          title: s.title,
+          subtitle: s.note,
+          steps: s.steps,
+          titleTints: {},
+          subTints: {},
+        })),
+      );
+      setActive(0);
+      if (r.footer.title || r.footer.blurb) {
+        setFollow((f) => ({
+          ...f,
+          headline: r.footer.title || f.headline,
+          bio: r.footer.blurb || f.bio,
+        }));
+      }
+      toast.success(
+        `Solved in ${r.slides.length} slide${r.slides.length === 1 ? '' : 's'}${r.answer ? ` — ${r.answer}` : ''} · ${r.cost} 🪙`,
+      );
       void utils.auth.me.invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -629,10 +821,20 @@ function MarketingBody() {
     canvas.height = outH;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('This browser has no canvas to draw on');
-    ctx.fillStyle = '#F4EBD6';
+    ctx.fillStyle = mode === 'math' ? MATH_PAPER : '#F4EBD6';
     ctx.fillRect(0, 0, OUT_W, outH);
 
-    if (s.imageUrl) {
+    if (mode === 'math') {
+      // A faint rule down the left, the way working is written on paper.
+      ctx.strokeStyle = 'rgba(18,41,75,0.14)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(MATH_PAD * 0.55, 0);
+      ctx.lineTo(MATH_PAD * 0.55, outH);
+      ctx.stroke();
+    }
+
+    if (mode === 'photos' && s.imageUrl) {
       const img = new Image();
       img.src = s.imageUrl;
       await new Promise<void>((resolve, reject) => {
@@ -646,6 +848,19 @@ function MarketingBody() {
     }
 
     const L = layoutCard(s, design, measureRef.current, outH);
+
+    if (mode === 'math') {
+      const steps = layoutSteps(s.steps, measureRef.current, L.bandY);
+      ctx.fillStyle = MATH_INK;
+      ctx.textBaseline = 'middle';
+      ctx.font = `700 ${steps.size}px ${FONT}`;
+      let y = steps.top;
+      for (const line of steps.lines) {
+        ctx.fillText(line, (OUT_W - ctx.measureText(line).width) / 2, y + steps.lineH / 2);
+        y += steps.lineH;
+      }
+    }
+
     if (L.bandH > 0) {
       if (design.bandFinish === 'fade') {
         const ramp = fadeRamp(L.bandH);
@@ -773,14 +988,16 @@ function MarketingBody() {
         height: outH,
         audioId: music?.id ?? null,
         visibility: who,
-        assignedUserIds: who === 'assigned' ? sendTo : [],
+        assignedUserIds: sendTo,
       });
       toast.success(
         who === 'public'
-          ? 'Posted to the feed ✓'
-          : who === 'private'
-            ? 'Posted — only you can see it ✓'
-            : `Posted to ${sendTo.length} ${sendTo.length === 1 ? 'feed' : 'feeds'} ✓`,
+          ? sendTo.length
+            ? `Posted to the feed, and sent to ${sendTo.length} ✓`
+            : 'Posted to the feed ✓'
+          : sendTo.length
+            ? `Posted — you and ${sendTo.length} ${sendTo.length === 1 ? 'other' : 'others'} ✓`
+            : 'Posted — only you can see it ✓',
       );
       // Onto the feed standing on what was just posted, not onto a page of
       // its own — you should be able to carry on scrolling from there.
@@ -959,7 +1176,53 @@ function MarketingBody() {
             }}
           >
             {onFollow && <FollowPreview card={follow} layout={followLayout} />}
+            {!onFollow && mode === 'math' && (
+              /* The working, laid out by the same function the PNG uses, so
+                 what is arranged here is what is exported. */
+              <div className="absolute inset-0" style={{ background: MATH_PAPER }}>
+                <div
+                  className="absolute inset-y-0"
+                  style={{
+                    left: cq(MATH_PAD * 0.55),
+                    width: '2px',
+                    background: 'rgba(18,41,75,0.14)',
+                  }}
+                />
+                <div
+                  className="absolute left-0 right-0 flex flex-col"
+                  style={{
+                    top: cq(stepLayout.top),
+                    fontFamily: FONT,
+                    fontWeight: 700,
+                    color: MATH_INK,
+                  }}
+                >
+                  {stepLayout.lines.map((line, i) => (
+                    <span
+                      key={`${line}-${i}`}
+                      className="block text-center"
+                      style={{
+                        fontSize: cq(stepLayout.size),
+                        lineHeight: cq(stepLayout.lineH),
+                        height: cq(stepLayout.lineH),
+                      }}
+                    >
+                      {line}
+                    </span>
+                  ))}
+                  {stepLayout.lines.length === 0 && (
+                    <span
+                      className="block px-6 text-center"
+                      style={{ fontSize: cq(34), color: 'rgba(18,41,75,0.45)' }}
+                    >
+                      The working goes here.
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
             {!onFollow &&
+              mode === 'photos' &&
               (slide.imageUrl ? (
                 <img src={slide.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
               ) : (
@@ -972,7 +1235,7 @@ function MarketingBody() {
               ))}
             {/* Redraw this one picture, from this one slide's brief, without
                 scrolling down to find its card. */}
-            {!onFollow && slide.imagePrompt.trim().length > 2 && (
+            {!onFollow && mode === 'photos' && slide.imagePrompt.trim().length > 2 && (
               <button
                 type="button"
                 disabled={drawing === active}
@@ -1189,8 +1452,15 @@ function MarketingBody() {
           </div>
 
           {/* Only the open panel scrolls, and only when it has to — the menu
-              above it stays where you left it. */}
-          <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-1 lg:pr-1">
+              above it stays where you left it. data-lenis-prevent hands the
+              wheel back to this box: the site's smooth scroll owns the wheel
+              by default and scrolls the page with it, and this page has no
+              page to scroll, so without it the wheel did nothing at all over
+              a panel taller than the window. */}
+          <div
+            data-lenis-prevent
+            className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-1 lg:pr-1"
+          >
           {/* the cast */}
           {section === 'cast' && (
           <SketchCard className="flex flex-col gap-3 p-5">
@@ -1348,17 +1618,76 @@ function MarketingBody() {
           {/* the story */}
           {section === 'story' && (
           <SketchCard className="flex flex-col gap-3 p-5">
-            <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
-              <Wand2 className="h-3.5 w-3.5" strokeWidth={2} /> The story
-            </span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
+                <Wand2 className="h-3.5 w-3.5" strokeWidth={2} />
+                {mode === 'math' ? 'The problem' : 'The story'}
+              </span>
+              {/* Two kinds of carousel out of the same parts: pictures with
+                  captions, or a problem worked out across the slides. */}
+              <div className="flex overflow-hidden rounded-wobble-sm border-2 border-ink shadow-offset">
+                {MODES.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setMode(m.id)}
+                    aria-pressed={mode === m.id}
+                    className={cn(
+                      'micro flex items-center gap-1 px-2.5 py-1 text-[0.6rem] font-bold transition-colors',
+                      mode === m.id ? 'bg-yellow text-ink' : 'bg-paper-3 text-ink-soft hover:text-ink',
+                    )}
+                  >
+                    <m.icon className="h-3 w-3" strokeWidth={2} />
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <textarea
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               rows={2}
-              aria-label="Carousel subject"
-              placeholder="What should the carousel explain? e.g. how to brew great coffee at home"
+              aria-label={mode === 'math' ? 'The problem' : 'Carousel subject'}
+              placeholder={
+                mode === 'math'
+                  ? 'What should it solve? e.g. integrate x·e^x dx, or balance Fe + O2 -> Fe2O3'
+                  : 'What should the carousel explain? e.g. how to brew great coffee at home'
+              }
               className="w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
             />
+            {/* Something for the AI to read first — a photograph of the
+                problem, a menu, a page of notes. An image goes to the vision
+                model; a text file is pasted into the brief. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="micro cursor-pointer rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink">
+                <Paperclip className="mr-1 inline h-3 w-3" strokeWidth={2} />
+                {attachment ? 'Replace the file' : 'Attach a file for context'}
+                <input
+                  type="file"
+                  accept="image/*,text/*,.txt,.md,.csv,.json"
+                  className="hidden"
+                  aria-label="Attach a file for context"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void attachFile(file);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              {attachment && (
+                <span className="micro flex items-center gap-1.5 rounded-wobble-sm border-2 border-ink bg-yellow-soft px-2 py-1 text-[0.58rem] font-bold text-ink">
+                  {attachment.kind === 'image' ? 'Photo' : 'Notes'}: {attachment.name}
+                  <button
+                    type="button"
+                    onClick={() => setAttachment(null)}
+                    aria-label="Remove the attachment"
+                    className="text-ink-faint hover:text-red"
+                  >
+                    <Trash2 className="h-3 w-3" strokeWidth={2} />
+                  </button>
+                </span>
+              )}
+            </div>
             {/* Which shelf this post belongs on — the same six the notebooks
                 and slide tools use, so the feed filters read the same way. */}
             <div className="flex flex-wrap items-center gap-1.5">
@@ -1401,30 +1730,72 @@ function MarketingBody() {
                   ))}
                 </select>
               </label>
-              <label className="micro flex items-center gap-1.5 text-[0.6rem] text-ink-soft">
-                Slides
-                <input
-                  type="number"
-                  min={2}
-                  max={10}
-                  value={slideCount}
-                  onChange={(e) => setSlideCount(Math.max(2, Math.min(10, Number(e.target.value) || 5)))}
-                  aria-label="Slide count"
-                  className="w-16 rounded-wobble-sm border-2 border-ink bg-paper-3 px-2 py-1 text-sm text-ink shadow-offset outline-none focus:border-blue"
-                />
-              </label>
+              {/* How many slides, or nobody's guess — which is the honest
+                  answer when you do not yet know how much explaining the
+                  subject takes. A worked problem is always the AI's call:
+                  the number of steps is part of the answer. */}
+              {/* A div, not a label: a <button> inside a <label> takes its
+                  accessible name from the label, so this one announced itself
+                  as "Slides" instead of what it does. */}
+              <div className="micro flex items-center gap-1.5 text-[0.6rem] text-ink-soft">
+                <span>Slides</span>
+                <button
+                  type="button"
+                  onClick={() => setSlideCount((c) => (c == null ? 5 : null))}
+                  aria-pressed={slideCount == null}
+                  disabled={mode === 'math'}
+                  title="Let the AI use as many slides as the subject needs"
+                  className={cn(
+                    'micro rounded-wobble-sm border-2 px-2 py-1 text-[0.58rem] font-bold transition-colors disabled:opacity-60',
+                    slideCount == null || mode === 'math'
+                      ? 'border-ink bg-yellow text-ink shadow-offset'
+                      : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                  )}
+                >
+                  AI decides
+                </button>
+                {slideCount != null && mode !== 'math' && (
+                  <input
+                    type="number"
+                    min={2}
+                    max={10}
+                    value={slideCount}
+                    onChange={(e) =>
+                      setSlideCount(Math.max(2, Math.min(10, Number(e.target.value) || 5)))
+                    }
+                    aria-label="Slide count"
+                    className="w-16 rounded-wobble-sm border-2 border-ink bg-paper-3 px-2 py-1 text-sm text-ink shadow-offset outline-none focus:border-blue"
+                  />
+                )}
+              </div>
               <SketchButton
                 variant="accent"
                 loading={storyboard.isPending}
                 disabled={topic.trim().length < 3}
                 onClick={async () => {
-                  if (!(await confirm.ask('Writing the carousel', quote.data?.storyboard))) return;
+                  if (
+                    !(await confirm.ask(
+                      mode === 'math' ? 'Working the problem' : 'Writing the carousel',
+                      quote.data?.storyboard,
+                    ))
+                  )
+                    return;
+                  if (mode === 'math') {
+                    solve.mutate({
+                      problem: topic.trim(),
+                      maxSlides: 8,
+                      language,
+                      attachment: attachmentForApi(),
+                    });
+                    return;
+                  }
                   storyboard.mutate({
                     topic: topic.trim(),
                     slideCount,
                     format: design.format,
                     category,
                     language,
+                    attachment: attachmentForApi(),
                     cast: pickedModels.map((m) => ({
                       name: m.name,
                       headline: m.headline,
@@ -1433,23 +1804,27 @@ function MarketingBody() {
                   });
                 }}
               >
-                <Sparkles className="h-4 w-4" strokeWidth={2.5} /> Write the carousel
+                <Sparkles className="h-4 w-4" strokeWidth={2.5} />
+                {mode === 'math' ? 'Work it out' : 'Write the carousel'}
                 {quote.data ? ` — ${quote.data.storyboard} 🪙` : ''}
               </SketchButton>
-              <SketchButton
-                variant="secondary"
-                loading={busy}
-                disabled={missing === 0}
-                onClick={() => void drawAllMissing()}
-              >
-                <ImageIcon className="h-4 w-4" strokeWidth={2} /> Draw {missing} picture
-                {missing === 1 ? '' : 's'}
-                {imgCost != null && missing > 0 ? ` — ${missing * imgCost} 🪙` : ''}
-              </SketchButton>
+              {mode === 'photos' && (
+                <SketchButton
+                  variant="secondary"
+                  loading={busy}
+                  disabled={missing === 0}
+                  onClick={() => void drawAllMissing()}
+                >
+                  <ImageIcon className="h-4 w-4" strokeWidth={2} /> Draw {missing} picture
+                  {missing === 1 ? '' : 's'}
+                  {imgCost != null && missing > 0 ? ` — ${missing * imgCost} 🪙` : ''}
+                </SketchButton>
+              )}
             </div>
             <p className="micro text-[0.58rem] text-ink-faint">
-              The AI writes a title, a subtitle and a picture brief for every slide — an opening
-              hook, the steps in order, then a closing card. Everything stays editable below.
+              {mode === 'math'
+                ? 'The AI solves it and lays the working across as many slides as it takes — the maths on the card, what was done and why in the band under it, and a closing card naming the formula. Everything stays editable below.'
+                : 'The AI writes a title, a subtitle and a picture brief for every slide — an opening hook, the steps in order, then a closing card. Everything stays editable below.'}
             </p>
           </SketchCard>
           )}
@@ -1460,26 +1835,53 @@ function MarketingBody() {
             <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
               <Layers className="h-3.5 w-3.5" strokeWidth={2} /> Slide {active + 1}
             </span>
-            <div className="flex flex-wrap items-end gap-2">
-              <textarea
-                value={slide.imagePrompt}
-                onChange={(e) => patch(active, { imagePrompt: e.target.value })}
-                rows={2}
-                aria-label="Picture brief"
-                placeholder="What's in this slide's picture?"
-                className="min-w-[220px] flex-1 resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
-              />
-              <SketchButton
-                variant="secondary"
-                loading={drawing === active}
-                disabled={slide.imagePrompt.trim().length < 3}
-                onClick={() => void drawOne(active)}
-              >
-                <Sparkles className="h-4 w-4" strokeWidth={2} />
-                {slide.imageUrl ? 'Redraw' : 'Draw'}
-                {imgCost != null ? ` — ${imgCost} 🪙` : ''}
-              </SketchButton>
-            </div>
+            {mode === 'math' ? (
+              /* The working itself: one line per line on the card. Editable
+                 like everything else — the AI is a first draft, and a step
+                 you would have written differently is one you can retype. */
+              <div className="flex flex-col gap-1.5">
+                <span className="micro text-[0.58rem] text-ink-soft">
+                  The working — one line each
+                </span>
+                <textarea
+                  value={slide.steps.join('\n')}
+                  onChange={(e) =>
+                    patch(active, { steps: e.target.value.split('\n').map((l) => l.trimEnd()) })
+                  }
+                  rows={Math.min(6, Math.max(3, slide.steps.length + 1))}
+                  aria-label="The working"
+                  placeholder={'∫ x·eˣ dx\nu = x,  dv = eˣ dx\n= x·eˣ − ∫ eˣ dx'}
+                  className="w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 font-mono text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
+                />
+                <p className="micro text-[0.55rem] text-ink-faint">
+                  Plain text, drawn straight onto the card — × ÷ √ ² π ∫ ∑ ≤ ≥ ≈ → all work. The
+                  type shrinks to fit, so a long line still lands on the slide.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-end gap-2">
+                <textarea
+                  value={slide.imagePrompt}
+                  onChange={(e) => patch(active, { imagePrompt: e.target.value })}
+                  rows={2}
+                  aria-label="Picture brief"
+                  placeholder="What's in this slide's picture?"
+                  className="min-w-[220px] flex-1 resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
+                />
+                <SketchButton
+                  variant="secondary"
+                  loading={drawing === active}
+                  disabled={slide.imagePrompt.trim().length < 3}
+                  onClick={() => void drawOne(active)}
+                >
+                  <Sparkles className="h-4 w-4" strokeWidth={2} />
+                  {slide.imageUrl ? 'Redraw' : 'Draw'}
+                  {imgCost != null ? ` — ${imgCost} 🪙` : ''}
+                </SketchButton>
+              </div>
+            )}
+            {mode === 'photos' && (
+            <>
             {/* Who is in THIS picture.
                 The whole roster, not just the carousel's pool: deciding a
                 slide shows Marisol and Theo is a decision you make looking at
@@ -1491,12 +1893,16 @@ function MarketingBody() {
                 <span className="micro flex items-center gap-1 text-[0.58rem] font-semibold text-ink-soft">
                   <Users className="h-3 w-3" strokeWidth={2} /> Who is in this picture
                 </span>
+                {/* Named, not counted. After the AI writes a carousel it has
+                    cast every slide for you, and "2 cast" does not tell you
+                    who — which is the only thing worth knowing here. */}
                 <span className="micro text-[0.55rem] text-ink-faint">
                   {slide.cast.length === 0
                     ? 'nobody — an object or a place'
-                    : slide.cast.length > MAX_IN_FRAME
-                      ? `${slide.cast.length} cast — ${MAX_IN_FRAME} of them per picture`
-                      : `${slide.cast.length} cast`}
+                    : slide.cast.join(', ')}
+                  {slide.cast.length > MAX_IN_FRAME
+                    ? ` — ${MAX_IN_FRAME} of them per picture`
+                    : ''}
                 </span>
                 {slide.cast.length > 0 && (
                   <button
@@ -1532,10 +1938,15 @@ function MarketingBody() {
                         'flex items-center gap-1.5 rounded-wobble-sm border-2 py-0.5 pl-0.5 pr-2 transition-colors',
                         on
                           ? 'border-ink bg-yellow text-ink shadow-offset'
-                          : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                          : 'border-dashed border-pencil text-ink-soft opacity-60 hover:border-ink hover:text-ink hover:opacity-100',
                       )}
                     >
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-ink bg-paper-2 font-heading text-[0.5rem] font-bold text-ink">
+                      <span
+                        className={cn(
+                          'flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 bg-paper-2 font-heading text-[0.5rem] font-bold text-ink',
+                          on ? 'border-ink ring-2 ring-ink' : 'border-pencil',
+                        )}
+                      >
                         {m.photoUrl ? (
                           <img src={m.photoUrl} alt="" className="h-full w-full object-cover" />
                         ) : (
@@ -1547,9 +1958,28 @@ function MarketingBody() {
                         )}
                       </span>
                       <span className="micro text-[0.58rem] font-bold">{m.name}</span>
+                      {on && <Check className="h-3 w-3 shrink-0" strokeWidth={3} />}
                     </button>
                   );
                 })}
+                {/* Somebody the AI named who is not on the roster — shown
+                    rather than dropped, so a cast that silently means nothing
+                    to the generator is visible instead of invisible. */}
+                {slide.cast
+                  .filter((n) => !roster.some((m) => m.name.toLowerCase() === n.toLowerCase()))
+                  .map((n) => (
+                    <button
+                      key={`ghost-${n}`}
+                      type="button"
+                      onClick={() =>
+                        patch(active, { cast: slide.cast.filter((x) => x !== n) })
+                      }
+                      title={`${n} isn't one of your models — the generator has no description for them. Click to remove.`}
+                      className="micro flex items-center gap-1 rounded-wobble-sm border-2 border-dashed border-red px-2 py-0.5 text-[0.58rem] font-bold text-red"
+                    >
+                      {n} <Trash2 className="h-3 w-3" strokeWidth={2} />
+                    </button>
+                  ))}
               </div>
               <p className="micro text-[0.55rem] text-ink-faint">
                 Everyone chosen here is in the picture — the generator is told how many people to
@@ -1559,6 +1989,8 @@ function MarketingBody() {
                 shot in the brief above too, then redraw.
               </p>
             </div>
+            </>
+            )}
             <input
               value={slide.title}
               onChange={(e) => patch(active, { title: e.target.value })}
@@ -2093,7 +2525,27 @@ function MarketingBody() {
                     {VISIBILITY_BRIEF[who]}
                   </span>
                 </div>
-                {who === 'assigned' && (
+                {/* Sending is a separate question from being on the feed.
+                    Private and sent to one person means only that person and
+                    you; public and sent to them puts it in front of them
+                    without taking it off the feed. */}
+                <div className="flex flex-col gap-1.5 border-t-2 border-dashed border-pencil pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setSending((s) => !s)}
+                    aria-expanded={sending}
+                    className="micro flex w-fit items-center gap-1.5 text-[0.58rem] font-semibold text-ink-soft hover:text-ink"
+                  >
+                    <UserPlus className="h-3 w-3" strokeWidth={2} />
+                    Also send it to particular people
+                    {sendTo.length > 0 ? ` — ${sendTo.length}` : ''}
+                    <ChevronRight
+                      className={cn('h-3 w-3 transition-transform', sending && 'rotate-90')}
+                      strokeWidth={2.5}
+                    />
+                  </button>
+                </div>
+                {sending && (
                   <div className="flex flex-col gap-1.5 border-t-2 border-dashed border-pencil pt-2">
                     <input
                       value={userQuery}
@@ -2141,8 +2593,10 @@ function MarketingBody() {
                     </div>
                     <p className="micro text-[0.55rem] text-ink-faint">
                       {sendTo.length === 0
-                        ? 'Pick at least one person — an assigned post with nobody on it is filed as private.'
-                        : `${sendTo.length} ${sendTo.length === 1 ? 'person' : 'people'} — it shows on their feed and nowhere else.`}
+                        ? 'Nobody picked — this changes nothing on its own.'
+                        : who === 'private'
+                          ? `It shows on ${sendTo.length === 1 ? 'their' : 'those'} feed${sendTo.length === 1 ? '' : 's'} and yours, and nowhere else.`
+                          : `On the feed for everyone, and put in front of ${sendTo.length} ${sendTo.length === 1 ? 'person' : 'people'} as well.`}
                     </p>
                   </div>
                 )}
@@ -2160,9 +2614,10 @@ function MarketingBody() {
                 <span className="micro text-[0.58rem] text-ink-faint">
                   Filed under {TEMPLATE_META[category].label}
                   {music ? `, with ${music.seconds}s of music` : ''},{' '}
-                  {who === 'assigned' && sendTo.length > 0
-                    ? `for ${sendTo.length} ${sendTo.length === 1 ? 'person' : 'people'}`
-                    : VISIBILITY_LABEL[who].toLowerCase()}
+                  {VISIBILITY_LABEL[who].toLowerCase()}
+                  {sendTo.length > 0
+                    ? `, sent to ${sendTo.length} ${sendTo.length === 1 ? 'person' : 'people'}`
+                    : ''}
                   . Publishing is free — the pictures are already paid for.
                 </span>
               </div>
