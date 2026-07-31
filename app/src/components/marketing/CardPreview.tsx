@@ -4,6 +4,7 @@ import {
   CARD_H,
   CARD_W,
   type BusinessCard,
+  type CardSide,
   type CardText,
   layoutBusinessCard,
 } from '@/components/marketing/business-card';
@@ -40,8 +41,14 @@ function Text({ t }: { t: CardText }) {
   );
 }
 
-export default function CardPreview({ card }: { card: BusinessCard }) {
-  const L = useMemo(() => layoutBusinessCard(card, measureCtx()), [card]);
+export default function CardPreview({
+  card,
+  side = 'front',
+}: {
+  card: BusinessCard;
+  side?: CardSide;
+}) {
+  const L = useMemo(() => layoutBusinessCard(card, measureCtx(), side), [card, side]);
 
   return (
     <div
@@ -68,7 +75,15 @@ export default function CardPreview({ card }: { card: BusinessCard }) {
         }}
       />
       <Text t={L.details} />
-      {L.qr && (
+      {L.qr?.image && (
+        <div
+          className="absolute bg-white p-[6%]"
+          style={{ left: cq(L.qr.x), top: cq(L.qr.y), width: cq(L.qr.size), height: cq(L.qr.size) }}
+        >
+          <img src={L.qr.image} alt="Payment QR code" className="h-full w-full object-contain" />
+        </div>
+      )}
+      {L.qr && !L.qr.image && L.qr.modules.length > 0 && (
         /* The same matrix the canvas walks, drawn as an SVG so it stays crisp
            at whatever size the preview happens to be. */
         <div
