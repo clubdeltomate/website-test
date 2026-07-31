@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router';
+import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useIsFetching, useIsMutating } from '@tanstack/react-query';
 import Lenis from 'lenis';
@@ -84,6 +85,13 @@ export default function Layout() {
   const [railOpen, setRailOpen] = useState(false);
   const location = useLocation();
   const isPlayerFocus = /^\/slides\/.+/.test(location.pathname);
+  /* The feed runs edge to edge: a post should have the whole window's height,
+     the way TikTok gives a video the whole window. On a wide screen that means
+     no top bar and no footer — the rail already carries the account, the token
+     meter and the settings, so nothing is lost by dropping the bar. Below lg
+     the bar stays, because the hamburger inside it is the only way to open the
+     rail on a phone. */
+  const isFeedFocus = location.pathname === '/' || location.pathname === '/feed';
   useLenis();
 
   return (
@@ -91,12 +99,19 @@ export default function Layout() {
       <TopProgressBar />
       <SideRail open={railOpen} onClose={() => setRailOpen(false)} />
 
-      <div className="flex min-h-[100dvh] flex-col lg:pl-[240px]">
-        <TopBar onMenuClick={() => setRailOpen(true)} />
-        <main className="flex-1">
+      <div
+        className={cn(
+          'flex flex-col lg:pl-[240px]',
+          isFeedFocus ? 'min-h-[100dvh] lg:h-[100dvh]' : 'min-h-[100dvh]',
+        )}
+      >
+        <div className={cn(isFeedFocus && 'lg:hidden')}>
+          <TopBar onMenuClick={() => setRailOpen(true)} />
+        </div>
+        <main className={cn('flex-1', isFeedFocus && 'lg:min-h-0')}>
           <Outlet />
         </main>
-        {!isPlayerFocus && <Footer />}
+        {!isPlayerFocus && !isFeedFocus && <Footer />}
       </div>
     </div>
   );
