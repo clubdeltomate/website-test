@@ -174,26 +174,68 @@ export const DEFAULT_CAST: CastModel[] = [
 ];
 
 /**
+ * How many people one photograph is asked to hold.
+ *
+ * Four is where a generator stops being reliable: past it faces start
+ * blending, the described features drift, and what comes back is a crowd
+ * rather than the people who were cast. Choosing six for a slide is a
+ * perfectly reasonable thing to do — it just means the frame shows four of
+ * them, not that the picture should try for six and lose all of them.
+ */
+export const MAX_IN_FRAME = 4;
+
+/**
+ * Whittle a slide's cast down to what one frame can carry.
+ *
+ * Random rather than the first four, so a carousel that casts the same six
+ * people across its slides still spreads them around instead of showing the
+ * same four every time.
+ */
+export function pickForFrame<T>(models: T[], max = MAX_IN_FRAME): T[] {
+  if (models.length <= max) return models;
+  const pool = [...models];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, max);
+}
+
+/**
  * Fold the chosen people into an image prompt.
  *
- * Written to survive the frames that have no face in them: the generator is
- * told to carry the skin tone, build and hands through even when the shot is
- * cropped to a pair of forearms, which is the case that a reference photo
- * cannot help with at all.
+ * The count is stated first and stated plainly, because a list of two
+ * descriptions reads to a generator as two options rather than two people —
+ * pick two models for a slide and one of them would quietly not turn up.
+ *
+ * The rest is written to survive the frames that have no face in them: the
+ * generator is told to carry the skin tone, build and hands through even
+ * when the shot is cropped to a pair of forearms, which is the case a
+ * reference photo cannot help with at all.
  */
 export function castDirective(
   models: { name: string; sheet: string }[]
 ): string {
   if (models.length === 0) return "";
+  const n = models.length;
   const who = models.map(m => `— ${m.sheet}`).join("\n");
+  const names = models.map(m => m.name).join(", ");
+  const count =
+    n === 1
+      ? "There is exactly ONE person in this image: " + names + "."
+      : `There are exactly ${n} people in this image, and ALL ${n} must be visible in the ` +
+        `frame together: ${names}. Compose the shot so every one of them fits — ` +
+        "if the scene as written only has room for one, widen it until it holds them all. " +
+        `A picture that shows fewer than ${n} of them is wrong.`;
   return (
-    "The people in this image are from a fixed cast. Render them exactly as described, " +
-    "the same way every time:\n" +
+    count +
+    "\nThey are from a fixed cast. Render them exactly as described, the same way every " +
+    "time:\n" +
     who +
     "\nIf the framing shows only hands, forearms, feet or a body without a face, those parts " +
     "must still belong to the described person — same skin tone and undertone, same build, " +
-    "same nails, same jewellery. Do not substitute anyone else, and do not add extra people " +
-    "who are not listed."
+    "same nails, same jewellery. Do not substitute anyone else, do not drop one of them, and " +
+    "do not add extra people who are not listed."
   );
 }
 

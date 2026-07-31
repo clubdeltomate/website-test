@@ -92,6 +92,12 @@ export default function Layout() {
      the bar stays, because the hamburger inside it is the only way to open the
      rail on a phone. */
   const isFeedFocus = location.pathname === '/' || location.pathname === '/feed';
+  /* The marketing tool is a workbench, not a document: the preview on the
+     left has to stay in sight of the panel on the right, and scrolling the
+     page moves one away from the other. So it gets the window's height and
+     scrolls inside itself instead — the top bar stays, because the coin
+     balance beside every price is part of using the thing. */
+  const isFitToWindow = location.pathname === '/admin/projects/marketing';
   useLenis();
 
   return (
@@ -102,16 +108,16 @@ export default function Layout() {
       <div
         className={cn(
           'flex flex-col lg:pl-[240px]',
-          isFeedFocus ? 'min-h-[100dvh] lg:h-[100dvh]' : 'min-h-[100dvh]',
+          isFeedFocus || isFitToWindow ? 'min-h-[100dvh] lg:h-[100dvh]' : 'min-h-[100dvh]',
         )}
       >
         <div className={cn(isFeedFocus && 'lg:hidden')}>
           <TopBar onMenuClick={() => setRailOpen(true)} />
         </div>
-        <main className={cn('flex-1', isFeedFocus && 'lg:min-h-0')}>
+        <main className={cn('flex-1', (isFeedFocus || isFitToWindow) && 'lg:min-h-0')}>
           <Outlet />
         </main>
-        {!isPlayerFocus && !isFeedFocus && <Footer />}
+        {!isPlayerFocus && !isFeedFocus && !isFitToWindow && <Footer />}
       </div>
     </div>
   );

@@ -18,7 +18,7 @@ import { applyTokenDelta } from "../tokens.js";
 import { getSettings } from "../settings.js";
 import { IMAGE_URL_PREFIX } from "../deck-images.js";
 import { SITE, siteBrief } from "../../contracts/site.js";
-import { castDirective, castRoster } from "../../contracts/cast.js";
+import { MAX_IN_FRAME, castDirective, castRoster, pickForFrame } from "../../contracts/cast.js";
 import { CATEGORY_BRIEF, POST_CATEGORIES } from "../../contracts/post.js";
 import { LANGUAGE_CODES, languageRule } from "../../contracts/languages.js";
 
@@ -125,9 +125,11 @@ function castRule(cast: { name: string; headline: string }[]): string {
   if (cast.length === 0) return "";
   return (
     `A recurring cast is available for the photographs: ${castRoster(cast)}. ` +
-    "For each slide put the names you want in that picture in its cast array — usually one, " +
-    "sometimes two, and an empty array for a slide that is a close-up of an object or a place " +
-    "with nobody in it. You do NOT have to use everyone; picking three of them across the whole " +
+    "For each slide put the names you want in that picture in its cast array — one or two " +
+    `usually, never more than ${MAX_IN_FRAME}, and an empty array for a slide that is a ` +
+    "close-up of an object or a place with nobody in it. Everyone you name WILL be in that " +
+    "picture, so name the ones the moment actually calls for and write the imagePrompt around " +
+    "all of them. You do NOT have to use everyone; picking three of them across the whole " +
     "carousel is fine if that serves the story better. Choose whoever fits the moment. Write " +
     "the imagePrompt around the action and the setting and refer to the person by name — their " +
     "appearance is supplied separately, so do not describe their looks yourself. "
@@ -583,7 +585,13 @@ export const marketingRouter = createRouter({
     )
     .mutation(async ({ ctx, input }): Promise<{ url: string; cost: number }> =>
       drawAndStore(ctx.user.id, ctx.user.tokenBalance, {
-        prompt: [input.prompt, castDirective(input.cast), postDirective(input.format)]
+        // Everyone chosen for the slide appears, up to what one frame can
+        // carry; past that, four of them at random.
+        prompt: [
+          input.prompt,
+          castDirective(pickForFrame(input.cast)),
+          postDirective(input.format),
+        ]
           .filter(Boolean)
           .join("\n\n"),
         what: "a post image",
