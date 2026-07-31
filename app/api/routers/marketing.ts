@@ -20,7 +20,13 @@ import { applyTokenDelta } from "../tokens.js";
 import { getSettings } from "../settings.js";
 import { IMAGE_URL_PREFIX } from "../deck-images.js";
 import { SITE, siteBrief } from "../../contracts/site.js";
-import { MAX_IN_FRAME, castDirective, castRoster, pickForFrame } from "../../contracts/cast.js";
+import {
+  MAX_IN_FRAME,
+  castDirective,
+  castRoster,
+  peopleWanted,
+  pickForFrame,
+} from "../../contracts/cast.js";
 import { CATEGORY_BRIEF, POST_CATEGORIES } from "../../contracts/post.js";
 import { LANGUAGE_CODES, languageRule } from "../../contracts/languages.js";
 
@@ -47,6 +53,17 @@ const AUTO_MAX_SLIDES = 10;
  */
 export function musicCost(perMusic: number, seconds: number): number {
   return Math.max(1, Math.ceil((perMusic * seconds) / 30));
+}
+
+/**
+ * Cast a frame that nobody was named for.
+ *
+ * Random rather than the first few, so a carousel drawn slide by slide does
+ * not put the same person in every picture.
+ */
+function autoCast<T>(prompt: string, roster: T[]): T[] {
+  const want = Math.min(peopleWanted(prompt), MAX_IN_FRAME, roster.length);
+  return want === 0 ? [] : pickForFrame(roster, want);
 }
 
 /** Aspect the backdrop is composed for — the post formats the editor offers. */
@@ -759,16 +776,25 @@ export const marketingRouter = createRouter({
         format: z.enum(["9:16", "4:5", "1:1"]).default("9:16"),
         /** the models this frame shows, so they come back looking the same */
         cast: z.array(castMemberSchema).max(6).default([]),
+        /** everyone available, to cast from when the slide names nobody */
+        roster: z.array(castMemberSchema).max(24).default([]),
       }),
     )
     .mutation(
       async ({ ctx, input }): Promise<{ url: string; cost: number; cast: string[] }> => {
-        // Everyone chosen for the slide appears, up to what one frame can
-        // carry; past that, four of them at random. Which four is decided
-        // HERE, so it is decided once and can be reported back — the editor
-        // then shows who is actually in the picture it just paid for, rather
-        // than who was asked for.
-        const inFrame = pickForFrame(input.cast);
+        /* Who is in the frame.
+         *
+         * Everyone named for the slide, up to what one frame can carry; past
+         * that, four of them at random. If the slide names nobody but the
+         * brief plainly has people in it, the cast is drawn from the roster
+         * instead of letting the generator invent a stranger — a recurring
+         * cast only recurs if every frame with a person in it comes from it.
+         * A brief with no people in it (a plate, an empty workshop) is left
+         * alone. Decided HERE, once, so it can be reported back: the editor
+         * then shows who is actually in the picture it just paid for.
+         */
+        const asked = input.cast.length > 0 ? input.cast : autoCast(input.prompt, input.roster);
+        const inFrame = pickForFrame(asked);
         const made = await drawAndStore(ctx.user.id, ctx.user.tokenBalance, {
           prompt: [input.prompt, castDirective(inFrame), postDirective(input.format)]
             .filter(Boolean)

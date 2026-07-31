@@ -4,6 +4,7 @@ import {
   MAX_IN_FRAME,
   castDirective,
   castRoster,
+  peopleWanted,
   pickForFrame,
 } from "../contracts/cast.js";
 
@@ -79,6 +80,44 @@ describe("castDirective", () => {
     const one = castDirective([{ name: "Theo Achebe", sheet: "Theo Achebe, a man." }]);
     expect(one).toMatch(/exactly ONE person in this image: Theo Achebe\./);
     expect(one).not.toMatch(/must be visible in the frame together/);
+  });
+});
+
+/* The rule this guards: every face in a post comes from the ten. A brief
+ * that mentions a person and gets nobody cast is how a stranger ends up in
+ * the carousel; a brief about a plate that gets somebody cast is how a
+ * person ends up standing in a close-up of dinner. */
+describe("peopleWanted", () => {
+  it("casts one for a brief with a single person in it", () => {
+    for (const brief of [
+      "An adult historian sitting at a wooden desk surrounded by books",
+      "A barista pouring milk into a cup",
+      "Someone reading by a window at sunrise",
+      "Close-up of hands kneading dough",
+    ]) {
+      expect(peopleWanted(brief), brief).toBe(1);
+    }
+  });
+
+  it("casts more when the brief is plural", () => {
+    expect(peopleWanted("Two people cooking together in a bright kitchen")).toBe(2);
+    expect(peopleWanted("A couple sharing a plate at a small table")).toBe(2);
+    expect(peopleWanted("A team working around a whiteboard")).toBe(3);
+  });
+
+  it("leaves a picture with nobody in it alone", () => {
+    for (const brief of [
+      "A bowl of ramen on a wooden counter, steam rising",
+      "An empty workshop at dawn, tools on the bench",
+      "Close-up of a leather notebook and a fountain pen",
+      "A city skyline at golden hour",
+    ]) {
+      expect(peopleWanted(brief), brief).toBe(0);
+    }
+  });
+
+  it("never asks for more than one frame can hold", () => {
+    expect(peopleWanted("A large group of people at a festival")).toBeLessThanOrEqual(MAX_IN_FRAME);
   });
 });
 

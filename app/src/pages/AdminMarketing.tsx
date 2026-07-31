@@ -40,7 +40,7 @@ import {
   type PostVisibility,
 } from '@contracts/post';
 import { LANGUAGES } from '@contracts/languages';
-import { MAX_IN_FRAME } from '@contracts/cast';
+import { MAX_IN_FRAME, peopleWanted } from '@contracts/cast';
 import { useNavigate } from 'react-router';
 import { TEMPLATE_META } from '@/components/repo/shared';
 import { trpc } from '@/providers/trpc';
@@ -512,6 +512,23 @@ function MarketingBody() {
     () => roster.filter((m) => picked.includes(m.id)),
     [roster, picked],
   );
+  /**
+   * The pool a carousel is cast from.
+   *
+   * Whoever was picked in Cast, and everyone if nobody was picked. Leaving
+   * the pool empty used to mean "no cast at all", which is how a carousel
+   * ended up full of people the generator invented — the point of having ten
+   * models is that every face in a post comes from them.
+   */
+  const castPool = useMemo(
+    () => (pickedModels.length > 0 ? pickedModels : roster),
+    [pickedModels, roster],
+  );
+  const castSheets = useMemo(
+    () => castPool.map((m) => ({ name: m.name, headline: m.headline, sheet: m.sheet })),
+    [castPool],
+  );
+
   /** The one model this account has made from a photograph, if it has. */
   const ownModel = useMemo(() => roster.find((m) => m.custom) ?? null, [roster]);
   /* Looked up across the whole roster rather than the pool: a slide can name
@@ -761,6 +778,7 @@ function MarketingBody() {
         prompt,
         format: design.format,
         cast: sheetsFor(slides[i].cast),
+        roster: castSheets,
       });
       // The cast comes back with the picture: who the generator was actually
       // told to put in it, which is who is in it. The chips then describe the
@@ -796,6 +814,7 @@ function MarketingBody() {
           prompt: s.imagePrompt.trim(),
           format: design.format,
           cast: sheetsFor(s.cast),
+          roster: castSheets,
         });
         patch(i, { imageUrl: await cleanBackdrop(r.url), cast: r.cast });
         made++;
@@ -1160,8 +1179,8 @@ function MarketingBody() {
       <SketchToaster />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <HubHeader
-          backTo="/admin/projects"
-          backLabel="Projects"
+          backTo="/feed"
+          backLabel="Feed"
           title="Marketing"
           blurb="Write a carousel, draw its pictures, set the words — then post it."
         />
@@ -1474,7 +1493,7 @@ function MarketingBody() {
                 <Users className="h-3.5 w-3.5" strokeWidth={2} /> The cast
               </span>
               <span className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-1.5 text-[0.58rem] font-bold text-ink-soft">
-                {picked.length ? `${picked.length} picked` : 'nobody picked'}
+                {picked.length ? `${picked.length} picked` : 'all ten in play'}
               </span>
             </div>
 
@@ -1607,6 +1626,8 @@ function MarketingBody() {
                 <p className="micro text-[0.58rem] text-ink-faint">
                   Pick who may appear and the AI casts each slide from them — often only two or
                   three across a whole carousel, and nobody at all on a slide that is a close-up.
+                  Pick nobody and the whole cast is in play: every picture with a person in it is
+                  drawn from these ten, and the slide records which of them it used.
                   They are written descriptions, not photos, so a shot of just hands still carries
                   the right skin, build and nails. Use the face button to draw a portrait from
                   someone's description and see who you are casting
@@ -1801,11 +1822,7 @@ function MarketingBody() {
                     category,
                     language,
                     attachment: attachmentForApi(),
-                    cast: pickedModels.map((m) => ({
-                      name: m.name,
-                      headline: m.headline,
-                      sheet: m.sheet,
-                    })),
+                    cast: castSheets,
                   });
                 }}
               >
@@ -1903,9 +1920,9 @@ function MarketingBody() {
                     who — which is the only thing worth knowing here. */}
                 <span className="micro text-[0.55rem] text-ink-faint">
                   {slide.cast.length === 0
-                    ? slide.imageUrl
-                      ? 'nobody named — whoever is in it, the generator invented'
-                      : 'nobody — an object or a place'
+                    ? peopleWanted(slide.imagePrompt) === 0
+                      ? 'nobody — an object or a place'
+                      : 'nobody named — whoever is in it, the generator invented'
                     : slide.cast.join(', ')}
                   {slide.cast.length > MAX_IN_FRAME
                     ? ` — ${MAX_IN_FRAME} of them per picture`
