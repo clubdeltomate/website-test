@@ -543,6 +543,12 @@ export const posts = appSchema.table(
     /** a music bed, parked in slideImages like everything else with bytes */
     audioId: integer("audioId"),
     isPublic: boolean("isPublic").notNull().default(true),
+    /**
+     * "public" | "private" | "assigned" — who the post is for. isPublic is
+     * kept in step with it (true only for "public") so anything still reading
+     * the older flag is never wrong, just less specific.
+     */
+    visibility: varchar("visibility", { length: 10 }).notNull().default("public"),
     createdAt: createdAt(),
   },
   (t) => [index("posts_owner_idx").on(t.ownerId), index("posts_category_idx").on(t.category)],
