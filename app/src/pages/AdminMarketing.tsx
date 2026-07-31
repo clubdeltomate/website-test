@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  BadgeCheck,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -11,12 +12,21 @@ import {
   Sparkles,
   Trash2,
   Type,
+  Upload,
+  UserPlus,
   Wand2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { inkFor, tintsFrom, wordsOf } from '@/lib/caption-words';
+import { FONT, OUT_W, bandRgb, inkFor, tintsFrom, wordsOf } from '@/lib/caption-words';
 import { trpc } from '@/providers/trpc';
+import FollowPreview from '@/components/marketing/FollowPreview';
+import {
+  type FollowCard,
+  drawFollowCard,
+  emptyFollowCard,
+  layoutFollow,
+} from '@/components/marketing/follow-card';
 import AdminGate from '@/components/admin/AdminGate';
 import SketchToaster from '@/components/admin/SketchToaster';
 import SketchButton from '@/components/sketch/SketchButton';
@@ -39,18 +49,13 @@ const FORMATS = [
   { id: '1:1' as const, label: 'Square', h: 1080 },
 ];
 type FormatId = (typeof FORMATS)[number]['id'];
-const OUT_W = 1080;
 
-/** Caption face: a plain heavy sans, so the browser preview and the canvas
- *  export resolve to the same glyphs — a webfont would drift between them. */
-const FONT = "'Arial Black', 'Arial Bold', 'Helvetica Neue', Arial, sans-serif";
-
-/** Ready-made band colours. Glass is the one translucent fill — the rest are
- *  solid, and any colour outside this row can be mixed with the picker beside
- *  it, so the palette is a shortcut rather than the whole choice. */
+/** Ready-made band colours — all solid. How see-through the band is, is a
+ *  separate decision (see FINISHES), so picking a colour never costs you the
+ *  glass look and vice versa. Anything outside this row can be mixed with the
+ *  picker beside it. */
 const BAND_PRESETS = [
   { label: 'Ink', fill: '#0B0B0B' },
-  { label: 'Glass', fill: 'rgba(11,11,11,0.62)' },
   { label: 'Paper', fill: '#FFFDF6' },
   { label: 'Navy', fill: '#12294B' },
   { label: 'Ocean', fill: '#0F6F86' },
@@ -64,6 +69,38 @@ const BAND_PRESETS = [
   { label: 'Sky', fill: '#CFE8F7' },
   { label: 'Sand', fill: '#E8D7AE' },
 ];
+
+/** How the band meets the picture behind it. */
+const FINISHES = [
+  { id: 'solid' as const, label: 'Solid', hint: 'A flat block of colour.' },
+  { id: 'glass' as const, label: 'Glass', hint: 'See-through — the picture shows faintly.' },
+  { id: 'fade' as const, label: 'Fade', hint: 'Full at the bottom, dissolving into the picture at the top.' },
+];
+type FinishId = (typeof FINISHES)[number]['id'];
+
+/** How see-through glass is. */
+const GLASS_ALPHA = 0.62;
+
+/**
+ * How tall the dissolve above a faded band is. The ramp sits ABOVE the band
+ * rather than inside it, so the words always have solid colour under them —
+ * a gradient that started at the text would put white lettering on a nearly
+ * white sky.
+ */
+const fadeRamp = (bandH: number) => Math.max(140, bandH * 0.6);
+
+/** The band's own paint. Fade keeps it solid; the ramp is drawn separately. */
+function bandBackground(fill: string, finish: FinishId): string {
+  if (finish !== 'glass') return fill;
+  const [r, g, b] = bandRgb(fill);
+  return `rgba(${r},${g},${b},${GLASS_ALPHA})`;
+}
+
+/** The dissolve above a faded band, as CSS. */
+function rampBackground(fill: string): string {
+  const [r, g, b] = bandRgb(fill);
+  return `linear-gradient(to top, rgb(${r},${g},${b}) 0%, rgba(${r},${g},${b},0) 100%)`;
+}
 
 /** Palette a word can be painted with — light accents for dark bands, dark
  *  ones for pale bands, plus a mixer for anything else. */
@@ -102,8 +139,10 @@ interface Design {
   pad: number;
   titleSize: number;
   subSize: number;
-  /** any CSS colour — a preset swatch or one mixed in the picker */
+  /** a solid colour — a preset swatch or one mixed in the picker */
   bandFill: string;
+  /** how it meets the picture: flat, see-through, or dissolving upward */
+  bandFinish: FinishId;
 }
 
 const newSlide = (n: number): Slide => ({
@@ -230,7 +269,7 @@ function layoutCard(
 
 function MarketingBody() {
   const [slides, setSlides] = useState<Slide[]>([newSlide(1)]);
-  const [active, setActive] = useState(0);
+  const [activeRaw, setActive] = useState(0);
   const [design, setDesign] = useState<Design>({
     format: '9:16',
     bandOn: true,
@@ -239,6 +278,7 @@ function MarketingBody() {
     titleSize: 96,
     subSize: 40,
     bandFill: BAND_PRESETS[0].fill,
+    bandFinish: 'solid',
   });
   const [topic, setTopic] = useState('');
   const [slideCount, setSlideCount] = useState(5);
@@ -246,6 +286,8 @@ function MarketingBody() {
   const [busy, setBusy] = useState(false);
   /** Index currently being drawn, so only that slide's button spins. */
   const [drawing, setDrawing] = useState<number | null>(null);
+  const [follow, setFollow] = useState<FollowCard>(emptyFollowCard);
+  const [drawingLogo, setDrawingLogo] = useState(false);
 
   const measureRef = useRef<CanvasRenderingContext2D | null>(null);
   if (measureRef.current === null && typeof document !== 'undefined') {
@@ -254,11 +296,36 @@ function MarketingBody() {
 
   const utils = trpc.useUtils();
   const quote = trpc.marketing.quote.useQuery();
+  /* Who is posting: this site's own name and bio, read from the same
+   * description the About page renders. It seeds the card once, so the thing
+   * is already right before anyone types — and never fights an edit. */
+  const brand = trpc.marketing.brand.useQuery();
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (seeded.current || !brand.data) return;
+    seeded.current = true;
+    const b = brand.data;
+    setFollow((f) => ({
+      ...f,
+      name: f.name || b.name,
+      headline: f.headline || b.headline,
+      bio: f.bio || b.bio,
+    }));
+  }, [brand.data]);
+
   const outH = FORMATS.find((f) => f.id === design.format)!.h;
+  /** The follow card, when it is on, is the slide after the last picture. */
+  const total = slides.length + (follow.on ? 1 : 0);
+  const active = Math.min(activeRaw, total - 1);
+  const onFollow = follow.on && active === slides.length;
   const slide = slides[Math.min(active, slides.length - 1)];
   const layout = useMemo(
     () => layoutCard(slide, design, measureRef.current, outH),
     [slide, design, outH],
+  );
+  const followLayout = useMemo(
+    () => layoutFollow(follow, measureRef.current, outH),
+    [follow, outH],
   );
   const bandStyle = { fill: design.bandFill, ink: inkFor(design.bandFill) };
   /** What the AI paints keywords with — the swatch in hand, unless that is
@@ -281,6 +348,15 @@ function MarketingBody() {
         })),
       );
       setActive(0);
+      // The closing card is written in the site's own voice, from the same
+      // description the About page renders.
+      if (r.endCard) {
+        setFollow((f) => ({
+          ...f,
+          headline: r.endCard!.headline || f.headline,
+          bio: r.endCard!.bio || f.bio,
+        }));
+      }
       toast.success(`Story written — ${r.slides.length} slides, ${r.cost} 🪙`);
       void utils.auth.me.invalidate();
     },
@@ -288,7 +364,8 @@ function MarketingBody() {
   });
 
   /** Ask the AI which words carry each card, and paint those. Re-runnable, so
-   *  a card typed or rewritten by hand gets the same treatment. */
+   *  a card typed or rewritten by hand gets the same treatment, and scoped so
+   *  repainting the title cannot undo hand-picked subtitle colours. */
   const highlight = trpc.marketing.highlight.useMutation({
     onSuccess: (r) => {
       let painted = 0;
@@ -296,10 +373,16 @@ function MarketingBody() {
         cur.map((s, i) => {
           const k = r.slides[i];
           if (!k) return s;
-          const titleTints = tintsFrom(s.title, k.titleKeywords, accent);
-          const subTints = tintsFrom(s.subtitle, k.subtitleKeywords, accent);
-          painted += Object.keys(titleTints).length + Object.keys(subTints).length;
-          return { ...s, titleTints, subTints };
+          const next = { ...s };
+          if (r.scope !== 'subtitle') {
+            next.titleTints = tintsFrom(s.title, k.titleKeywords, accent);
+            painted += Object.keys(next.titleTints).length;
+          }
+          if (r.scope !== 'title') {
+            next.subTints = tintsFrom(s.subtitle, k.subtitleKeywords, accent);
+            painted += Object.keys(next.subTints).length;
+          }
+          return next;
         }),
       );
       toast.success(`${painted} keyword${painted === 1 ? '' : 's'} highlighted — ${r.cost} 🪙`);
@@ -307,6 +390,12 @@ function MarketingBody() {
     },
     onError: (e) => toast.error(e.message),
   });
+
+  const runHighlight = (scope: 'title' | 'subtitle' | 'both') =>
+    highlight.mutate({
+      scope,
+      slides: slides.slice(0, 20).map((s) => ({ title: s.title, subtitle: s.subtitle })),
+    });
 
   /** Draw one slide's backdrop. The index is captured here rather than
    *  recovered from the response, so the picture always lands on the slide
@@ -386,7 +475,16 @@ function MarketingBody() {
 
     const L = layoutCard(s, design, measureRef.current, outH);
     if (L.bandH > 0) {
-      ctx.fillStyle = bandStyle.fill;
+      if (design.bandFinish === 'fade') {
+        const ramp = fadeRamp(L.bandH);
+        const [r, g, b] = bandRgb(design.bandFill);
+        const grad = ctx.createLinearGradient(0, L.bandY, 0, L.bandY - ramp);
+        grad.addColorStop(0, `rgb(${r},${g},${b})`);
+        grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(L.bandX, L.bandY - ramp, L.bandW, ramp);
+      }
+      ctx.fillStyle = bandBackground(design.bandFill, design.bandFinish);
       ctx.fillRect(L.bandX, L.bandY, L.bandW, L.bandH);
       ctx.textBaseline = 'middle';
       let y = L.bandY + L.pad;
@@ -420,31 +518,89 @@ function MarketingBody() {
     return canvas;
   };
 
-  const downloadOne = async (s: Slide, index: number) => {
-    const canvas = await renderSlide(s);
+  /** Render the closing follow card at full export size. */
+  const renderFollow = async (): Promise<HTMLCanvasElement> => {
+    const canvas = document.createElement('canvas');
+    canvas.width = OUT_W;
+    canvas.height = outH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('This browser has no canvas to draw on');
+    await drawFollowCard(ctx, follow, layoutFollow(follow, measureRef.current, outH), outH);
+    return canvas;
+  };
+
+  const saveCanvas = (canvas: HTMLCanvasElement, name: string) => {
     const a = document.createElement('a');
     a.href = canvas.toDataURL('image/png');
-    a.download = `sketchlearn-post-${index + 1}.png`;
+    a.download = name;
     a.click();
+  };
+
+  const downloadOne = async (index: number) => {
+    const isFollow = follow.on && index === slides.length;
+    const canvas = isFollow ? await renderFollow() : await renderSlide(slides[index]);
+    saveCanvas(canvas, isFollow ? 'sketchlearn-post-follow.png' : `sketchlearn-post-${index + 1}.png`);
   };
 
   const download = async (all: boolean) => {
     setBusy(true);
     try {
       if (all) {
-        for (let i = 0; i < slides.length; i++) {
-          await downloadOne(slides[i], i);
+        for (let i = 0; i < total; i++) {
+          await downloadOne(i);
           await new Promise((r) => setTimeout(r, 350)); // let each save land
         }
-        toast.success(`${slides.length} slide${slides.length === 1 ? '' : 's'} downloaded ✓`);
+        toast.success(`${total} slide${total === 1 ? '' : 's'} downloaded ✓`);
       } else {
-        await downloadOne(slide, active);
+        await downloadOne(active);
         toast.success('Slide downloaded ✓');
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't build the image");
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** Draw the follow card's logo. Its own art direction — a flat mark, not a
+   *  photo — because it ends up small and round. */
+  const drawLogo = async () => {
+    const prompt = follow.logoPrompt.trim();
+    if (prompt.length < 3) return;
+    setDrawingLogo(true);
+    try {
+      const r = await utils.client.marketing.logo.mutate({ prompt });
+      setFollow((f) => ({ ...f, logoUrl: r.url }));
+      toast.success(`Logo drawn — ${r.cost} 🪙`);
+      void utils.auth.me.invalidate();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "That logo couldn't be drawn");
+    } finally {
+      setDrawingLogo(false);
+    }
+  };
+
+  const uploadLogo = (file: File) => {
+    if (file.size > 6_000_000) return toast.error('That logo is over 6 MB — try a smaller one');
+    const reader = new FileReader();
+    reader.onload = () => setFollow((f) => ({ ...f, logoUrl: String(reader.result) }));
+    reader.onerror = () => toast.error("That file couldn't be read");
+    reader.readAsDataURL(file);
+  };
+
+  /** Save the logo on its own, whether it was drawn or uploaded. */
+  const downloadLogo = async () => {
+    if (!follow.logoUrl) return;
+    try {
+      const blob = await (await fetch(follow.logoUrl)).blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'sketchlearn-logo.png';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast.success('Logo downloaded ✓');
+    } catch {
+      toast.error("That logo couldn't be saved");
     }
   };
 
@@ -470,24 +626,38 @@ function MarketingBody() {
             className="relative mx-auto w-full max-w-[340px] overflow-hidden rounded-wobble-sm border-2 border-ink bg-paper-2 shadow-offset [container-type:inline-size]"
             style={{ aspectRatio: `${OUT_W} / ${outH}` }}
           >
-            {slide.imageUrl ? (
-              <img src={slide.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
-                <ImageIcon className="h-8 w-8 text-ink-faint" strokeWidth={1.5} />
-                <p className="micro text-[0.62rem] text-ink-faint">
-                  Write the story, then draw this slide's picture.
-                </p>
-              </div>
+            {onFollow && <FollowPreview card={follow} layout={followLayout} />}
+            {!onFollow &&
+              (slide.imageUrl ? (
+                <img src={slide.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
+                  <ImageIcon className="h-8 w-8 text-ink-faint" strokeWidth={1.5} />
+                  <p className="micro text-[0.62rem] text-ink-faint">
+                    Write the story, then draw this slide's picture.
+                  </p>
+                </div>
+              ))}
+            {!onFollow && layout.bandH > 0 && design.bandFinish === 'fade' && (
+              <div
+                className="pointer-events-none absolute"
+                style={{
+                  left: cq(layout.bandX),
+                  width: cq(layout.bandW),
+                  bottom: cq((design.inset ? 48 : 0) + layout.bandH),
+                  height: cq(fadeRamp(layout.bandH)),
+                  background: rampBackground(design.bandFill),
+                }}
+              />
             )}
-            {layout.bandH > 0 && (
+            {!onFollow && layout.bandH > 0 && (
               <div
                 className="absolute"
                 style={{
                   left: cq(layout.bandX),
                   width: cq(layout.bandW),
                   bottom: cq(design.inset ? 48 : 0),
-                  background: bandStyle.fill,
+                  background: bandBackground(design.bandFill, design.bandFinish),
                   paddingTop: cq(layout.pad),
                   paddingBottom: cq(layout.pad),
                   fontFamily: FONT,
@@ -541,6 +711,26 @@ function MarketingBody() {
                 </span>
               </button>
             ))}
+            {follow.on && (
+              <button
+                type="button"
+                onClick={() => setActive(slides.length)}
+                aria-label="Follow card"
+                aria-pressed={onFollow}
+                title="The closing follow card"
+                className={cn(
+                  'relative flex h-12 w-9 items-center justify-center overflow-hidden rounded-wobble-sm border-2 transition-transform hover:-translate-y-0.5',
+                  onFollow ? 'border-ink shadow-offset' : 'border-pencil',
+                )}
+                style={{ background: follow.bg }}
+              >
+                {follow.logoUrl ? (
+                  <img src={follow.logoUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
+                ) : (
+                  <UserPlus className="h-4 w-4" strokeWidth={2} style={{ color: inkFor(follow.bg) }} />
+                )}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -557,7 +747,7 @@ function MarketingBody() {
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
-              disabled={active === 0}
+              disabled={active === 0 || onFollow}
               onClick={() => {
                 setSlides((s) => {
                   const n = [...s];
@@ -574,7 +764,7 @@ function MarketingBody() {
             </button>
             <button
               type="button"
-              disabled={active === slides.length - 1}
+              disabled={active >= slides.length - 1}
               onClick={() => {
                 setSlides((s) => {
                   const n = [...s];
@@ -591,7 +781,7 @@ function MarketingBody() {
             </button>
             <button
               type="button"
-              disabled={slides.length === 1}
+              disabled={slides.length === 1 || onFollow}
               onClick={() => {
                 setSlides((s) => s.filter((_, i) => i !== active));
                 setActive((a) => Math.max(0, a - 1));
@@ -603,7 +793,7 @@ function MarketingBody() {
               <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
             </button>
             <span className="micro ml-auto text-[0.58rem] text-ink-faint">
-              {OUT_W} × {outH} · slide {active + 1} of {slides.length}
+              {OUT_W} × {outH} · {onFollow ? 'follow card' : `slide ${active + 1} of ${slides.length}`}
             </span>
           </div>
         </div>
@@ -665,7 +855,7 @@ function MarketingBody() {
           </SketchCard>
 
           {/* this slide */}
-          <SketchCard className="flex flex-col gap-3 p-5">
+          <SketchCard className={cn('flex flex-col gap-3 p-5', onFollow && 'hidden')}>
             <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
               <Layers className="h-3.5 w-3.5" strokeWidth={2} /> Slide {active + 1}
             </span>
@@ -706,6 +896,172 @@ function MarketingBody() {
             />
           </SketchCard>
 
+          {/* the closing follow card */}
+          <SketchCard className="flex flex-col gap-3 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
+                <UserPlus className="h-3.5 w-3.5" strokeWidth={2} /> Follow card — the last slide
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={follow.on}
+                aria-label="Include the follow card"
+                onClick={() => setFollow((f) => ({ ...f, on: !f.on }))}
+                className="flex items-center gap-2 rounded-wobble-sm border-2 border-dashed border-pencil px-2.5 py-1 text-sm font-bold text-ink"
+              >
+                <span
+                  className={cn(
+                    'relative h-5 w-9 rounded-full border-2 border-ink transition-colors',
+                    follow.on ? 'bg-green-soft' : 'bg-paper-2',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 border-ink bg-paper-3 transition-all',
+                      follow.on ? 'left-[18px]' : 'left-0.5',
+                    )}
+                  />
+                </span>
+                {follow.on ? 'Included' : 'Off'}
+              </button>
+            </div>
+
+            {follow.on && (
+              <>
+                <textarea
+                  value={follow.headline}
+                  onChange={(e) => setFollow((f) => ({ ...f, headline: e.target.value }))}
+                  rows={2}
+                  aria-label="Follow headline"
+                  placeholder="You will never see this page again unless you follow us right now 👇"
+                  className="w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
+                />
+
+                {/* logo */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div
+                    className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-ink bg-paper-2"
+                    aria-hidden="true"
+                  >
+                    {follow.logoUrl ? (
+                      <img src={follow.logoUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <ImageIcon className="h-5 w-5 text-ink-faint" strokeWidth={1.5} />
+                    )}
+                  </div>
+                  <input
+                    value={follow.logoPrompt}
+                    onChange={(e) => setFollow((f) => ({ ...f, logoPrompt: e.target.value }))}
+                    aria-label="Logo brief"
+                    placeholder="What should the logo be? e.g. a pencil drawing an open book"
+                    className="min-w-[180px] flex-1 rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
+                  />
+                  <SketchButton
+                    variant="secondary"
+                    loading={drawingLogo}
+                    disabled={follow.logoPrompt.trim().length < 3}
+                    onClick={() => void drawLogo()}
+                  >
+                    <Sparkles className="h-4 w-4" strokeWidth={2} />
+                    {follow.logoUrl ? 'Redraw' : 'Draw'}
+                    {imgCost != null ? ` — ${imgCost} 🪙` : ''}
+                  </SketchButton>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="micro cursor-pointer rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink">
+                    <Upload className="mr-1 inline h-3 w-3" strokeWidth={2} /> Upload a logo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      aria-label="Upload a logo"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) uploadLogo(file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={!follow.logoUrl}
+                    onClick={() => void downloadLogo()}
+                    className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink disabled:opacity-30"
+                  >
+                    <Download className="mr-1 inline h-3 w-3" strokeWidth={2} /> Download the logo
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!follow.logoUrl}
+                    onClick={() => setFollow((f) => ({ ...f, logoUrl: null }))}
+                    className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-red hover:text-red disabled:opacity-30"
+                  >
+                    Remove
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    value={follow.name}
+                    onChange={(e) => setFollow((f) => ({ ...f, name: e.target.value }))}
+                    aria-label="Account name"
+                    placeholder="Account name"
+                    className="min-w-[140px] flex-1 rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 font-heading text-base font-bold text-ink shadow-offset outline-none placeholder:font-normal placeholder:text-ink-faint focus:border-blue"
+                  />
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={follow.verified}
+                    aria-label="Verified tick"
+                    onClick={() => setFollow((f) => ({ ...f, verified: !f.verified }))}
+                    className={cn(
+                      'micro rounded-wobble-sm border-2 px-2 py-1 text-[0.6rem] font-bold transition-colors',
+                      follow.verified
+                        ? 'border-ink bg-blue-soft text-ink shadow-offset'
+                        : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
+                    )}
+                  >
+                    <BadgeCheck className="mr-1 inline h-3 w-3" strokeWidth={2.5} /> Tick
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {(['posts', 'followers', 'following'] as const).map((k) => (
+                    <label key={k} className="micro flex items-center gap-1.5 text-[0.6rem] text-ink-soft">
+                      {k}
+                      <input
+                        value={follow[k]}
+                        onChange={(e) => setFollow((f) => ({ ...f, [k]: e.target.value }))}
+                        aria-label={`${k} count`}
+                        className="w-20 rounded-wobble-sm border-2 border-ink bg-paper-3 px-2 py-1 text-sm text-ink shadow-offset outline-none focus:border-blue"
+                      />
+                    </label>
+                  ))}
+                </div>
+
+                <textarea
+                  value={follow.bio}
+                  onChange={(e) => setFollow((f) => ({ ...f, bio: e.target.value }))}
+                  rows={2}
+                  aria-label="Account bio"
+                  placeholder={'The line under the name\nA second line, e.g. a contact'}
+                  className="w-full resize-y rounded-wobble-sm border-2 border-ink bg-paper-3 px-3 py-2 text-sm text-ink shadow-offset outline-none placeholder:text-ink-faint focus:border-blue"
+                />
+
+                <Swatches
+                  label="Card colour"
+                  value={follow.bg}
+                  onPick={(fill) => setFollow((f) => ({ ...f, bg: fill }))}
+                />
+                <p className="micro text-[0.58rem] text-ink-faint">
+                  Starts out as this site — its name, its bio — and the AI rewrites the headline for
+                  whatever the carousel is about. Everything here is yours to overwrite.
+                </p>
+              </>
+            )}
+          </SketchCard>
+
           {/* design */}
           <SketchCard className="flex flex-col gap-3 p-5">
             <span className="micro flex items-center gap-1.5 text-[0.6rem] font-semibold text-ink-soft">
@@ -729,38 +1085,31 @@ function MarketingBody() {
                 </button>
               ))}
             </div>
+            <Swatches
+              label="Band colour"
+              value={design.bandFill}
+              onPick={(fill) => setDesign((d) => ({ ...d, bandFill: fill }))}
+            />
             <div className="flex flex-wrap items-center gap-2">
-              <span className="micro w-28 shrink-0 text-[0.6rem] text-ink-soft">Band colour</span>
+              <span className="micro w-28 shrink-0 text-[0.6rem] text-ink-soft">Band finish</span>
               <div className="flex flex-1 flex-wrap items-center gap-1.5">
-                {BAND_PRESETS.map((b) => (
+                {FINISHES.map((f) => (
                   <button
-                    key={b.label}
+                    key={f.id}
                     type="button"
-                    onClick={() => setDesign((d) => ({ ...d, bandFill: b.fill }))}
-                    aria-label={b.label}
-                    aria-pressed={design.bandFill === b.fill}
-                    title={b.label}
+                    onClick={() => setDesign((d) => ({ ...d, bandFinish: f.id }))}
+                    aria-pressed={design.bandFinish === f.id}
+                    title={f.hint}
                     className={cn(
-                      'h-7 w-7 rounded-full border-2 transition-transform hover:scale-110',
-                      design.bandFill === b.fill ? 'border-ink ring-2 ring-blue' : 'border-pencil',
-                      b.label === 'Glass' && 'bg-paper-2',
+                      'micro rounded-wobble-sm border-2 px-2 py-1 text-[0.6rem] font-bold transition-colors',
+                      design.bandFinish === f.id
+                        ? 'border-ink bg-yellow text-ink shadow-offset'
+                        : 'border-dashed border-pencil text-ink-soft hover:border-ink hover:text-ink',
                     )}
-                    style={{ backgroundColor: b.fill }}
-                  />
+                  >
+                    {f.label}
+                  </button>
                 ))}
-                <label
-                  title="Mix any other colour"
-                  className="flex h-7 cursor-pointer items-center gap-1 rounded-wobble-sm border-2 border-dashed border-pencil px-1.5 text-ink-soft hover:border-ink hover:text-ink"
-                >
-                  <Palette className="h-3.5 w-3.5" strokeWidth={2} />
-                  <input
-                    type="color"
-                    aria-label="Custom band colour"
-                    value={/^#[0-9a-f]{6}$/i.test(design.bandFill) ? design.bandFill : '#0B0B0B'}
-                    onChange={(e) => setDesign((d) => ({ ...d, bandFill: e.target.value }))}
-                    className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0"
-                  />
-                </label>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -852,30 +1201,40 @@ function MarketingBody() {
                 Reset slide colours
               </button>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <SketchButton
-                variant="accent"
-                loading={highlight.isPending}
-                disabled={slides.every((s) => !s.title.trim() && !s.subtitle.trim())}
-                onClick={() =>
-                  highlight.mutate({
-                    slides: slides
-                      .slice(0, 20)
-                      .map((s) => ({ title: s.title, subtitle: s.subtitle })),
-                  })
-                }
-              >
-                <Sparkles className="h-4 w-4" strokeWidth={2.5} /> Highlight the keywords
-                {quote.data ? ` — ${quote.data.highlight} 🪙` : ''}
-              </SketchButton>
+            <div className="flex flex-wrap items-center gap-2 border-t-2 border-dashed border-pencil pt-3">
+              <span className="micro w-full text-[0.6rem] text-ink-soft">
+                Let the AI pick the keywords in…
+              </span>
+              {(
+                [
+                  { scope: 'title' as const, label: 'The title' },
+                  { scope: 'subtitle' as const, label: 'The subtitle' },
+                  { scope: 'both' as const, label: 'Both' },
+                ]
+              ).map((b) => (
+                <SketchButton
+                  key={b.scope}
+                  variant={b.scope === 'both' ? 'accent' : 'secondary'}
+                  loading={highlight.isPending && highlight.variables?.scope === b.scope}
+                  disabled={
+                    highlight.isPending ||
+                    slides.every((s) => !s.title.trim() && !s.subtitle.trim())
+                  }
+                  onClick={() => runHighlight(b.scope)}
+                >
+                  <Sparkles className="h-4 w-4" strokeWidth={2.5} /> {b.label}
+                  {quote.data ? ` — ${quote.data.highlight} 🪙` : ''}
+                </SketchButton>
+              ))}
             </div>
             <p className="micro text-[0.58rem] text-ink-faint">
               The AI reads every card and paints the words that carry it —{' '}
               <span className="font-bold" style={{ color: accent }}>
                 in the swatch you have in hand
               </span>
-              . It also does this the moment a carousel is written. To change one yourself, pick a
-              colour and click any word in the preview.
+              . Repainting one half leaves the other exactly as you left it, and the whole carousel
+              gets this the moment it is written. To change one word yourself, pick a colour and
+              click it in the preview.
             </p>
             <div className="flex flex-wrap items-center gap-2 border-t-2 border-dashed border-pencil pt-3">
               <SketchButton variant="accent" loading={busy} onClick={() => void download(false)}>
@@ -957,6 +1316,53 @@ function WordRun({
         </div>
       ))}
     </>
+  );
+}
+
+/** A row of preset colours plus a mixer, for anything that takes a fill. */
+function Swatches({
+  label,
+  value,
+  onPick,
+}: {
+  label: string;
+  value: string;
+  onPick: (fill: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="micro w-28 shrink-0 text-[0.6rem] text-ink-soft">{label}</span>
+      <div className="flex flex-1 flex-wrap items-center gap-1.5">
+        {BAND_PRESETS.map((b) => (
+          <button
+            key={b.label}
+            type="button"
+            onClick={() => onPick(b.fill)}
+            aria-label={b.label}
+            aria-pressed={value === b.fill}
+            title={b.label}
+            className={cn(
+              'h-7 w-7 rounded-full border-2 transition-transform hover:scale-110',
+              value === b.fill ? 'border-ink ring-2 ring-blue' : 'border-pencil',
+            )}
+            style={{ backgroundColor: b.fill }}
+          />
+        ))}
+        <label
+          title="Mix any other colour"
+          className="flex h-7 cursor-pointer items-center gap-1 rounded-wobble-sm border-2 border-dashed border-pencil px-1.5 text-ink-soft hover:border-ink hover:text-ink"
+        >
+          <Palette className="h-3.5 w-3.5" strokeWidth={2} />
+          <input
+            type="color"
+            aria-label={`Custom ${label.toLowerCase()}`}
+            value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#0B0B0B'}
+            onChange={(e) => onPick(e.target.value)}
+            className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0"
+          />
+        </label>
+      </div>
+    </div>
   );
 }
 

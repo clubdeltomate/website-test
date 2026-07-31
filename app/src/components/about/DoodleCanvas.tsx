@@ -224,7 +224,7 @@ export default function DoodleCta() {
               viewport={{ once: true }}
               transition={{ duration: 0.35, delay: reduced ? 0 : 0.25 }}
             >
-              <Link to="/">
+              <Link to="/chat">
                 <SketchButton variant="secondary" size="lg">
                   <MessageCircle className="h-5 w-5" /> Ask the Coach
                 </SketchButton>
@@ -239,7 +239,7 @@ export default function DoodleCta() {
             className="mt-4"
           >
             <Link to="/repos" className="squiggle text-sm font-bold">
-              or browse public repos
+              or browse the shelf
             </Link>
           </motion.p>
         </motion.div>

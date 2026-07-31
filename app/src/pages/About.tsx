@@ -8,6 +8,7 @@ import {
   DoodleStar,
   DoodleSpiral,
 } from '@/components/sketch/DoodleIcons';
+import { SITE } from '@contracts/site';
 import HeroStory from '@/components/about/HeroStory';
 import MemoryStory from '@/components/about/MemoryStory';
 import PersonaCards from '@/components/about/PersonaCards';
@@ -25,12 +26,12 @@ const STEPS = [
   {
     icon: BookOpen,
     title: 'Compose the path',
-    body: "Tell the Coach or the Lesson Path what you're building — a course, a menu, a service catalog. One click generates a repository and its linked slide tool.",
+    body: "Tell the Coach or the Lesson Path what you're building — a course, a menu, a service catalog. One click lays out the repository: units, lessons, a banner for each, and a deck waiting behind every lesson.",
   },
   {
     icon: Clapperboard,
-    title: 'Play the lessons',
-    body: "Each lesson's objective becomes a deck prompt. Slides teach with prose, charts, tables, diagrams, sticky notes and images — and quiz the learner as they go.",
+    title: 'Play and be graded',
+    body: "Each lesson's objective becomes a deck. Slides teach with prose, charts, tables, diagrams, sticky notes and pictures, then quiz you — multiple choice marked on the spot, written answers read by the AI. Your best run is kept.",
   },
   {
     icon: BrainCircuit,
@@ -107,6 +108,54 @@ function HowItWorks() {
 }
 
 /* ------------------------------------------------------------------ */
+/* §3 — what the place is, and where things live                       */
+/* ------------------------------------------------------------------ */
+
+/** The four doors, described by the same object the marketing tool reads
+ *  when it fills in a follow card — so what we say here and what we say
+ *  about ourselves elsewhere cannot drift apart. */
+function WhatThisIs() {
+  const reduced = usePrefersReducedMotion();
+  return (
+    <section aria-label={`What ${SITE.name} is`} className="relative bg-paper-2/60">
+      <div className="relative mx-auto max-w-content px-6 py-20 lg:px-8">
+        <DoodleSparkle className="absolute right-12 top-14 h-5 w-5 text-yellow" />
+        <h2 className="text-center font-heading text-3xl text-ink md:text-4xl">
+          So what <Squiggle>is</Squiggle> this?
+        </h2>
+        <div className="mx-auto mt-6 flex max-w-2xl flex-col gap-3 text-center text-ink-soft">
+          {SITE.what.map((line) => (
+            <p key={line} className="text-[1.02rem] leading-relaxed">
+              {line}
+            </p>
+          ))}
+        </div>
+
+        <p className="mx-auto mt-12 max-w-lg text-center font-heading text-xl text-ink">
+          Four doors, <Marker>one notebook.</Marker>
+        </p>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {SITE.surfaces.map((s, i) => (
+            <motion.div
+              key={s.label}
+              initial={reduced ? false : { opacity: 0, y: 28 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.45, delay: reduced ? 0 : i * 0.08, ease: EASE_OUT }}
+            >
+              <SketchCard index={i} hover className="h-full">
+                <h3 className="font-heading text-lg text-ink">{s.label}</h3>
+                <p className="mt-2 text-[0.92rem] leading-relaxed text-ink-soft">{s.body}</p>
+              </SketchCard>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Section shells with margin doodles                                  */
 /* ------------------------------------------------------------------ */
 
@@ -159,18 +208,21 @@ export default function About() {
       {/* §2 — how it works */}
       <HowItWorks />
 
-      {/* §3 — cross-lesson memory, pinned (GSAP, isolated) */}
+      {/* §3 — what the place is, and its four doors */}
+      <WhatThisIs />
+
+      {/* §4 — cross-lesson memory, pinned (GSAP, isolated) */}
       <MemoryStory />
 
       <SquiggleDivider className="mx-auto max-w-content px-6" />
 
-      {/* §4 — persona flip cards */}
+      {/* §5 — persona flip cards */}
       <PersonaSection />
 
-      {/* §5 — roles & tokens */}
+      {/* §6 — roles & tokens */}
       <RolesTokensSection />
 
-      {/* §6 — doodle canvas + CTA */}
+      {/* §7 — doodle canvas + CTA */}
       <DoodleCta />
     </div>
   );
