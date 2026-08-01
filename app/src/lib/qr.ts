@@ -57,6 +57,16 @@ export interface PaymentKind {
   label: string;
   /** grouping for the picker */
   group: 'crypto' | 'wallet' | 'bank';
+  /**
+   * The rail's own colour, for the stripe beside its block on the card.
+   *
+   * People recognise a payment rail by its colour before they read its name —
+   * Binance yellow, PayPal blue, Bitcoin orange — so the stripe does the
+   * telling-apart faster than the label above it can. Omitted where a rail
+   * has no colour of its own (a plain bank transfer, a payment link), and
+   * those fall back to the card's accent.
+   */
+  brand?: string;
   fields: FieldSpec[];
   /** what a scanner should get, if this rail can be scanned at all */
   uri?: (v: Record<string, string>) => string;
@@ -85,6 +95,7 @@ const ID_DOC: FieldSpec = { key: 'idNumber', label: 'ID number', hint: 'cédula,
 export const PAYMENT_KINDS: PaymentKind[] = [
   {
     id: 'binance',
+    brand: '#F0B90B',
     label: 'Binance',
     group: 'crypto',
     fields: [
@@ -101,6 +112,7 @@ export const PAYMENT_KINDS: PaymentKind[] = [
   },
   {
     id: 'bitcoin',
+    brand: '#F7931A',
     label: 'Bitcoin',
     group: 'crypto',
     fields: [ADDRESS],
@@ -108,6 +120,7 @@ export const PAYMENT_KINDS: PaymentKind[] = [
   },
   {
     id: 'ethereum',
+    brand: '#627EEA',
     label: 'Ethereum / USDT (ERC20)',
     group: 'crypto',
     fields: [ADDRESS],
@@ -115,6 +128,7 @@ export const PAYMENT_KINDS: PaymentKind[] = [
   },
   {
     id: 'usdt-trc20',
+    brand: '#26A17B',
     label: 'USDT (TRC20)',
     group: 'crypto',
     fields: [ADDRESS],
@@ -122,9 +136,12 @@ export const PAYMENT_KINDS: PaymentKind[] = [
   },
   {
     id: 'paypal',
+    brand: '#0070BA',
     label: 'PayPal',
     group: 'wallet',
-    fields: [{ key: 'handle', label: 'PayPal', hint: 'paypal.me/you, or your email', onCard: true }],
+    fields: [
+      { key: 'handle', label: 'Email', hint: 'your PayPal email, or paypal.me/you', onCard: true },
+    ],
     uri: (v) => {
       const s = (v.handle ?? '').trim();
       if (!s) return '';
@@ -134,6 +151,7 @@ export const PAYMENT_KINDS: PaymentKind[] = [
   },
   {
     id: 'zinli',
+    brand: '#0ABF9E',
     label: 'Zinli',
     group: 'wallet',
     fields: [
@@ -143,6 +161,7 @@ export const PAYMENT_KINDS: PaymentKind[] = [
   },
   {
     id: 'pagomovil',
+    brand: '#2E9E4F',
     label: 'Pago Móvil',
     group: 'bank',
     fields: [
@@ -154,6 +173,7 @@ export const PAYMENT_KINDS: PaymentKind[] = [
   },
   {
     id: 'bank-ve',
+    brand: '#1E5AA8',
     label: 'Cuenta bancaria (Venezuela)',
     group: 'bank',
     fields: [
@@ -175,6 +195,7 @@ export const PAYMENT_KINDS: PaymentKind[] = [
   },
   {
     id: 'cashapp',
+    brand: '#00D632',
     label: 'Cash App',
     group: 'wallet',
     fields: [{ key: 'handle', label: 'Cashtag', hint: '$you', onCard: true }],
@@ -207,6 +228,11 @@ export function kindSpec(kind: string): PaymentKind | undefined {
 
 export function paymentLabel(kind: string): string {
   return kindSpec(kind)?.label ?? kind;
+}
+
+/** The rail's colour, or null when it has none and should borrow the accent. */
+export function paymentBrand(kind: string): string | null {
+  return kindSpec(kind)?.brand ?? null;
 }
 
 /** What a scanner should get for this method, or "" when it cannot be scanned. */

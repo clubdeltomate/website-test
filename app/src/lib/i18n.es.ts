@@ -652,6 +652,8 @@ export const ES: Record<string, string> = {
   'Filter by language': 'Filtrar por idioma',
   'Language updated': 'Idioma actualizado',
   'Language of this post': 'Idioma de esta publicación',
+  Email: 'Correo electrónico',
+  'your PayPal email, or paypal.me/you': 'tu correo de PayPal, o paypal.me/tu-usuario',
   "Couldn't load your saved cards": 'No se pudieron cargar tus tarjetas guardadas',
   'In the front corner': 'En la esquina del frente',
   'QR code': 'Código QR',
