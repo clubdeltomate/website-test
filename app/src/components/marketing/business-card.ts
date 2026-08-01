@@ -51,6 +51,15 @@ export type CardSide = 'front' | 'back';
  */
 export type BackLayout = 'quote' | 'contact' | 'payments' | 'badge';
 
+/**
+ * What a payment card puts in its front's top-right corner.
+ *
+ * The code is for a phone in the room; the mark is for everything else. Only
+ * one of them fits, and which one is worth more depends entirely on how the
+ * card gets handed over, so it is asked rather than assumed.
+ */
+export type FrontMark = 'logo' | 'qr';
+
 export const BACK_LAYOUTS: { id: BackLayout; label: string; blurb: string }[] = [
   { id: 'quote', label: 'Quote', blurb: 'One line worth reading, big.' },
   { id: 'contact', label: 'Contact', blurb: 'Name, role and every way to reach you.' },
@@ -83,6 +92,8 @@ export interface BusinessCard {
   payments: PaymentMethod[];
   /** which method the QR encodes; falls back to the first with a value */
   qrOf: string;
+  /** payment card only: the code or the logo in the front's corner */
+  frontMark: FrontMark;
   /** the payment card is visible on your profile */
   shared: boolean;
 }
@@ -95,6 +106,7 @@ export const emptyBusinessCard = (): BusinessCard => ({
   backNote: '',
   payments: [],
   qrOf: '',
+  frontMark: 'logo',
   shared: false,
   name: '',
   title: '',
@@ -157,25 +169,36 @@ const PAD = 74;
 const STRIPE = 18;
 
 /**
- * A wallet address, shortened to fit beside the code.
+ * Break one line to a width, splitting a word if the word is the problem.
  *
- * A Bitcoin address is forty-odd characters with nowhere to break, so
- * printing it in full either runs under the QR or shrinks the whole card to
- * suit one line. The code carries the real thing, and the profile panel
- * shows it in full with a copy button — this line is for recognising which
- * address it is, which the ends do.
+ * A wallet address is forty characters with nowhere to break, so ordinary
+ * word wrapping leaves it hanging off the edge of the card. It used to be
+ * abbreviated to its ends instead, which reads fine and is useless: nobody
+ * can pay an address they cannot copy. So it is printed in full and broken
+ * mid-token when it must be — a card is something people read off, and half
+ * an address is not an address.
  */
-function shortAddress(v: string): string {
-  const s = v.trim();
-  if (s.length <= 26 || /\s/.test(s)) return s;
-  return `${s.slice(0, 12)}…${s.slice(-8)}`;
-}
-
-/** "Label: value" with the value shortened if it is an unbreakable address. */
-function shortLine(line: string): string {
-  const at = line.indexOf(': ');
-  if (at < 0) return shortAddress(line);
-  return `${line.slice(0, at + 2)}${shortAddress(line.slice(at + 2))}`;
+function fitLines(
+  line: string,
+  font: string,
+  maxW: number,
+  measure: CanvasRenderingContext2D | null,
+): string[] {
+  if (!measure || !line) return [line];
+  measure.font = font;
+  if (measure.measureText(line).width <= maxW) return [line];
+  const out: string[] = [];
+  let cur = '';
+  for (const ch of line) {
+    if (cur && measure.measureText(cur + ch).width > maxW) {
+      out.push(cur);
+      cur = ch;
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
 }
 
 /** The id of the method the code is for, so the back can skip it. */
@@ -185,7 +208,7 @@ function chosenId(card: BusinessCard): string {
 
 /** The lines one method contributes to the written list. */
 function methodBlock(m: PaymentMethod): string[] {
-  return [paymentLabel(m.kind), ...paymentLines(m.kind, m.values).map(shortLine), ''];
+  return [paymentLabel(m.kind), ...paymentLines(m.kind, m.values), ''];
 }
 
 /**
@@ -196,6 +219,11 @@ function methodBlock(m: PaymentMethod): string[] {
  */
 export function backLayoutOf(card: BusinessCard): BackLayout {
   return card.backLayout ?? 'quote';
+}
+
+/** The corner of a payment card's front, defaulted for older saved cards. */
+export function frontMarkOf(card: BusinessCard): FrontMark {
+  return card.frontMark ?? 'qr';
 }
 
 /**
@@ -250,11 +278,15 @@ export function layoutBusinessCard(
   const hasTitleOut = !pay && text.title.trim().length > 0;
   /* The front's top-right corner belongs to the code on a payment card and
      to the logo on a business one. The back has room for both. */
-  const hasLogo = card.logoUrl !== null && (back || !pay);
+  /* What sits in the front's top-right corner of a PAYMENT card is a choice:
+     the scannable code, or the logo. A business card has never had the code
+     and the back has room for the mark either way. */
+  const wantsQr = pay && !back && frontMarkOf(card) === 'qr';
+  const hasLogo = card.logoUrl !== null && (back || !pay || !wantsQr);
   const logoR = 64;
   /* A payment card gives its right-hand third to the QR; the words get what
      is left. On a business card that space is the logo's, or nobody's. */
-  const qrSize = pay && !back ? 250 : 0;
+  const qrSize = wantsQr ? 250 : 0;
   const textRight =
     CARD_W - PAD - (qrSize ? qrSize + 40 : hasLogo ? logoR * 2 + 34 : 0);
   const textW = textRight - left;
@@ -267,7 +299,7 @@ export function layoutBusinessCard(
   const modules = chosen && !chosen.qrImage ? qrMatrix(uri) : null;
   /* An uploaded code takes the same box — the card cannot tell the
      difference and neither can a phone. */
-  const qrHere = pay && !back && (modules != null || chosen?.qrImage);
+  const qrHere = wantsQr && (modules != null || chosen?.qrImage);
   const qr: QrBlock | null = qrHere
     ? {
         x: CARD_W - PAD - qrSize,
@@ -309,7 +341,13 @@ export function layoutBusinessCard(
      edge is worse than one that breaks a word early. */
   const methodFont = `700 24px ${FONT_BODY}`;
   const blocks = raw.map((lines) =>
-    lines.flatMap((line) => (line ? wrapText(line, methodFont, colW, measure) : [''])),
+    lines.flatMap((line) =>
+      line
+        ? wrapText(line, methodFont, colW, measure).flatMap((w) =>
+            fitLines(w, methodFont, colW, measure),
+          )
+        : [''],
+    ),
   );
   const totalLines = blocks.reduce((n, b2) => n + b2.length, 0);
   const perCol = Math.ceil(totalLines / columns);
@@ -399,7 +437,11 @@ export function layoutBusinessCard(
       lead: b.companySize * 1.35,
       weight: 900,
       family: FONT,
-      colour: card.accent,
+      /* Accent on the front, ink on the back. The back's company line is
+         often the only thing on that face, and an accent chosen to be a
+         highlight beside black text is not a colour to read a whole card
+         in — on pale paper it disappears. */
+      colour: back ? ink : card.accent,
     }),
     name: run({
       lines: text.name.trim() ? [text.name] : [],
@@ -525,7 +567,7 @@ function badgeBack(
       lead: companySize * 1.3,
       weight: 900,
       family: FONT,
-      colour: card.accent,
+      colour: ink,
     }),
     name: run({ lines: [] }),
     title: run({ lines: [] }),
