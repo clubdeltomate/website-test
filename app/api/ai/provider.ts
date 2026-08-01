@@ -1496,7 +1496,7 @@ async function callOpenAIImage(
 /**
  * Generate one image for a slide. Returns a `data:image/...;base64,...` URI,
  * or null when no image key is configured or the call fails (reason logged
- * server-side). Style directive is prepended to keep the SketchLearn look.
+ * server-side). Style directive is prepended to keep the hand-drawn look.
  */
 /**
  * Which provider WOULD serve a capability for this user (BYOK → platform →

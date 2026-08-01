@@ -142,7 +142,11 @@ function ProfileTab() {
 
   if (!user) return null;
 
-  const wantsPasswordChange = currentPassword || newPassword || confirm;
+  /* Intent to change a password is a NEW password, not a filled-in current
+     one. Browsers autofill the current-password box on sight, and counting
+     that as intent meant the profile refused to save — "New password needs at
+     least 8 characters" — over a field the person never touched. */
+  const wantsPasswordChange = Boolean(newPassword || confirm);
 
   const save = () => {
     setError(null);
@@ -298,12 +302,16 @@ function ProfileTab() {
         <div className="mt-6 border-t-2 border-dashed border-pencil pt-5">
           <p className="micro mb-3 text-ink-soft">{say("Change password (optional)")}</p>
           <div className="grid gap-4 sm:grid-cols-3">
+            {/* "new-password" rather than "current-password": this is not a
+                sign-in form, and asking the browser for the saved password
+                fills a box nobody asked to fill. */}
             <SketchInput
               type="password"
               placeholder={say("Current password")}
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              autoComplete="current-password"
+              autoComplete="new-password"
+              name="current-password-confirm"
             />
             <div>
               <SketchInput
