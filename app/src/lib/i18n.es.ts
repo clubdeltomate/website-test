@@ -652,6 +652,7 @@ export const ES: Record<string, string> = {
   'Filter by language': 'Filtrar por idioma',
   'Language updated': 'Idioma actualizado',
   'Language of this post': 'Idioma de esta publicación',
+  "Couldn't load your saved cards": 'No se pudieron cargar tus tarjetas guardadas',
   'In the front corner': 'En la esquina del frente',
   'QR code': 'Código QR',
   'The code takes the corner, and the addresses get the space that is left.':

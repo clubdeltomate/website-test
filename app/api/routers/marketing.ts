@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { createRouter } from "../middleware.js";
 import { adminProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
@@ -245,6 +245,39 @@ const KEYWORD_RULE =
   "the subtitle, again copied exactly. Never the whole line, never filler like " +
   '"the", "your", "and" — nouns and verbs that matter.';
 
+
+/**
+ * Make sure the versions table is there before touching it.
+ *
+ * The boot migration is fire-and-forget, so on a serverless cold start the
+ * first requests can arrive before it has finished — and a table that is
+ * missing for one request looks exactly like an account with nothing saved.
+ * Memoised, so it is one extra round trip per process and none after that.
+ */
+let versionsReady: Promise<void> | null = null;
+function ensureCardVersions(): Promise<void> {
+  versionsReady ??= (async () => {
+    await getDb().execute(sql`
+      CREATE TABLE IF NOT EXISTS sketchlearn."cardVersions" (
+        id serial PRIMARY KEY,
+        "ownerId" integer NOT NULL,
+        name varchar(160) NOT NULL,
+        kind varchar(16) NOT NULL DEFAULT 'business',
+        card json NOT NULL,
+        "createdAt" timestamp NOT NULL DEFAULT now(),
+        "updatedAt" timestamp NOT NULL DEFAULT now()
+      )`);
+    await getDb().execute(
+      sql`CREATE INDEX IF NOT EXISTS "cardVersions_owner_idx" ON sketchlearn."cardVersions" ("ownerId")`,
+    );
+  })().catch((err) => {
+    // Let the next call try again rather than caching the failure forever.
+    versionsReady = null;
+    throw err;
+  });
+  return versionsReady;
+}
+
 export const marketingRouter = createRouter({
   /** What a backdrop and a storyboard cost — quoted on their buttons. */
   quote: adminProcedure.query(
@@ -371,6 +404,7 @@ export const marketingRouter = createRouter({
   /** Every card this account kept, newest first. */
   cardVersions: adminProcedure.query(
     async ({ ctx }): Promise<{ id: number; name: string; kind: string; card: Record<string, unknown>; updatedAt: Date }[]> => {
+      await ensureCardVersions();
       const rows = await getDb()
         .select()
         .from(cardVersions)
@@ -404,6 +438,7 @@ export const marketingRouter = createRouter({
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ id: number; logoUrl: string | null }> => {
+      await ensureCardVersions();
       let logoUrl = input.logoUrl;
       const data = logoUrl && /^data:([^;,]+);base64,(.+)$/s.exec(logoUrl);
       if (data) {
@@ -462,34 +497,56 @@ export const marketingRouter = createRouter({
       return { ok: true };
     }),
 
-  /** Keep this business card. Same logo handling as the follow card. */
+  /**
+   * Keep both cards.
+   *
+   * Two records under one row, because the business card and the payment card
+   * are different things handed to different people — one used to inherit the
+   * other's colours the moment you switched tabs. Each carries its own logo,
+   * so each data URL is parked in slideImages separately.
+   */
   saveCard: adminProcedure
     .input(
       z.object({
-        card: z.record(z.string(), z.unknown()),
-        logoUrl: z.string().max(8_000_000).nullable().default(null),
+        cards: z.object({
+          business: z.record(z.string(), z.unknown()),
+          payment: z.record(z.string(), z.unknown()),
+        }),
+        logos: z.object({
+          business: z.string().max(8_000_000).nullable().default(null),
+          payment: z.string().max(8_000_000).nullable().default(null),
+        }),
       }),
     )
-    .mutation(async ({ ctx, input }): Promise<{ logoUrl: string | null }> => {
-      let logoUrl = input.logoUrl;
-      const data = logoUrl && /^data:([^;,]+);base64,(.+)$/s.exec(logoUrl);
-      if (data) {
-        const [row] = await getDb()
-          .insert(slideImages)
-          .values({ ownerId: ctx.user.id, mime: data[1], data: data[2] })
-          .returning({ id: slideImages.id });
-        logoUrl = `${IMAGE_URL_PREFIX}${row.id}`;
-      }
-      const businessCard = { ...input.card, logoUrl };
-      await getDb()
-        .insert(marketingProfiles)
-        .values({ ownerId: ctx.user.id, businessCard })
-        .onConflictDoUpdate({
-          target: marketingProfiles.ownerId,
-          set: { businessCard, updatedAt: new Date() },
-        });
-      return { logoUrl };
-    }),
+    .mutation(
+      async ({ ctx, input }): Promise<{ logos: { business: string | null; payment: string | null } }> => {
+        const park = async (url: string | null): Promise<string | null> => {
+          const data = url && /^data:([^;,]+);base64,(.+)$/s.exec(url);
+          if (!data) return url;
+          const [row] = await getDb()
+            .insert(slideImages)
+            .values({ ownerId: ctx.user.id, mime: data[1], data: data[2] })
+            .returning({ id: slideImages.id });
+          return `${IMAGE_URL_PREFIX}${row.id}`;
+        };
+        const logos = {
+          business: await park(input.logos.business),
+          payment: await park(input.logos.payment),
+        };
+        const businessCard = {
+          business: { ...input.cards.business, kind: "business", logoUrl: logos.business },
+          payment: { ...input.cards.payment, kind: "payment", logoUrl: logos.payment },
+        };
+        await getDb()
+          .insert(marketingProfiles)
+          .values({ ownerId: ctx.user.id, businessCard })
+          .onConflictDoUpdate({
+            target: marketingProfiles.ownerId,
+            set: { businessCard, updatedAt: new Date() },
+          });
+        return { logos };
+      },
+    ),
 
   /**
    * Write the card's words from what this account actually is.
