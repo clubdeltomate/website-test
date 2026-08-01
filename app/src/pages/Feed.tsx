@@ -418,7 +418,6 @@ export default function Feed() {
           lang.setFilter(v);
           goTo(0);
         }}
-        present={(list.data ?? []).map((p) => p.contentLanguage)}
       />
       {user?.role === 'admin' && (
         <SketchButton variant="accent" onClick={() => navigate('/admin/projects/marketing')}>

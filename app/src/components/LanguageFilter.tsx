@@ -1,44 +1,45 @@
 import { cn } from '@/lib/utils';
 import { say } from '@/lib/i18n';
-import { chipsFor, endonym, shortCode, type LanguageFilter as Filter } from '@/lib/content-language';
+import { endonym, shortCode, type LanguageFilter as Filter } from '@/lib/content-language';
 
 /**
- * Narrow a shelf to one language.
+ * Which shelf you are reading: everything, or Spanish only.
  *
- * "All" is offered even when the site is in Spanish, because the default
- * being Spanish-only is a helpful starting point, not a wall — somebody who
- * reads both should be one click from seeing both.
+ * Two chips, not three. EN already means everything — English plus French
+ * plus anything else that is not Spanish — so a separate "All" would be the
+ * same button twice. ES is the exclusive one: Spanish work and nothing else.
  */
+const CHOICES: { id: Filter; hint: string }[] = [
+  { id: 'en', hint: 'English and every other language' },
+  { id: 'es', hint: 'Spanish only' },
+];
+
 export default function LanguageFilter({
   value,
   onChange,
-  present,
 }: {
   value: Filter;
   onChange: (v: Filter) => void;
-  /** the codes actually on this shelf, so dead chips are never offered */
-  present: string[];
 }) {
-  const codes = chipsFor(present);
   return (
     <div
       className="flex w-fit overflow-hidden rounded-wobble-sm border-2 border-ink shadow-offset"
       role="group"
       aria-label={say('Filter by language')}
     >
-      {(['all', ...codes] as Filter[]).map((c) => (
+      {CHOICES.map((c) => (
         <button
-          key={c}
+          key={c.id}
           type="button"
-          onClick={() => onChange(c)}
-          aria-pressed={value === c}
-          title={c === 'all' ? say('Every language') : endonym(c)}
+          onClick={() => onChange(c.id)}
+          aria-pressed={value === c.id}
+          title={`${endonym(c.id)} — ${say(c.hint)}`}
           className={cn(
             'micro px-2 py-1 text-[0.6rem] font-bold transition-colors',
-            value === c ? 'bg-yellow text-ink' : 'bg-paper-3 text-ink-soft hover:text-ink',
+            value === c.id ? 'bg-yellow text-ink' : 'bg-paper-3 text-ink-soft hover:text-ink',
           )}
         >
-          {c === 'all' ? say('All') : shortCode(c)}
+          {shortCode(c.id)}
         </button>
       ))}
     </div>

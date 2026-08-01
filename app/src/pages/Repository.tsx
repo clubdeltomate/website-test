@@ -37,6 +37,8 @@ import {
   studyUrl,
 } from '@/components/repo/shared';
 import { say } from '@/lib/i18n';
+import LanguageTag from '@/components/LanguageTag';
+import { LANGUAGES } from '@contracts/languages';
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -274,6 +276,27 @@ export default function Repository() {
                 </Chip>
               </button>
               <span className="font-mono text-xs text-ink-faint">{data.slug}</span>
+              {/* The language sticker, and for the owner the way to change
+                  it — the shelf a repo sits on is worth being able to fix
+                  from the repo rather than only at the moment it was made. */}
+              {canEdit ? (
+                <select
+                  value={data.contentLanguage ?? 'en'}
+                  onChange={(e) =>
+                    rename.mutate({ slug: data.slug, contentLanguage: e.target.value })
+                  }
+                  aria-label={say('What language this repository is written in')}
+                  className="micro rounded-wobble-sm border-2 border-dashed border-pencil bg-transparent px-1.5 py-0.5 text-[0.58rem] font-bold text-ink-soft outline-none hover:border-ink hover:text-ink"
+                >
+                  {LANGUAGES.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.code.toUpperCase()} · {l.endonym}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <LanguageTag code={data.contentLanguage ?? 'en'} />
+              )}
               <Chip kind="neutral" className="normal-case">
                 <TemplateIcon template={data.template} className="h-3.5 w-3.5" />
                 {meta.label}

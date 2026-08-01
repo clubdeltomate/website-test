@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { languageRule } from "../../contracts/languages.js";
 
 /* ------------------------------------------------------------------ */
 /* Zod schemas for LLM outputs (mirror contracts/types.ts)              */
@@ -203,6 +204,8 @@ export function buildSlidesSystemPrompt(opts: {
   subject?: string;
   previouslyTaught: string | null;
   layoutTemplates?: LayoutTemplateForPrompt[];
+  /** ISO code the deck is written in; "en" adds nothing to the prompt */
+  language?: string;
 }): string {
   const toneDirective = TONE_DIRECTIVE[opts.tone ?? "neutral"] ?? TONE_DIRECTIVE.neutral;
   const commercial = opts.purpose === "commercial";
@@ -277,7 +280,13 @@ VISUAL STUDY: a template tagged [anatomy] (text · image · text · evaluation) 
 `
       : "";
 
-  return `You are the SketchLearn ${commercial ? "showcase" : news ? "news briefing" : "teaching"} engine. You write ${commercial ? "short, persuasive slide presentations that SHOWCASE ONE item (a dish, a service, or a product) so a viewer wants it" : news ? "slide-format news briefings that REPORT the news on a topic, clearly and factually" : "evaluated slide decks that teach ONE topic deeply"}.
+  /* What language the words come out in. Its own directive rather than a
+     line buried in the level rules, because it governs every string the
+     model writes — and the image prompts are the one deliberate exception,
+     since they are read by an image generator trained on English captions. */
+  const languageDirective = opts.language && opts.language !== "en" ? languageRule(opts.language) : "";
+
+  return `${languageDirective}You are the SketchLearn ${commercial ? "showcase" : news ? "news briefing" : "teaching"} engine. You write ${commercial ? "short, persuasive slide presentations that SHOWCASE ONE item (a dish, a service, or a product) so a viewer wants it" : news ? "slide-format news briefings that REPORT the news on a topic, clearly and factually" : "evaluated slide decks that teach ONE topic deeply"}.
 ${
   commercial
     ? `

@@ -41,7 +41,6 @@ export default function PostShelf({
         <LanguageFilter
           value={lang.filter}
           onChange={lang.setFilter}
-          present={(list.data ?? []).map((p) => p.contentLanguage)}
         />
         <button
           type="button"

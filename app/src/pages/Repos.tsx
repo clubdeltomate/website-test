@@ -385,7 +385,6 @@ export default function Repos({ mine = true }: { mine?: boolean }) {
         <LanguageFilter
           value={lang.filter}
           onChange={lang.setFilter}
-          present={(list.data ?? []).map((r) => r.contentLanguage)}
         />
 
         {/* sort */}

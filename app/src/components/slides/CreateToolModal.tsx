@@ -45,6 +45,7 @@ import { TemplateBadges } from '@/components/templates/TemplatePicker';
 import SketchButton from '../sketch/SketchButton';
 import WashiTape from '../sketch/WashiTape';
 import { getLang, say } from '@/lib/i18n';
+import ContentLanguageSelect from '@/components/ContentLanguageSelect';
 
 export interface CreateToolModalProps {
   open: boolean;
@@ -193,6 +194,10 @@ export default function CreateToolModal({
   const [template, setTemplate] = useState<RepoTemplate>('course');
   const [slideCount, setSlideCount] = useState(remembered.slideCount);
   const [imageStyle, setImageStyle] = useState<ImageStyle>(remembered.imageStyle);
+  /* What the deck will be WRITTEN in. Seeded from the language being read,
+     because that is the likeliest answer, but it is a separate question — an
+     admin reading in Spanish may well be building an English course. */
+  const [contentLanguage, setContentLanguage] = useState<string>(getLang());
   const [includeQuiz, setIncludeQuiz] = useState(remembered.includeQuiz);
   const [level, setLevel] = useState<Level>(remembered.level);
   const [subject, setSubject] = useState<'stem' | 'humanities'>(
@@ -433,7 +438,7 @@ export default function CreateToolModal({
       defaultSlideCount: slideCount,
       defaultImageStyle: imageStyle,
       defaultLevel: level,
-      contentLanguage: getLang(),
+      contentLanguage,
     });
   };
 
@@ -822,6 +827,20 @@ export default function CreateToolModal({
                       </div>
                       <p className="mt-2 text-xs text-ink-faint">
                         {LEVEL_LABEL[level]}  {say("— sets vocabulary and sentence complexity, and how hard the problems and worked examples get.")}
+                      </p>
+                    </div>
+
+                    <div>
+                      <ContentLanguageSelect
+                        value={contentLanguage}
+                        onChange={setContentLanguage}
+                        label="What language the deck is written in"
+                        className="max-w-[280px]"
+                      />
+                      <p className="mt-2 text-xs text-ink-faint">
+                        {say(
+                          'Decides the shelf as well as the words: Spanish work only shows to Spanish readers, everything else shares the English shelf.',
+                        )}
                       </p>
                     </div>
                   </motion.div>

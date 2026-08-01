@@ -650,9 +650,17 @@ export const ES: Record<string, string> = {
   /* Content language: the stickers and the shelf filters               */
   /* ---------------------------------------------------------------- */
   'Filter by language': 'Filtrar por idioma',
-  'Every language': 'Todos los idiomas',
   'Language updated': 'Idioma actualizado',
   'Language of this post': 'Idioma de esta publicación',
+  'Language of the content': 'Idioma del contenido',
+  'What language the deck is written in': 'En qué idioma está escrita la presentación',
+  'What language this repository is written in': 'En qué idioma está escrito este repositorio',
+  'English and every other language': 'Inglés y todos los demás idiomas',
+  'Spanish only': 'Solo español',
+  'Decides the shelf as well as the words: Spanish work only shows to Spanish readers, everything else shares the English shelf.':
+    'Decide el estante además del idioma: lo que está en español solo lo ven quienes leen en español, y todo lo demás comparte el estante en inglés.',
+  'Every deck this tool generates is written in it, and it decides the shelf: Spanish work only shows to Spanish readers.':
+    'Todas las presentaciones de esta herramienta se escriben en ese idioma, y eso decide el estante: lo que está en español solo lo ven quienes leen en español.',
   /* ---------------------------------------------------------------- */
   /* The page annotator                                                 */
   /* ---------------------------------------------------------------- */
