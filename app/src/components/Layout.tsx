@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useIsFetching, useIsMutating } from '@tanstack/react-query';
 import Lenis from 'lenis';
 import SideRail from './SideRail';
+import PageAnnotator from './PageAnnotator';
 import TopBar from './TopBar';
 import Footer from './Footer';
 
@@ -104,6 +105,9 @@ export default function Layout() {
   return (
     <div className="paper-grain min-h-[100dvh]">
       <TopProgressBar />
+      {/* Every page, admin only, and it decides for itself which routes to
+          stay off. Mounted here rather than per page so there is one of it. */}
+      <PageAnnotator />
       <SideRail open={railOpen} onClose={() => setRailOpen(false)} />
 
       <div
