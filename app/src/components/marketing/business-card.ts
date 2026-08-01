@@ -1,5 +1,12 @@
 import { FONT, FONT_BODY, inkFor, wrapText } from '@/lib/caption-words';
-import { paymentFilled, paymentLabel, paymentLines, paymentUri, qrMatrix } from '@/lib/qr';
+import {
+  paymentBrand,
+  paymentFilled,
+  paymentLabel,
+  paymentLines,
+  paymentUri,
+  qrMatrix,
+} from '@/lib/qr';
 
 /* A business card, laid out the same way the follow card is: geometry
  * computed once, walked by both the on-screen preview and the canvas export.
@@ -219,8 +226,17 @@ export interface CardLayout {
   details: CardText;
   /** payment card only: the code and the lines beside it */
   qr: QrBlock | null;
-  /** the written payment list — one run per column, so a long list can split */
+  /** the written payment list — one run per method, so each can be marked */
   methods: CardText[];
+  /**
+   * A coloured stripe beside each method's block, in that rail's own colour.
+   *
+   * Parallel to `methods`: one rule per run. Four rails stacked as plain text
+   * is a wall you have to read to parse; a Binance-yellow bar beside one and
+   * a PayPal-blue bar beside the next is answered before you have read a
+   * word.
+   */
+  methodRules: { x: number; y: number; w: number; h: number; colour: string }[];
 }
 
 const PAD = 74;
@@ -409,17 +425,37 @@ export function layoutBusinessCard(
   );
   const totalLines = blocks.reduce((n, b2) => n + b2.length, 0);
   const perCol = Math.ceil(totalLines / columns);
-  const methodCols: string[][] = Array.from({ length: columns }, () => []);
+  const methodCap = back ? 15 : 5;
+  /* Placed one method at a time rather than as two flat columns of text, so
+     each block knows where it starts and how tall it is — which is what the
+     coloured stripe beside it needs. */
+  const placed: { lines: string[]; col: number; row: number; colour: string | null }[] = [];
   {
+    const used = Array.from({ length: columns }, () => 0);
     let col = 0;
-    for (const blk of blocks) {
+    blocks.forEach((blk, i) => {
       // Keep a method's own lines together: a label in one column with its
       // address in the next is worse than a slightly uneven split.
-      if (col < columns - 1 && methodCols[col].length + blk.length > perCol + 1) col++;
-      methodCols[col].push(...blk);
-    }
+      if (col < columns - 1 && used[col] + blk.length > perCol + 1) col++;
+      if (used[col] < methodCap) {
+        placed.push({
+          lines: blk.slice(0, methodCap - used[col]),
+          col,
+          row: used[col],
+          colour: paymentBrand(shown[i].kind),
+        });
+      }
+      used[col] += blk.length;
+    });
   }
-  const methodCap = back ? 15 : 5;
+  const colLines = Array.from({ length: columns }, (_, c) =>
+    placed.filter((b2) => b2.col === c).reduce((n, b2) => n + b2.lines.length, 0),
+  );
+  /* The stripe sits at the column's left edge and the words step in past it,
+     so the rail's colour reads as a margin marker rather than as underlining
+     the first word. */
+  const RULE_W = 5;
+  const RULE_STEP = 16;
 
   const build = (s: number) => {
     const companySize = 30 * s;
@@ -454,7 +490,7 @@ export function layoutBusinessCard(
     const taglineY = y;
     y += taglineLines.length * taglineSize * 1.4;
     const methodsY = y + (taglineLines.length ? 8 : 0);
-    y = methodsY + Math.min(methodCap, Math.max(...methodCols.map((c) => c.length), 0)) * methodLead;
+    y = methodsY + Math.min(methodCap, Math.max(...colLines, 0)) * methodLead;
 
     const detailsY = CARD_H - PAD - detailsH;
     return { companySize, nameSize, titleSize, taglineSize, detailSize, detailLead, methodSize, methodLead, taglineLines, detailLines, companyY, nameY, titleY, taglineY, methodsY, detailsY, bottom: y };
@@ -533,19 +569,28 @@ export function layoutBusinessCard(
       lead: b.detailLead,
     }),
     qr,
-    methods: methodCols
-      .filter((c) => c.length > 0)
-      .map((c, i) =>
-        run({
-          lines: c.slice(0, methodCap),
-          x: left + i * (colW + colGap),
-          w: colW,
-          y: b.methodsY,
-          size: b.methodSize,
-          lead: b.methodLead,
-          weight: 700,
-        }),
-      ),
+    methods: placed.map((blk) =>
+      run({
+        lines: blk.lines,
+        x: left + blk.col * (colW + colGap) + RULE_STEP,
+        w: colW - RULE_STEP,
+        y: b.methodsY + blk.row * b.methodLead,
+        size: b.methodSize,
+        lead: b.methodLead,
+        weight: 700,
+      }),
+    ),
+    methodRules: placed.map((blk) => ({
+      x: left + blk.col * (colW + colGap),
+      y: b.methodsY + blk.row * b.methodLead,
+      /* Down to the last line with words on it: every block ends in a blank
+         spacer line, and a stripe running through the gap to the next rail
+         would join the two it is there to separate. */
+      h:
+        Math.max(1, blk.lines.filter((l) => l.trim()).length) * b.methodLead,
+      w: RULE_W,
+      colour: blk.colour ?? card.accent,
+    })),
   };
 }
 
@@ -644,6 +689,7 @@ function badgeBack(
     }),
     qr: null,
     methods: [],
+    methodRules: [],
   };
 }
 
@@ -683,6 +729,10 @@ export async function drawBusinessCard(
   ctx.fillStyle = L.accent;
   ctx.fillRect(L.rule.x, L.rule.y, L.rule.w, L.rule.h);
   run(L.details);
+  for (const r of L.methodRules) {
+    ctx.fillStyle = r.colour;
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+  }
   L.methods.forEach(run);
 
   if (L.qr?.image) {

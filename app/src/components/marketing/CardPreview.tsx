@@ -66,6 +66,21 @@ export default function CardPreview({
       <Text t={L.name} />
       <Text t={L.title} />
       <Text t={L.tagline} />
+      {/* The rail's colour beside its block, drawn before the words so a
+          descender never sits under the stripe. */}
+      {L.methodRules.map((r, i) => (
+        <div
+          key={`rule-${i}`}
+          className="absolute rounded-full"
+          style={{
+            left: cq(r.x),
+            top: cq(r.y),
+            width: cq(r.w),
+            height: cq(r.h),
+            background: r.colour,
+          }}
+        />
+      ))}
       {L.methods.map((m, i) => (
         <Text key={i} t={m} />
       ))}
