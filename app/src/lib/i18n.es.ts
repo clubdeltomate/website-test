@@ -652,6 +652,12 @@ export const ES: Record<string, string> = {
   'Filter by language': 'Filtrar por idioma',
   'Language updated': 'Idioma actualizado',
   'Language of this post': 'Idioma de esta publicación',
+  'In the front corner': 'En la esquina del frente',
+  'QR code': 'Código QR',
+  'The code takes the corner, and the addresses get the space that is left.':
+    'El código ocupa la esquina y las direcciones usan el espacio que queda.',
+  'The mark takes the corner. Addresses print in full, and the back can still carry the code.':
+    'La marca ocupa la esquina. Las direcciones se imprimen completas y el reverso puede llevar el código.',
   'Saved versions': 'Versiones guardadas',
   'New version': 'Versión nueva',
   'None yet — Save keeps the card here, and you can come back to it.':

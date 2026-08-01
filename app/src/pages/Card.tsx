@@ -36,6 +36,7 @@ import {
   type PaymentMethod,
   backLayoutOf,
   drawBusinessCard,
+  frontMarkOf,
   emptyBusinessCard,
   layoutBusinessCard,
 } from '@/components/marketing/business-card';
@@ -720,7 +721,18 @@ function CardBody() {
                   return (
                     <div
                       key={m.id}
-                      className="flex flex-col gap-2 rounded-wobble-sm border-2 border-dashed border-pencil p-2.5"
+                      /* A solid rail down the left, in the card's own accent,
+                         running from the rail's name to its last field. With
+                         four methods stacked the old evenly-dashed boxes gave
+                         no answer to "which fields belong to which" at a
+                         glance, which is the only question this panel is
+                         asked. */
+                      className="flex flex-col gap-2 rounded-wobble-sm border-2 border-dashed border-pencil border-l-[6px] border-l-ink bg-paper-2/40 p-2.5 pl-3"
+                      /* Solid on the left, dashed everywhere else: the rail
+                         is meant to read as one unbroken line from the rail's
+                         name down to its last field, and a dashed one reads
+                         as more of the same background. */
+                      style={{ borderLeftColor: card.accent, borderLeftStyle: 'solid' }}
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <select
@@ -790,6 +802,9 @@ function CardBody() {
                       {/* Every rail asks for what it actually needs — a Pago
                           Móvil is a name, a cédula, a phone and a bank, not
                           "an address". */}
+                      <span className="micro text-[0.55rem] font-bold uppercase tracking-wider text-ink-faint">
+                        {spec?.label ?? m.kind}
+                      </span>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {(spec?.fields ?? []).map((f) => (
                           <label key={f.key} className="flex flex-col gap-1">
@@ -810,6 +825,43 @@ function CardBody() {
                     </div>
                   );
                 })}
+                {/* What the front's corner carries. Only one thing fits
+                    there, and which one is worth more depends on how the card
+                    is handed over — scanned in the room, or read later. */}
+                <div className="flex flex-wrap items-center gap-2 border-t-2 border-dashed border-pencil pt-3">
+                  <span className="micro text-[0.6rem] font-semibold text-ink-soft">
+                    {say('In the front corner')}
+                  </span>
+                  <div className="flex overflow-hidden rounded-wobble-sm border-2 border-ink shadow-offset">
+                    {(
+                      [
+                        { id: 'logo' as const, label: 'Logo' },
+                        { id: 'qr' as const, label: 'QR code' },
+                      ]
+                    ).map((o) => (
+                      <button
+                        key={o.id}
+                        type="button"
+                        onClick={() => set({ frontMark: o.id })}
+                        aria-pressed={frontMarkOf(card) === o.id}
+                        className={cn(
+                          'micro px-2.5 py-1 text-[0.6rem] font-bold transition-colors',
+                          frontMarkOf(card) === o.id
+                            ? 'bg-yellow text-ink'
+                            : 'bg-paper-3 text-ink-soft hover:text-ink',
+                        )}
+                      >
+                        {say(o.label)}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="micro w-full text-[0.58rem] text-ink-faint">
+                    {frontMarkOf(card) === 'qr'
+                      ? say('The code takes the corner, and the addresses get the space that is left.')
+                      : say('The mark takes the corner. Addresses print in full, and the back can still carry the code.')}
+                  </p>
+                </div>
+
                 <button
                   type="button"
                   onClick={addMethod}
