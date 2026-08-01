@@ -54,6 +54,7 @@ import { PAYMENT_KINDS, kindSpec, paymentFilled, paymentUri } from '@/lib/qr';
 import type { PostCategory } from '@contracts/post';
 import { measureCtx } from '@/lib/caption-words';
 import { say } from '@/lib/i18n';
+import { SITE } from '@contracts/site';
 
 /* Your card.
  *
@@ -307,7 +308,7 @@ function CardBody() {
   };
 
   const download = async () => {
-    const stem = pay ? 'sketchlearn-payment-card' : 'sketchlearn-business-card';
+    const stem = `${SITE.slug}-${pay ? 'payment' : 'business'}-card`;
     setBuilding(true);
     try {
       /* Both faces are drawn either way — the front alone is the odd case, not

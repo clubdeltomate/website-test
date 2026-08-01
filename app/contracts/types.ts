@@ -1,7 +1,7 @@
 export * from "./errors.js";
 
 /* ------------------------------------------------------------------ */
-/* SketchLearn shared contracts — frontend imports ONLY from here.      */
+/* Modular-Start shared contracts — frontend imports ONLY from here.    */
 /* ------------------------------------------------------------------ */
 
 export type Role = "user" | "moderator" | "admin";

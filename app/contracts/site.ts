@@ -12,8 +12,19 @@
 export const SITE = {
   name: "Modular-Start",
   handle: "modularstart",
+  /**
+   * The name as a filename.
+   *
+   * Every download the site produces is stamped with it, so a card or a
+   * carousel that leaves here is never named after a product that no longer
+   * exists. Derived rather than typed twice — renaming again is still one
+   * line.
+   */
+  get slug(): string {
+    return this.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  },
   /** One line, the way the follow card wants it. */
-  tagline: "A notebook that teaches, and remembers",
+  tagline: "Start with a module. Finish with a course.",
   /** The two-ish lines under the name on a profile card. */
   bio: ["AI decks, quizzes and lesson paths — in pencil", "Hello – hello@sketchlearn.app"],
   contact: "hello@sketchlearn.app",

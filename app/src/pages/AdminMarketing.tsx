@@ -59,6 +59,7 @@ import SketchButton from '@/components/sketch/SketchButton';
 import SketchCard from '@/components/sketch/SketchCard';
 import { HubHeader } from '@/components/admin/PanelTiles';
 import { say } from '@/lib/i18n';
+import { SITE } from '@contracts/site';
 
 /* Marketing: a small Canva for Instagram carousels.
  *
@@ -949,8 +950,8 @@ function MarketingBody() {
 
   const slideName = (index: number) =>
     follow.on && index === slides.length
-      ? 'sketchlearn-post-follow.png'
-      : `sketchlearn-post-${index + 1}.png`;
+      ? `${SITE.slug}-post-follow.png`
+      : `${SITE.slug}-post-${index + 1}.png`;
 
   const renderAt = (index: number) =>
     follow.on && index === slides.length ? renderFollow() : renderSlide(slides[index]);
@@ -968,7 +969,7 @@ function MarketingBody() {
         const blob = new Blob([makeZip(entries) as BlobPart], { type: 'application/zip' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'sketchlearn-carousel.zip';
+        a.download = `${SITE.slug}-carousel.zip`;
         a.click();
         URL.revokeObjectURL(a.href);
         toast.success(`${total} slide${total === 1 ? '' : 's'} zipped ✓`);
@@ -1155,7 +1156,7 @@ function MarketingBody() {
       const blob = await (await fetch(follow.logoUrl)).blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'sketchlearn-logo.png';
+      a.download = `${SITE.slug}-logo.png`;
       a.click();
       URL.revokeObjectURL(a.href);
       toast.success(say("Logo downloaded ✓"));
@@ -2483,7 +2484,7 @@ function MarketingBody() {
                 />
                 <a
                   href={music.url}
-                  download="sketchlearn-post-music.mp3"
+                  download={`${SITE.slug}-post-music.mp3`}
                   className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink"
                 >
                   <Download className="mr-1 inline h-3 w-3" strokeWidth={2} />  {say("Download")}

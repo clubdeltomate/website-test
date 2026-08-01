@@ -28,6 +28,7 @@ import { DoodleSparkle } from '@/components/sketch/DoodleIcons';
 import { usePrefersReducedMotion } from '@/components/about/usePrefersReducedMotion';
 import { LEVELS, type Level, type RunRow, type RunSlideDetail } from '@contracts/types';
 import { say } from '@/lib/i18n';
+import { SITE } from '@contracts/site';
 
 const PAGE_SIZE = 5;
 const EASE_OUT = [0.22, 1, 0.36, 1] as [number, number, number, number];
@@ -826,7 +827,7 @@ export default function Runs() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'sketchlearn-runs.csv';
+    a.download = `${SITE.slug}-runs.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success(`Exported ${sorted.length} run${sorted.length === 1 ? '' : 's'} to CSV`);
