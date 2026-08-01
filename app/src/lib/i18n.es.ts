@@ -653,6 +653,16 @@ export const ES: Record<string, string> = {
   'Every language': 'Todos los idiomas',
   'Language updated': 'Idioma actualizado',
   'Language of this post': 'Idioma de esta publicación',
+  /* ---------------------------------------------------------------- */
+  /* The page annotator                                                 */
+  /* ---------------------------------------------------------------- */
+  'Draw on this page': 'Dibujar sobre esta página',
+  'Drawing layer': 'Capa de dibujo',
+  Pencil: 'Lápiz',
+  Eraser: 'Borrador',
+  'Clear the page': 'Borrar todo',
+  'Put the pencil down': 'Guardar el lápiz',
+
   'The Coach — admin only while it is being built':
     'El Coach — solo para administración mientras se construye',
 };
