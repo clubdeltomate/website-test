@@ -32,13 +32,15 @@ import {
   CARD_W,
   type BackLayout,
   type BusinessCard,
+  type CardPair,
   type CardSide,
   type PaymentMethod,
   backLayoutOf,
   drawBusinessCard,
+  emptyCardPair,
   frontMarkOf,
-  emptyBusinessCard,
   layoutBusinessCard,
+  splitSavedCards,
 } from '@/components/marketing/business-card';
 import {
   cardProofPdf,
@@ -156,7 +158,18 @@ function normaliseCard(saved: Partial<BusinessCard>): Partial<BusinessCard> {
 }
 
 function CardBody() {
-  const [card, setCard] = useState<BusinessCard>(emptyBusinessCard);
+  /* Two cards, not one with a switch on it. The business card and the payment
+     card are handed to different people and there is no reason a colour
+     chosen for one should follow you to the other. `kind` picks which is
+     being edited; everything below reads `card` and never notices. */
+  const [pair, setPair] = useState<CardPair>(emptyCardPair);
+  const [kind, setKind] = useState<'business' | 'payment'>('business');
+  const card = pair[kind];
+  const setCard = (next: BusinessCard | ((c: BusinessCard) => BusinessCard)) =>
+    setPair((p) => ({
+      ...p,
+      [kind]: typeof next === 'function' ? (next as (c: BusinessCard) => BusinessCard)(p[kind]) : next,
+    }));
   const [section, setSection] = useState<SectionId>('who');
   const [side, setSide] = useState<CardSide>('front');
   const [format, setFormat] = useState<FormatId>('png');
@@ -183,15 +196,19 @@ function CardBody() {
     if (seeded.current || !saved.data) return;
     seeded.current = true;
     const d = saved.data;
-    setCard((c) =>
-      d.saved
-        ? { ...c, ...normaliseCard(d.saved as Partial<BusinessCard>) }
-        : { ...c, name: d.name, company: d.company, details: d.details },
-    );
+    const split = splitSavedCards(d.saved, {
+      name: d.name,
+      company: d.company,
+      details: d.details,
+    });
+    setPair({
+      business: { ...split.business, ...normaliseCard(split.business), kind: 'business' },
+      payment: { ...split.payment, ...normaliseCard(split.payment), kind: 'payment' },
+    });
   }, [saved.data]);
 
   const set = (p: Partial<BusinessCard>) => setCard((c) => ({ ...c, ...p }));
-  const pay = card.kind === 'payment';
+  const pay = kind === 'payment';
 
   /* Which saved version is open, so Save overwrites it instead of piling up
      a new row every time you nudge a colour. "New version" clears it. */
@@ -226,7 +243,13 @@ function CardBody() {
 
   const save = trpc.marketing.saveCard.useMutation({
     onSuccess: (r) => {
-      if (r.logoUrl !== card.logoUrl) set({ logoUrl: r.logoUrl });
+      /* The server may have parked a freshly drawn logo and handed back a
+         short URL for it — take those back so the next save does not upload
+         the same megabytes again. */
+      setPair((p) => ({
+        business: { ...p.business, logoUrl: r.logos.business },
+        payment: { ...p.payment, logoUrl: r.logos.payment },
+      }));
       void saved.refetch();
       void utils.users.paymentCard.invalidate();
       /* Saving keeps a version as well as updating the working card, because
@@ -401,10 +424,10 @@ function CardBody() {
               key={k.id}
               type="button"
               onClick={() => {
-                set({ kind: k.id });
+                setKind(k.id);
                 goTo(k.id === 'payment' ? 'pay' : 'who');
               }}
-              aria-pressed={card.kind === k.id}
+              aria-pressed={kind === k.id}
               className={cn(
                 'micro flex items-center gap-1.5 px-3 py-1.5 text-[0.62rem] font-bold transition-colors',
                 card.kind === k.id ? 'bg-yellow text-ink' : 'bg-paper-3 text-ink-soft hover:text-ink',
@@ -493,7 +516,12 @@ function CardBody() {
             <SketchButton
               variant="secondary"
               loading={save.isPending}
-              onClick={() => save.mutate({ card: { ...card }, logoUrl: card.logoUrl })}
+              onClick={() =>
+                save.mutate({
+                  cards: { business: { ...pair.business }, payment: { ...pair.payment } },
+                  logos: { business: pair.business.logoUrl, payment: pair.payment.logoUrl },
+                })
+              }
             >
               <Save className="h-4 w-4" strokeWidth={2} />  {say("Save")}
             </SketchButton>
@@ -511,7 +539,16 @@ function CardBody() {
             <span className="micro text-[0.6rem] font-semibold text-ink-soft">
               {say('Saved versions')}
             </span>
-            {(versions.data ?? []).length === 0 ? (
+            {versions.isError ? (
+              /* A failed request is not an empty shelf. Saying "none yet"
+                 when the query threw is how a broken save looks like a
+                 working one that saved nothing. */
+              <p className="micro text-[0.58rem] font-bold text-red">
+                {say("Couldn't load your saved cards")} — {say(versions.error.message)}
+              </p>
+            ) : versions.isLoading ? (
+              <p className="micro text-[0.58rem] text-ink-faint">{say('Loading…')}</p>
+            ) : (versions.data ?? []).length === 0 ? (
               <p className="micro text-[0.58rem] text-ink-faint">
                 {say('None yet — Save keeps the card here, and you can come back to it.')}
               </p>
@@ -550,11 +587,21 @@ function CardBody() {
                         onClick={() => {
                           /* Opening a version IS the design changing — the
                              preview, the panels and the download all follow
-                             from this one piece of state. */
-                          setCard((c) => ({
-                            ...c,
-                            ...normaliseCard(v.card as Partial<BusinessCard>),
+                             from this one piece of state. It loads into the
+                             slot it was SAVED from, not the tab you happen to
+                             be on: opening a payment card while looking at
+                             the business one used to overwrite the business
+                             one. */
+                          const into = v.kind === 'payment' ? 'payment' : 'business';
+                          setPair((prev) => ({
+                            ...prev,
+                            [into]: {
+                              ...prev[into],
+                              ...normaliseCard(v.card as Partial<BusinessCard>),
+                              kind: into,
+                            },
                           }));
+                          setKind(into);
                           setOpenVersion(v.id);
                           setSide('front');
                           toast.success(say('Opened'));

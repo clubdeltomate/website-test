@@ -119,6 +119,64 @@ export const emptyBusinessCard = (): BusinessCard => ({
   accent: '#B4471F',
 });
 
+
+/**
+ * The two cards an account keeps, side by side.
+ *
+ * They used to be one object with a `kind` on it, which meant switching to
+ * the payment card inherited whatever colours, logo and back the business
+ * card had — change one and you changed the other. They are two different
+ * things handed to two different people, so they are two records.
+ */
+export interface CardPair {
+  business: BusinessCard;
+  payment: BusinessCard;
+}
+
+export const emptyCardPair = (): CardPair => ({
+  business: { ...emptyBusinessCard(), kind: 'business' },
+  payment: { ...emptyBusinessCard(), kind: 'payment' },
+});
+
+/**
+ * A saved blob, read as a pair.
+ *
+ * Older accounts hold ONE card with a `kind`, from before the two were
+ * separate. That card is kept as whichever kind it says it was, and the other
+ * side starts blank rather than inheriting it — inheriting is the bug this
+ * split exists to fix.
+ */
+export function splitSavedCards(
+  saved: Record<string, unknown> | null | undefined,
+  seed?: { name: string; company: string; details: string },
+): CardPair {
+  const pair = emptyCardPair();
+  if (seed) {
+    for (const k of ['business', 'payment'] as const) {
+      pair[k] = { ...pair[k], name: seed.name, company: seed.company, details: seed.details };
+    }
+  }
+  if (!saved) return pair;
+
+  const twoSided = saved.business != null || saved.payment != null;
+  if (twoSided) {
+    if (saved.business) {
+      pair.business = { ...pair.business, ...(saved.business as Partial<BusinessCard>) };
+    }
+    if (saved.payment) {
+      pair.payment = { ...pair.payment, ...(saved.payment as Partial<BusinessCard>) };
+    }
+    pair.business.kind = 'business';
+    pair.payment.kind = 'payment';
+    return pair;
+  }
+
+  const legacy = saved as Partial<BusinessCard>;
+  const which = legacy.kind === 'payment' ? 'payment' : 'business';
+  pair[which] = { ...pair[which], ...legacy, kind: which };
+  return pair;
+}
+
 export interface CardText {
   lines: string[];
   x: number;

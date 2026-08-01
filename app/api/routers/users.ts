@@ -153,8 +153,12 @@ export const usersRouter = createRouter({
         .select({ businessCard: marketingProfiles.businessCard })
         .from(marketingProfiles)
         .where(eq(marketingProfiles.ownerId, input.userId));
-      const card = (row?.businessCard ?? null) as Record<string, unknown> | null;
-      if (!card || card.shared !== true || card.kind !== "payment") return null;
+      const blob = (row?.businessCard ?? null) as Record<string, unknown> | null;
+      if (!blob) return null;
+      /* Two cards live under this column now. Older rows hold a single card
+         with a kind on it, and those still answer for themselves. */
+      const card = (blob.payment ?? blob) as Record<string, unknown>;
+      if (card.shared !== true || card.kind !== "payment") return null;
       return card;
     }),
 
