@@ -13,13 +13,14 @@ import type { Lang } from '@/lib/i18n';
  * on the English shelf rather than getting a shelf of its own — there is no
  * point in a French-only view until there is enough French to fill one.
  *
- * The filter chips above each shelf are how you override that. They are not a
- * separate mechanism: the default chip is whatever this rule picks, and
- * changing the site's language moves the default with it.
+ * The filter chips above each shelf are how you override that, and there are
+ * exactly two of them: EN and ES. There is no third "All" chip, because EN
+ * already IS all — a shelf showing English is a shelf showing everything.
+ * Offering All beside English would be offering the same thing twice.
  */
 
-/** A shelf shows one language, or all of them. */
-export type LanguageFilter = 'all' | string;
+/** Which shelf you are reading: everything, or Spanish only. */
+export type LanguageFilter = 'en' | 'es';
 
 /**
  * What a shelf shows when nobody has touched the filter.
@@ -29,11 +30,17 @@ export type LanguageFilter = 'all' | string;
  * adding, say, Portuguese as a site language is one line here and no changes
  * anywhere else.
  */
-export const defaultFilterFor = (ui: Lang): LanguageFilter => (ui === 'es' ? 'es' : 'all');
+export const defaultFilterFor = (ui: Lang): LanguageFilter => (ui === 'es' ? 'es' : 'en');
 
-/** What goes to the server: undefined means "do not narrow". */
+/**
+ * What goes to the server.
+ *
+ * Undefined for English — not `'en'`. Narrowing to the code "en" would show
+ * English work and hide the French and Portuguese work that belongs on the
+ * same shelf, which is the opposite of what the English shelf is for.
+ */
 export const filterToQuery = (f: LanguageFilter): string | undefined =>
-  f === 'all' ? undefined : f;
+  f === 'es' ? 'es' : undefined;
 
 /**
  * The two letters on the sticker.
@@ -47,21 +54,3 @@ export const shortCode = (code: string): string => (code || 'en').slice(0, 2).to
 /** "Español", for a menu — people look for their language under its own name. */
 export const endonym = (code: string): string =>
   LANGUAGES.find((l) => l.code === code)?.endonym ?? languageName(code);
-
-/**
- * The chips to offer above a shelf.
- *
- * Built from what is actually there, plus the two that always exist, rather
- * than listing all fifteen languages the generator can write: a filter for a
- * language nothing on the site is written in is a dead control.
- */
-export function chipsFor(present: string[]): string[] {
-  const seen = new Set(present.filter(Boolean));
-  seen.add('en');
-  seen.add('es');
-  return [...seen].sort((a, b) => {
-    // en and es first, in that order; everything else alphabetically after.
-    const rank = (c: string) => (c === 'en' ? 0 : c === 'es' ? 1 : 2);
-    return rank(a) - rank(b) || a.localeCompare(b);
-  });
-}

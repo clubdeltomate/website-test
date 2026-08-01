@@ -500,6 +500,7 @@ export const slideToolsRouter = createRouter({
         defaultImageStyle: imageStyleSchema.optional(),
         defaultTone: toneSchema.optional(),
         template: templateSchema.optional(),
+        contentLanguage: z.string().max(5).optional(),
         isPublic: z.boolean().optional(),
       }),
     )

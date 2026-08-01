@@ -729,6 +729,7 @@ export const reposRouter = createRouter({
         description: z.string().max(4000).optional(),
         isPublic: z.boolean().optional(),
         studyToolSlug: z.string().max(191).nullable().optional(),
+        contentLanguage: z.string().max(5).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -739,10 +740,13 @@ export const reposRouter = createRouter({
         throw new TRPCError({ code: "FORBIDDEN", message: "Only the owner or an admin can edit" });
       }
       // NOTE: slug and ref are stable — never changed here.
-      const set: Partial<Pick<Repo, "title" | "description" | "isPublic" | "studyToolSlug">> = {};
+      const set: Partial<
+        Pick<Repo, "title" | "description" | "isPublic" | "studyToolSlug" | "contentLanguage">
+      > = {};
       if (input.title !== undefined) set.title = input.title;
       if (input.description !== undefined) set.description = input.description;
       if (input.isPublic !== undefined) set.isPublic = input.isPublic;
+      if (input.contentLanguage !== undefined) set.contentLanguage = input.contentLanguage;
       if (input.studyToolSlug !== undefined) {
         // Refuse a slug with no tool behind it. Storing one was how a repo
         // ended up with a "Set" button that failed at the last step; the column

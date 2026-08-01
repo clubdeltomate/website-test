@@ -405,7 +405,6 @@ export default function Slides({ mine = true }: { mine?: boolean }) {
         <LanguageFilter
           value={lang.filter}
           onChange={lang.setFilter}
-          present={(toolsQuery.data ?? []).map((t) => t.contentLanguage)}
         />
       </div>
 

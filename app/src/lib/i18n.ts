@@ -51,7 +51,13 @@ export function applyLang(lang: Lang): void {
  */
 const norm = (s: string): string => s.trim().replace(/\s+/g, ' ');
 
-export function say(source: string): string {
+/* Overloaded so that wrapping an optional label — `say(spec?.hint)` — keeps
+   its optionality instead of lying about it. A missing string comes back
+   missing; it is not turned into an empty one, because an empty helper line
+   and no helper line are different things on screen. */
+export function say(source: string): string;
+export function say(source: string | undefined): string | undefined;
+export function say(source: string | undefined): string | undefined {
   if (current === 'en' || !source) return source;
   const dict = DICTS[current];
   const hit = dict[source] ?? dict[norm(source)];

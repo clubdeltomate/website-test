@@ -9,6 +9,7 @@ import SketchButton from '@/components/sketch/SketchButton';
 import { TemplateIcon } from '@/components/repo/shared';
 import type { RepoTemplate } from '@contracts/types';
 import { getLang, say } from '@/lib/i18n';
+import ContentLanguageSelect from '@/components/ContentLanguageSelect';
 
 interface DraftLesson {
   title: string;
@@ -46,6 +47,9 @@ export default function RepoBuilder() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [template, setTemplate] = useState<RepoTemplate>('course');
+  /* Seeded from the reading language, but asked separately — the language
+     you read the builder in is not necessarily the one you are writing. */
+  const [contentLanguage, setContentLanguage] = useState<string>(getLang());
   const [units, setUnits] = useState<DraftUnit[]>([newUnit()]);
   const [publishing, setPublishing] = useState(false);
 
@@ -87,7 +91,7 @@ export default function RepoBuilder() {
         description: description.trim(),
         template,
         source: 'human',
-        contentLanguage: getLang(),
+        contentLanguage,
       });
       for (const u of units) {
         const unitTitle = u.title.trim();
@@ -194,6 +198,13 @@ export default function RepoBuilder() {
             ))}
           </div>
         </div>
+
+        <ContentLanguageSelect
+          value={contentLanguage}
+          onChange={setContentLanguage}
+          label="What language this repository is written in"
+          className="mt-4 max-w-[280px]"
+        />
       </section>
 
       {/* units + lessons */}

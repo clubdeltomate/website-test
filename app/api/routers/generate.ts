@@ -713,6 +713,9 @@ export const generateRouter = createRouter({
         subject: topic,
         previouslyTaught,
         layoutTemplates,
+        /* The tool's own language, not the reader's: a deck generated from a
+           Spanish tool is Spanish whoever pressed the button. */
+        language: tool.contentLanguage ?? "en",
       });
       // Optional web search first, so the deck is built on current facts.
       let webNotes: string | null = null;

@@ -65,6 +65,7 @@ import { templatesForContext, packetsForPurpose, GRADABLE_TYPES } from '@contrac
 import { repoPurpose, templateFilterPurpose, type RepoTemplate } from '@contracts/types';
 import { TemplateIcon } from '@/components/repo/shared';
 import { say } from '@/lib/i18n';
+import ContentLanguageSelect from '@/components/ContentLanguageSelect';
 
 const CATEGORY_OPTS: { id: RepoTemplate; label: string; hint: string }[] = [
   { id: 'course', label: 'Lesson', hint: 'Teach a topic — quizzes & evaluations allowed' },
@@ -961,6 +962,31 @@ function ToolStudio({
                   placeholder={say("Leave empty — the AI describes it from the generated deck")}
                 />
               </label>
+              {canEditTool && (
+                <div>
+                  <ContentLanguageSelect
+                    value={tool.contentLanguage ?? 'en'}
+                    onChange={(code) =>
+                      updateTool.mutate(
+                        { slug: tool.slug, contentLanguage: code },
+                        {
+                          onSuccess: () => {
+                            void utils.slideTools.getBySlug.invalidate({ slug: tool.slug });
+                            void utils.slideTools.list.invalidate();
+                          },
+                        },
+                      )
+                    }
+                    label="What language the deck is written in"
+                    className="max-w-[280px]"
+                  />
+                  <p className="mt-1.5 text-xs text-ink-faint">
+                    {say(
+                      'Every deck this tool generates is written in it, and it decides the shelf: Spanish work only shows to Spanish readers.',
+                    )}
+                  </p>
+                </div>
+              )}
             </div>
           </motion.details>
         )}
