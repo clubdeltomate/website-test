@@ -82,8 +82,15 @@ const keys = [...es.matchAll(/^\s{2}(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"|(
  * harvests above cannot see those. Falling back to "is this text anywhere in
  * src" keeps the check precise about what it is really for: a typo, or an
  * English string that was reworded and left its translation stranded. */
-const haystack = globSync('src/**/*.{ts,tsx}', { cwd: ROOT })
-  .filter((r) => !/i18n/.test(r))
+/* api/ is in the haystack too. The server's error messages are looked up in
+ * the same dictionary on their way to a toast, so "Not enough coins" is a
+ * perfectly real key even though it is written in a router. */
+const haystack = [
+  ...globSync('src/**/*.{ts,tsx}', { cwd: ROOT }),
+  ...globSync('api/**/*.ts', { cwd: ROOT }),
+  ...globSync('contracts/**/*.ts', { cwd: ROOT }),
+]
+  .filter((r) => !/i18n|\.test\./.test(r))
   .map((r) => readFileSync(`${ROOT}/${r}`, 'utf8'))
   .join('\n');
 const dead = keys.filter((k) => !src.has(k) && !haystack.includes(k));

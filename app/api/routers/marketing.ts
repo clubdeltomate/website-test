@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { createRouter } from "../middleware.js";
 import { adminProcedure } from "../procedures.js";
 import { getDb } from "../queries/connection.js";
-import { marketingProfiles, slideImages } from "../../db/schema.js";
+import { cardVersions, marketingProfiles, slideImages } from "../../db/schema.js";
 import {
   type AspectRatio,
   MUSIC_MAX_SECONDS,
@@ -363,6 +363,104 @@ export const marketingRouter = createRouter({
       };
     },
   ),
+
+  /* ---------------------------------------------------------------- */
+  /* Saved card versions                                               */
+  /* ---------------------------------------------------------------- */
+
+  /** Every card this account kept, newest first. */
+  cardVersions: adminProcedure.query(
+    async ({ ctx }): Promise<{ id: number; name: string; kind: string; card: Record<string, unknown>; updatedAt: Date }[]> => {
+      const rows = await getDb()
+        .select()
+        .from(cardVersions)
+        .where(eq(cardVersions.ownerId, ctx.user.id))
+        .orderBy(desc(cardVersions.updatedAt));
+      return rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        kind: r.kind,
+        card: (r.card ?? {}) as Record<string, unknown>,
+        updatedAt: r.updatedAt,
+      }));
+    },
+  ),
+
+  /**
+   * Keep this card as a version.
+   *
+   * An uploaded logo is parked in slideImages first, exactly as saveCard does
+   * — a data URL is megabytes of base64, and storing one per version would
+   * make the shelf itself expensive to read.
+   */
+  saveCardVersion: adminProcedure
+    .input(
+      z.object({
+        /** omit to keep a new one; pass an id to overwrite that version */
+        id: z.number().int().positive().nullable().default(null),
+        name: z.string().max(160).default(""),
+        card: z.record(z.string(), z.unknown()),
+        logoUrl: z.string().max(8_000_000).nullable().default(null),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ id: number; logoUrl: string | null }> => {
+      let logoUrl = input.logoUrl;
+      const data = logoUrl && /^data:([^;,]+);base64,(.+)$/s.exec(logoUrl);
+      if (data) {
+        const [row] = await getDb()
+          .insert(slideImages)
+          .values({ ownerId: ctx.user.id, mime: data[1], data: data[2] })
+          .returning({ id: slideImages.id });
+        logoUrl = `${IMAGE_URL_PREFIX}${row.id}`;
+      }
+      const card: Record<string, unknown> = { ...input.card, logoUrl };
+      const kind = card.kind === "payment" ? "payment" : "business";
+      /* A version with no name still needs one you can recognise in a list,
+         so it borrows the card's own words before falling back to the date. */
+      const name =
+        input.name.trim() ||
+        String(card.company || card.name || "").trim() ||
+        `${kind === "payment" ? "Payment" : "Business"} card`;
+
+      if (input.id != null) {
+        const [mine] = await getDb()
+          .select()
+          .from(cardVersions)
+          .where(and(eq(cardVersions.id, input.id), eq(cardVersions.ownerId, ctx.user.id)));
+        if (!mine) throw new TRPCError({ code: "NOT_FOUND", message: "That saved card isn't here" });
+        await getDb()
+          .update(cardVersions)
+          .set({ name, kind, card, updatedAt: new Date() })
+          .where(eq(cardVersions.id, input.id));
+        return { id: input.id, logoUrl };
+      }
+      const [row] = await getDb()
+        .insert(cardVersions)
+        .values({ ownerId: ctx.user.id, name, kind, card })
+        .returning({ id: cardVersions.id });
+      return { id: row.id, logoUrl };
+    }),
+
+  /** Rename a saved card. */
+  renameCardVersion: adminProcedure
+    .input(z.object({ id: z.number().int().positive(), name: z.string().min(1).max(160) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      await getDb()
+        .update(cardVersions)
+        .set({ name: input.name.trim(), updatedAt: new Date() })
+        .where(and(eq(cardVersions.id, input.id), eq(cardVersions.ownerId, ctx.user.id)));
+      return { ok: true };
+    }),
+
+  /** Throw a saved card away. */
+  deleteCardVersion: adminProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      await getDb()
+        .delete(cardVersions)
+        .where(and(eq(cardVersions.id, input.id), eq(cardVersions.ownerId, ctx.user.id)));
+      return { ok: true };
+    }),
 
   /** Keep this business card. Same logo handling as the follow card. */
   saveCard: adminProcedure

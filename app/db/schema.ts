@@ -618,8 +618,35 @@ export const marketingProfiles = appSchema.table(
   (t) => [uniqueIndex("marketingProfiles_owner_key").on(t.ownerId)],
 );
 
+/**
+ * One saved version of a business or payment card.
+ *
+ * The single `businessCard` on marketingProfiles is the card you are working
+ * on; this is the shelf of the ones you kept. Separate rows rather than an
+ * array on the profile because each is opened, renamed and thrown away on its
+ * own, and because a card carries an uploaded logo — an array would rewrite
+ * every version's worth of JSON to rename one of them.
+ */
+export const cardVersions = appSchema.table(
+  "cardVersions",
+  {
+    id: serial("id").primaryKey(),
+    ownerId: fk("ownerId").notNull(),
+    /** what the maker called it, or a name made from the card itself */
+    name: varchar("name", { length: 160 }).notNull(),
+    /** "business" | "payment", so the table can say which kind at a glance */
+    kind: varchar("kind", { length: 16 }).notNull().default("business"),
+    /** the whole card, exactly as the editor holds it */
+    card: json("card").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("cardVersions_owner_idx").on(t.ownerId)],
+);
+
 /* Inferred types */
 export type User = typeof users.$inferSelect;
+export type CardVersion = typeof cardVersions.$inferSelect;
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type Repo = typeof repos.$inferSelect;
 export type Unit = typeof units.$inferSelect;

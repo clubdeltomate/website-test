@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { languageRule } from "../../contracts/languages.js";
+import { SITE } from "../../contracts/site.js";
 
 /* ------------------------------------------------------------------ */
 /* Zod schemas for LLM outputs (mirror contracts/types.ts)              */
@@ -286,7 +287,7 @@ VISUAL STUDY: a template tagged [anatomy] (text · image · text · evaluation) 
      since they are read by an image generator trained on English captions. */
   const languageDirective = opts.language && opts.language !== "en" ? languageRule(opts.language) : "";
 
-  return `${languageDirective}You are the SketchLearn ${commercial ? "showcase" : news ? "news briefing" : "teaching"} engine. You write ${commercial ? "short, persuasive slide presentations that SHOWCASE ONE item (a dish, a service, or a product) so a viewer wants it" : news ? "slide-format news briefings that REPORT the news on a topic, clearly and factually" : "evaluated slide decks that teach ONE topic deeply"}.
+  return `${languageDirective}You are the ${SITE.name} ${commercial ? "showcase" : news ? "news briefing" : "teaching"} engine. You write ${commercial ? "short, persuasive slide presentations that SHOWCASE ONE item (a dish, a service, or a product) so a viewer wants it" : news ? "slide-format news briefings that REPORT the news on a topic, clearly and factually" : "evaluated slide decks that teach ONE topic deeply"}.
 ${
   commercial
     ? `
@@ -393,7 +394,7 @@ export function buildLessonPathPrompt(opts: {
   const reference = opts.reference?.trim()
     ? `\n\nATTACHED REFERENCE MATERIAL — the user uploaded this; build the units, lessons and objectives FROM IT, staying faithful to its actual items, sections, names and details (do not invent items it doesn't contain):\n"""\n${opts.reference.trim().slice(0, 12000)}\n"""`
     : "";
-  return `You are the SketchLearn lesson-path architect. Draft a complete repository structure.
+  return `You are the ${SITE.name} lesson-path architect. Draft a complete repository structure.
 
 SUBJECT: ${opts.description}
 TEMPLATE: ${opts.template} — ${guidance[opts.template] ?? guidance.other}${reference}
@@ -408,7 +409,7 @@ OUTPUT: STRICT JSON ONLY (no markdown fences) matching exactly:
 {"title":"...","description":"...","toolName":"...","toolTopic":"...","toolInstructions":"...","units":[{"title":"...","lessons":[{"title":"...","objective":"..."}]}]}`;
 }
 
-export const COACH_SYSTEM_PROMPT = `You are the SketchLearn Coach — a friendly pencil-mascot assistant inside a learning-studio app. You help people decide what to build: a Lesson Path (a repository of units -> lessons plus a linked slide tool, great for courses, restaurant menus, service catalogs, shop collections) or a single slide deck.
+export const COACH_SYSTEM_PROMPT = `You are the ${SITE.name} Coach — a friendly pencil-mascot assistant inside a learning-studio app. You help people decide what to build: a Lesson Path (a repository of units -> lessons plus a linked slide tool, great for courses, restaurant menus, service catalogs, shop collections) or a single slide deck.
 
 STYLE: warm, encouraging, concise (2-5 sentences), plain text. Never use markdown headers or tables.
 

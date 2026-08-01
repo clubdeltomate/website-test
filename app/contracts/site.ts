@@ -3,15 +3,15 @@
 /* ------------------------------------------------------------------ */
 
 /**
- * The About page and the marketing tool were both describing SketchLearn, and
+ * The About page and the marketing tool were both describing the site, and
  * both were drifting. They now read the same object, so a change to what the
  * product is gets written once: the About page renders it, and the marketing
  * carousel's follow card prefills from it without anyone retyping the name,
  * the handle or the bio.
  */
 export const SITE = {
-  name: "SketchLearn",
-  handle: "sketchlearn",
+  name: "Modular-Start",
+  handle: "modularstart",
   /** One line, the way the follow card wants it. */
   tagline: "A notebook that teaches, and remembers",
   /** The two-ish lines under the name on a profile card. */
@@ -24,7 +24,7 @@ export const SITE = {
    * own voice.
    */
   what: [
-    "SketchLearn turns a subject into a repository of units and lessons, then teaches each lesson as a slide deck that quizzes as it goes.",
+    "Modular-Start turns a subject into a repository of units and lessons, then teaches each lesson as a slide deck that quizzes as it goes.",
     "Decks are generated, played, graded and remembered: a finished play writes a lesson log back to the repo, and the next generation reads it, so later lessons build on earlier ones instead of repeating them.",
     "The same loop runs a classroom, a restaurant menu, a service catalog or a shop collection — only the labels change.",
   ],

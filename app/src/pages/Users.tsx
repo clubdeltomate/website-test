@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import Chip from '@/components/sketch/Chip';
 import type { DirectoryUser, RepoTemplate } from '@contracts/types';
 import { say } from '@/lib/i18n';
+import { SITE } from '@contracts/site';
 
 function useDebounced<T>(value: T, ms: number): T {
   const [d, setD] = useState(value);
@@ -75,7 +76,7 @@ export default function Users() {
       </div>
       <p className="-mt-3 max-w-2xl text-ink-soft">
         
-        {say("Browse everyone on SketchLearn. Open a profile to see what they've published, request tickets or coins, and follow the ones whose work you want to keep up with.")}
+        {say('Browse everyone on')} {SITE.name}{say(". Open a profile to see what they've published, request tickets or coins, and follow the ones whose work you want to keep up with.")}
       </p>
 
       {/* toolbar */}
