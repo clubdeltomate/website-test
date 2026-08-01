@@ -27,6 +27,7 @@ import { SketchModal } from '@/components/admin/overlays';
 import { LabeledField, SketchInput, SketchSelect, SkeletonBlock } from '@/components/admin/controls';
 import { errMsg, formatMoney, formatRelative } from '@/components/admin/utils';
 import { say } from '@/lib/i18n';
+import { SITE } from '@contracts/site';
 
 /* ------------------------------------------------------------------ */
 /* Types inferred from the finance router                              */
@@ -100,7 +101,7 @@ function printReceipt(r: Receipt) {
   .total td { font-size: 17px; padding-top: 8px; }
   .note { font-style: italic; font-size: 12px; color: #5C5347; margin-top: 10px; }
 </style></head><body><div class="box">
-  <h1>SketchLearn ✎</h1>
+  <h1>${SITE.name} ✎</h1>
   <p class="muted">Token receipt · #${String(r.receiptNo).padStart(5, '0')} · ${date}</p>
   <hr/>
   <table>
@@ -111,7 +112,7 @@ function printReceipt(r: Receipt) {
   </table>
   ${r.note ? `<p class="note">“${r.note.replace(/</g, '&lt;')}”</p>` : ''}
   <hr/>
-  <p class="muted">Issued by ${r.issuedBy ?? 'SketchLearn'} · thank you for sketching with us</p>
+  <p class="muted">Issued by ${r.issuedBy ?? SITE.name} · thank you for sketching with us</p>
 </div><script>window.print()</script></body></html>`);
   w.document.close();
 }
@@ -125,7 +126,7 @@ function ReceiptModal({ receipt, onClose }: { receipt: Receipt; onClose: () => v
       maxWidth="max-w-[420px]"
     >
       <div className="rounded-wobble-sm border-2 border-ink bg-paper-3 p-4">
-        <p className="font-display text-2xl text-ink">{say("SketchLearn ✎")}</p>
+        <p className="font-display text-2xl text-ink">{`${SITE.name} ✎`}</p>
         <p className="micro text-ink-faint">
           
           {say("Token receipt ·")} {new Date(receipt.createdAt).toLocaleString()}
@@ -151,7 +152,7 @@ function ReceiptModal({ receipt, onClose }: { receipt: Receipt; onClose: () => v
         </dl>
         {receipt.note && <p className="mt-2 text-xs italic text-ink-soft">“{receipt.note}”</p>}
         <div className="my-3 border-t-2 border-dashed border-pencil" />
-        <p className="micro text-ink-faint">{say("Issued by")} {receipt.issuedBy ?? 'SketchLearn'}</p>
+        <p className="micro text-ink-faint">{say("Issued by")} {receipt.issuedBy ?? SITE.name}</p>
       </div>
       <div className="mt-4 flex gap-2">
         <SketchButton onClick={() => printReceipt(receipt)}>
@@ -432,7 +433,7 @@ function printTicketReceipt(s: TicketSale) {
   td { padding: 3px 0; } td:last-child { text-align: right; font-weight: bold; }
   .total td { font-size: 17px; padding-top: 8px; }
 </style></head><body><div class="box">
-  <h1>SketchLearn ✎</h1>
+  <h1>${SITE.name} ✎</h1>
   <p class="muted">Ticket receipt · T-${String(s.ledgerId).padStart(5, '0')} · ${date}</p>
   <hr/>
   <table>
@@ -456,7 +457,7 @@ function TicketReceiptModal({ sale, onClose }: { sale: TicketSale; onClose: () =
       maxWidth="max-w-[420px]"
     >
       <div className="rounded-wobble-sm border-2 border-ink bg-paper-3 p-4">
-        <p className="font-display text-2xl text-ink">{say("SketchLearn ✎")}</p>
+        <p className="font-display text-2xl text-ink">{`${SITE.name} ✎`}</p>
         <p className="micro text-ink-faint">
           
           {say("Ticket receipt ·")} {new Date(sale.createdAt).toLocaleString()}

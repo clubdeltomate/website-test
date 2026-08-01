@@ -7,8 +7,10 @@ import {
   Palette,
   Printer,
   QrCode,
+  Pencil,
   Save,
   RotateCcw,
+  Trash2,
   Sparkles,
   Upload,
   UserRound,
@@ -190,12 +192,47 @@ function CardBody() {
   const set = (p: Partial<BusinessCard>) => setCard((c) => ({ ...c, ...p }));
   const pay = card.kind === 'payment';
 
+  /* Which saved version is open, so Save overwrites it instead of piling up
+     a new row every time you nudge a colour. "New version" clears it. */
+  const [openVersion, setOpenVersion] = useState<number | null>(null);
+  const [renaming, setRenaming] = useState<number | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const versions = trpc.marketing.cardVersions.useQuery();
+
+  const keepVersion = trpc.marketing.saveCardVersion.useMutation({
+    onSuccess: (r) => {
+      if (r.logoUrl !== card.logoUrl) set({ logoUrl: r.logoUrl });
+      setOpenVersion(r.id);
+      void versions.refetch();
+    },
+    onError: (e) => toast.error(say(e.message)),
+  });
+  const renameVersion = trpc.marketing.renameCardVersion.useMutation({
+    onSuccess: () => {
+      setRenaming(null);
+      void versions.refetch();
+    },
+    onError: (e) => toast.error(say(e.message)),
+  });
+  const dropVersion = trpc.marketing.deleteCardVersion.useMutation({
+    onSuccess: (_r, v) => {
+      if (openVersion === v.id) setOpenVersion(null);
+      void versions.refetch();
+      toast.success(say('Version deleted'));
+    },
+    onError: (e) => toast.error(say(e.message)),
+  });
+
   const save = trpc.marketing.saveCard.useMutation({
     onSuccess: (r) => {
       if (r.logoUrl !== card.logoUrl) set({ logoUrl: r.logoUrl });
       void saved.refetch();
       void utils.users.paymentCard.invalidate();
-      toast.success(card.shared ? 'Saved — and on your profile' : 'Card saved');
+      /* Saving keeps a version as well as updating the working card, because
+         "Save" that leaves no trace on the shelf below is the bug this page
+         was reported for. */
+      keepVersion.mutate({ id: openVersion, name: '', card: { ...card }, logoUrl: card.logoUrl });
+      toast.success(card.shared ? say('Saved — and on your profile') : say('Card saved'));
     },
     onError: (e) => toast.error(say(e.message)),
   });
@@ -288,6 +325,41 @@ function CardBody() {
     setSection(id);
     if (id === 'back' && card.backOn) setSide('back');
     else if (id === 'who' || id === 'pay') setSide('front');
+  };
+
+  /**
+   * The logo on its own, as a PNG.
+   *
+   * Fetched and re-encoded rather than linked: the drawn logo lives behind
+   * /api/img/:id with no filename and no extension, so a plain link saves
+   * something the operating system does not recognise as a picture. Drawing
+   * it through a canvas also normalises an uploaded JPEG or WebP to the one
+   * format everything can open.
+   */
+  const downloadLogo = async () => {
+    if (!card.logoUrl) return;
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = card.logoUrl;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("That logo couldn't be read back"));
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || 512;
+      canvas.height = img.naturalHeight || 512;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('This browser has no canvas to draw on');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = 'logo.png';
+      a.click();
+      toast.success(say('Logo downloaded ✓'));
+    } catch (err) {
+      toast.error(err instanceof Error ? say(err.message) : say("That logo couldn't be read back"));
+    }
   };
 
   const addMethod = () =>
@@ -424,6 +496,104 @@ function CardBody() {
             >
               <Save className="h-4 w-4" strokeWidth={2} />  {say("Save")}
             </SketchButton>
+            {openVersion != null && (
+              <SketchButton variant="secondary" onClick={() => setOpenVersion(null)}>
+                {say('New version')}
+              </SketchButton>
+            )}
+          </div>
+
+          {/* The shelf of kept cards. It belongs under the design rather than
+              on some other page: a version is a design, and choosing one is
+              the same act as choosing a colour. */}
+          <div className="flex flex-col gap-1.5">
+            <span className="micro text-[0.6rem] font-semibold text-ink-soft">
+              {say('Saved versions')}
+            </span>
+            {(versions.data ?? []).length === 0 ? (
+              <p className="micro text-[0.58rem] text-ink-faint">
+                {say('None yet — Save keeps the card here, and you can come back to it.')}
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-1">
+                {(versions.data ?? []).map((v) => (
+                  <li
+                    key={v.id}
+                    className={cn(
+                      'flex items-center gap-2 rounded-wobble-sm border-2 px-2 py-1.5',
+                      openVersion === v.id
+                        ? 'border-ink bg-yellow/50 shadow-offset'
+                        : 'border-dashed border-pencil',
+                    )}
+                  >
+                    {renaming === v.id ? (
+                      <input
+                        value={renameDraft}
+                        autoFocus
+                        onChange={(e) => setRenameDraft(e.target.value)}
+                        onBlur={() =>
+                          renameDraft.trim()
+                            ? renameVersion.mutate({ id: v.id, name: renameDraft.trim() })
+                            : setRenaming(null)
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') e.currentTarget.blur();
+                          if (e.key === 'Escape') setRenaming(null);
+                        }}
+                        aria-label={say('Name this version')}
+                        className="min-w-0 flex-1 rounded-wobble-sm border-2 border-ink bg-paper-3 px-1.5 py-0.5 text-sm text-ink outline-none"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          /* Opening a version IS the design changing — the
+                             preview, the panels and the download all follow
+                             from this one piece of state. */
+                          setCard((c) => ({
+                            ...c,
+                            ...normaliseCard(v.card as Partial<BusinessCard>),
+                          }));
+                          setOpenVersion(v.id);
+                          setSide('front');
+                          toast.success(say('Opened'));
+                        }}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <span className="block truncate font-heading text-sm font-bold text-ink">
+                          {v.name}
+                        </span>
+                        <span className="micro block text-[0.55rem] text-ink-faint">
+                          {v.kind === 'payment' ? say('Payment') : say('Business')} ·{' '}
+                          {new Date(v.updatedAt).toLocaleDateString()}
+                        </span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRenaming(v.id);
+                        setRenameDraft(v.name);
+                      }}
+                      aria-label={say('Rename')}
+                      title={say('Rename')}
+                      className="shrink-0 text-ink-faint hover:text-ink"
+                    >
+                      <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => dropVersion.mutate({ id: v.id })}
+                      aria-label={say('Delete')}
+                      title={say('Delete')}
+                      className="shrink-0 text-ink-faint hover:text-red"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
 
@@ -806,6 +976,16 @@ function CardBody() {
                       }}
                     />
                   </label>
+                  {card.logoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => void downloadLogo()}
+                      className="micro rounded-wobble-sm border-2 border-dashed border-pencil px-2 py-1.5 text-[0.6rem] font-bold text-ink-soft hover:border-ink hover:text-ink"
+                    >
+                      <Download className="mr-1 inline h-3 w-3" strokeWidth={2} />
+                      {say("Download the logo")}
+                    </button>
+                  )}
                   {card.logoUrl && (
                     <button
                       type="button"

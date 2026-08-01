@@ -242,6 +242,21 @@ export async function ensureRequiredSchema(): Promise<void> {
     await client.query(
       `ALTER TABLE sketchlearn.users ADD COLUMN IF NOT EXISTS "language" varchar(5) NOT NULL DEFAULT 'en'`,
     );
+    // The shelf of saved card versions.
+    await client.query(
+      `CREATE TABLE IF NOT EXISTS sketchlearn."cardVersions" (
+         id serial PRIMARY KEY,
+         "ownerId" integer NOT NULL,
+         name varchar(160) NOT NULL,
+         kind varchar(16) NOT NULL DEFAULT 'business',
+         card json NOT NULL,
+         "createdAt" timestamp NOT NULL DEFAULT now(),
+         "updatedAt" timestamp NOT NULL DEFAULT now()
+       )`,
+    );
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS "cardVersions_owner_idx" ON sketchlearn."cardVersions" ("ownerId")`,
+    );
   } finally {
     await client.end();
   }

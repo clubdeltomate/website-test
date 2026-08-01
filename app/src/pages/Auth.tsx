@@ -8,6 +8,7 @@ import SketchButton from '@/components/sketch/SketchButton';
 import { Squiggle } from '@/components/sketch/Squiggle';
 import { normalizeUsername, USERNAME_MAX_LENGTH } from '@contracts/types';
 import { say } from '@/lib/i18n';
+import { SITE } from '@contracts/site';
 
 type Mode = 'signin' | 'signup';
 
@@ -159,10 +160,10 @@ export default function Auth() {
             className="mb-6 text-center"
           >
             <div className="mb-1 flex items-center justify-center gap-3">
-              <img src="/logo.svg" alt={say("SketchLearn")} className="h-12 w-12" />
+              <img src="/logo.svg" alt={SITE.name} className="h-12 w-12" />
               <Squiggle color="yellow" className="font-display text-4xl font-bold text-ink">
                 
-                {say("SketchLearn")}
+                {SITE.name}
               </Squiggle>
             </div>
           </motion.div>

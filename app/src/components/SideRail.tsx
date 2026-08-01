@@ -20,6 +20,7 @@ import { DoodleArrow } from './sketch/DoodleIcons';
 import { useAuth } from '@/hooks/useAuth';
 import { say } from '@/lib/i18n';
 import LanguagePicker from '@/components/LanguagePicker';
+import { SITE } from '@contracts/site';
 
 const ROLE_CHIP: Record<string, string> = {
   user: 'bg-blue-soft text-ink',
@@ -108,10 +109,12 @@ function RailContent({ onClose }: { onClose?: () => void }) {
       {/* logo */}
       <div className="mb-3 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 no-underline">
-          <img src="/logo.svg" alt={say("SketchLearn logo")} className="h-10 w-10" />
-          <span className="font-display text-3xl font-bold text-ink">
-            
-            {say("SketchLearn")}
+          <img src="/logo.svg" alt={`${SITE.name} logo`} className="h-9 w-9 shrink-0" />
+          {/* Sized to the name rather than to a number: "Modular-Start" is
+              long enough that the old 3xl broke it across two lines inside a
+              240px rail, and a wrapped wordmark reads as two words. */}
+          <span className="font-display text-[1.6rem] font-bold leading-none text-ink">
+            {SITE.name}
           </span>
         </Link>
         {onClose && (
