@@ -1,0 +1,2524 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Modular-Start — Engineering Rebuild Specification</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm 16mm; }
+  @page :first { margin: 0; }
+
+  :root {
+    --ink: #14161a;
+    --ink-2: #3d434e;
+    --ink-3: #6b7280;
+    --line: #d9dce3;
+    --line-soft: #eceef2;
+    --accent: #4338ca;
+    --accent-soft: #eef0fd;
+    --warn: #b45309;
+    --warn-soft: #fdf4e7;
+    --ok: #15803d;
+    --ok-soft: #eaf6ee;
+    --code-bg: #f6f7f9;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { font-size: 10.2pt; }
+
+  body {
+    margin: 0;
+    font-family: "Charter", "Georgia", "Times New Roman", serif;
+    color: var(--ink);
+    line-height: 1.52;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- cover ---------- */
+  .cover {
+    height: 297mm;
+    padding: 34mm 22mm 22mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background:
+      radial-gradient(120% 90% at 12% 0%, #eef0fd 0%, rgba(238,240,253,0) 58%),
+      radial-gradient(90% 70% at 100% 8%, #e6f2ee 0%, rgba(230,242,238,0) 55%),
+      #fbfbfc;
+    page-break-after: always;
+  }
+  .cover .eyebrow {
+    font-family: ui-sans-serif, "Helvetica Neue", Arial, sans-serif;
+    font-size: 8.6pt; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700;
+  }
+  .cover h1 {
+    font-family: ui-sans-serif, "Helvetica Neue", Arial, sans-serif;
+    font-size: 40pt; line-height: 1.03; letter-spacing: -.028em;
+    margin: 10mm 0 0; font-weight: 800; max-width: 150mm;
+  }
+  .cover .sub {
+    font-size: 13pt; color: var(--ink-2); margin-top: 7mm; max-width: 132mm; line-height: 1.42;
+  }
+  .cover .meta {
+    font-family: ui-sans-serif, "Helvetica Neue", Arial, sans-serif;
+    font-size: 9pt; color: var(--ink-3); border-top: 1px solid var(--line); padding-top: 5mm;
+  }
+  .cover .meta b { color: var(--ink); font-weight: 650; }
+  .cover .meta div { margin: 1.5mm 0; }
+
+  /* ---------- structure ---------- */
+  h2, h3, h4, h5 {
+    font-family: ui-sans-serif, "Helvetica Neue", Arial, sans-serif;
+    letter-spacing: -.012em; color: var(--ink);
+  }
+  h2 {
+    font-size: 20pt; font-weight: 800; margin: 0 0 6mm;
+    padding-bottom: 3mm; border-bottom: 2.5px solid var(--ink);
+    page-break-before: always; page-break-after: avoid; letter-spacing: -.022em;
+  }
+  h2.first { page-break-before: avoid; }
+  h2 .num {
+    display: block; font-size: 8.4pt; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 2mm; font-weight: 700;
+  }
+  h3 {
+    font-size: 12.6pt; font-weight: 750; margin: 8mm 0 2.5mm; page-break-after: avoid;
+  }
+  h4 {
+    font-size: 10.4pt; font-weight: 700; margin: 6mm 0 1.5mm; page-break-after: avoid;
+    color: var(--ink-2);
+  }
+  h5 {
+    font-size: 9.4pt; font-weight: 700; margin: 4mm 0 1mm; page-break-after: avoid;
+    text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3);
+  }
+  p { margin: 0 0 3mm; orphans: 2; widows: 2; }
+  ul, ol { margin: 0 0 3mm; padding-left: 6mm; }
+  li { margin-bottom: 1.4mm; }
+  li > ul, li > ol { margin-top: 1.4mm; }
+  strong { font-weight: 650; }
+  em { font-style: italic; }
+
+  code, kbd, .mono {
+    font-family: "SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
+    font-size: .855em;
+  }
+  p code, li code, td code {
+    background: var(--code-bg); border: 1px solid var(--line-soft);
+    padding: 0.4mm 1.1mm; border-radius: 2.5px; white-space: nowrap;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line-soft);
+    border-left: 2.5px solid var(--accent);
+    border-radius: 3px; padding: 3mm 3.5mm; margin: 0 0 4mm;
+    font-family: "SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
+    font-size: 7.7pt; line-height: 1.42; white-space: pre-wrap; word-break: break-word;
+    page-break-inside: avoid;
+  }
+  pre.long { page-break-inside: auto; }
+
+  table {
+    width: 100%; border-collapse: collapse; margin: 0 0 4mm;
+    font-family: ui-sans-serif, "Helvetica Neue", Arial, sans-serif;
+    font-size: 8.3pt; page-break-inside: avoid;
+  }
+  table.long { page-break-inside: auto; }
+  th {
+    text-align: left; font-weight: 700; background: #f4f5f7;
+    border-bottom: 1.5px solid var(--ink); padding: 1.6mm 2mm; vertical-align: bottom;
+  }
+  td { border-bottom: 1px solid var(--line-soft); padding: 1.6mm 2mm; vertical-align: top; }
+  tr { page-break-inside: avoid; }
+  td code, th code { font-size: .93em; background: none; border: none; padding: 0; white-space: normal; }
+  .t-narrow td:first-child, .t-narrow th:first-child { width: 27%; }
+
+  .note, .warn, .ok {
+    border-radius: 3px; padding: 3mm 3.5mm; margin: 0 0 4mm;
+    font-size: 9.2pt; page-break-inside: avoid;
+  }
+  .note { background: var(--accent-soft); border-left: 2.5px solid var(--accent); }
+  .warn { background: var(--warn-soft); border-left: 2.5px solid var(--warn); }
+  .ok   { background: var(--ok-soft);   border-left: 2.5px solid var(--ok); }
+  .note p:last-child, .warn p:last-child, .ok p:last-child { margin-bottom: 0; }
+  .note .lbl, .warn .lbl, .ok .lbl {
+    font-family: ui-sans-serif, Arial, sans-serif; font-size: 7.6pt; font-weight: 800;
+    letter-spacing: .14em; text-transform: uppercase; display: block; margin-bottom: 1.2mm;
+  }
+  .note .lbl { color: var(--accent); }
+  .warn .lbl { color: var(--warn); }
+  .ok .lbl { color: var(--ok); }
+
+  .lede {
+    font-size: 11pt; color: var(--ink-2); line-height: 1.5;
+    border-left: 2.5px solid var(--line); padding-left: 4mm; margin: 0 0 6mm;
+  }
+
+  /* table of contents */
+  .toc { font-family: ui-sans-serif, "Helvetica Neue", Arial, sans-serif; font-size: 9.2pt; }
+  .toc .part {
+    font-weight: 800; text-transform: uppercase; letter-spacing: .14em; font-size: 8pt;
+    color: var(--accent); margin: 5mm 0 2mm; padding-bottom: 1mm; border-bottom: 1px solid var(--line-soft);
+  }
+  .toc .row { display: flex; gap: 3mm; margin: 1.2mm 0; }
+  .toc .row .n { width: 8mm; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .toc .row .t { flex: 1; }
+  .toc .row .d { color: var(--ink-3); font-size: 8.4pt; }
+
+  .cols2 { column-count: 2; column-gap: 8mm; }
+  .cols2 li { break-inside: avoid; }
+
+  .swatch-row { display: flex; flex-wrap: wrap; gap: 2mm; margin-bottom: 4mm; }
+  .sw {
+    width: 30mm; border: 1px solid var(--line); border-radius: 4px; overflow: hidden;
+    font-family: ui-sans-serif, Arial, sans-serif; font-size: 7pt; page-break-inside: avoid;
+  }
+  .sw .chip { height: 13mm; }
+  .sw .lab { padding: 1.2mm 1.6mm; }
+  .sw .lab b { display: block; font-size: 7.4pt; }
+  .sw .lab span { color: var(--ink-3); font-family: monospace; }
+
+  .kv { font-family: ui-sans-serif, Arial, sans-serif; font-size: 8.6pt; }
+  .kv b { font-weight: 700; }
+
+  .flow {
+    font-family: "SF Mono", Menlo, monospace; font-size: 7.6pt; line-height: 1.55;
+    background: #fbfbfc; border: 1px dashed var(--line); border-radius: 3px;
+    padding: 3mm; margin-bottom: 4mm; white-space: pre; overflow-x: hidden;
+    page-break-inside: avoid;
+  }
+
+  .pagebreak { page-break-after: always; }
+  a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<!-- ============================== COVER ============================== -->
+<section class="cover">
+  <div>
+    <div class="eyebrow">Engineering Specification &middot; Rebuild</div>
+    <h1>Modular-Start</h1>
+    <p class="sub">
+      A complete, implementation-ready specification for rebuilding the platform from
+      zero — data model, API surface, AI prompt construction, the credits economy, and
+      page-by-page behaviour — paired with a new minimal, modern, glass visual language
+      to replace the hand-drawn one.
+    </p>
+  </div>
+  <div class="meta">
+    <div><b>Document</b> &nbsp; Rebuild specification, v1.0</div>
+    <div><b>Source system</b> &nbsp; <code>clubdeltomate/website-test</code> — React 19 + tRPC v11 + Drizzle/Postgres</div>
+    <div><b>Scope</b> &nbsp; Full platform. Detailed page specs for Feed, Repos, Slides, Gallery, Users, Card and Credits.</div>
+    <div><b>Design brief</b> &nbsp; Same product, new skin: minimal, modern, glass, and materially more intuitive.</div>
+    <div><b>Date</b> &nbsp; 3 August 2026</div>
+  </div>
+</section>
+
+<!-- ============================== TOC ============================== -->
+<h2 class="first"><span class="num">Contents</span>What is in this document</h2>
+
+<p class="lede">
+  Nine parts. Parts I–V are the machine: what the product is, how it is put together, what
+  every endpoint does, how the AI prompts are built, and how credits move. Part VI is the
+  seven page specifications you asked for. Parts VII–IX are the new design language and
+  the plan to build it.
+</p>
+
+<div class="toc">
+  <div class="part">Part I — Orientation</div>
+  <div class="row"><span class="n">1</span><span class="t">How to use this document</span><span class="d">and the master build prompt</span></div>
+  <div class="row"><span class="n">2</span><span class="t">What the product is</span><span class="d">the loop, in one page</span></div>
+
+  <div class="part">Part II — Architecture</div>
+  <div class="row"><span class="n">3</span><span class="t">Stack and repository layout</span><span class="d">one deployable, three trees</span></div>
+  <div class="row"><span class="n">4</span><span class="t">Request lifecycle, auth and roles</span><span class="d">JWT, three procedure tiers</span></div>
+  <div class="row"><span class="n">5</span><span class="t">Data model</span><span class="d">25 tables, column by column</span></div>
+  <div class="row"><span class="n">6</span><span class="t">Migration strategy</span><span class="d">why it is additive-only</span></div>
+
+  <div class="part">Part III — The API</div>
+  <div class="row"><span class="n">7</span><span class="t">Procedure conventions</span></div>
+  <div class="row"><span class="n">8</span><span class="t">Full endpoint catalogue</span><span class="d">21 routers, ~140 procedures</span></div>
+
+  <div class="part">Part IV — The AI layer</div>
+  <div class="row"><span class="n">9</span><span class="t">Providers and key resolution</span><span class="d">BYOK, rotation, diversity</span></div>
+  <div class="row"><span class="n">10</span><span class="t">The deck engine prompt</span><span class="d">how the big one is assembled</span></div>
+  <div class="row"><span class="n">11</span><span class="t">The other five prompts</span><span class="d">path, coach, carousel, mathboard, grading</span></div>
+  <div class="row"><span class="n">12</span><span class="t">Output repair and validation</span><span class="d">never lose a paid generation</span></div>
+
+  <div class="part">Part V — The credits economy</div>
+  <div class="row"><span class="n">13</span><span class="t">Coins, tickets and the ledger</span></div>
+  <div class="row"><span class="n">14</span><span class="t">The pricing formula</span></div>
+  <div class="row"><span class="n">15</span><span class="t">Earn, spend, transfer — the full matrix</span></div>
+
+  <div class="part">Part VI — Page specifications</div>
+  <div class="row"><span class="n">16</span><span class="t">Global shell and navigation</span></div>
+  <div class="row"><span class="n">17</span><span class="t">Feed</span><span class="d">/ and /feed</span></div>
+  <div class="row"><span class="n">18</span><span class="t">Repos</span><span class="d">/repos and /repos/:slug</span></div>
+  <div class="row"><span class="n">19</span><span class="t">Slides</span><span class="d">/slides and the player</span></div>
+  <div class="row"><span class="n">20</span><span class="t">Gallery</span><span class="d">/gallery</span></div>
+  <div class="row"><span class="n">21</span><span class="t">Users</span><span class="d">/users and /users/:id</span></div>
+  <div class="row"><span class="n">22</span><span class="t">Card</span><span class="d">/card</span></div>
+  <div class="row"><span class="n">23</span><span class="t">Credits</span><span class="d">/credits — new, replaces the Settings money tab</span></div>
+
+  <div class="part">Part VII — The new design system</div>
+  <div class="row"><span class="n">24</span><span class="t">Principles</span></div>
+  <div class="row"><span class="n">25</span><span class="t">Tokens</span><span class="d">colour, type, space, radius, glass</span></div>
+  <div class="row"><span class="n">26</span><span class="t">Components</span></div>
+  <div class="row"><span class="n">27</span><span class="t">Motion and accessibility</span></div>
+
+  <div class="part">Part VIII — Making it intuitive</div>
+  <div class="row"><span class="n">28</span><span class="t">Diagnosis: what is confusing today</span></div>
+  <div class="row"><span class="n">29</span><span class="t">The fixes, surface by surface</span></div>
+
+  <div class="part">Part IX — Delivery</div>
+  <div class="row"><span class="n">30</span><span class="t">Build order</span></div>
+  <div class="row"><span class="n">31</span><span class="t">Acceptance criteria</span></div>
+  <div class="row"><span class="n">32</span><span class="t">Environment and deployment</span></div>
+</div>
+
+<!-- ============================== 1 ============================== -->
+<h2><span class="num">Part I · Chapter 1</span>How to use this document</h2>
+
+<p>
+  This is written to be handed to an engineer — human or AI — who has never seen the
+  original codebase and has to produce a working replacement. Everything they need is
+  here; nothing requires reading the old source.
+</p>
+
+<p>Three rules govern the rebuild:</p>
+
+<ol>
+  <li><strong>Behaviour is specified, design is not inherited.</strong> Parts II–VI describe
+    what the system <em>does</em>. Where they mention a visual detail, that detail is
+    describing an <em>affordance</em>, not a look. The look comes from Part VII, which is new.</li>
+  <li><strong>Every AI action costs credits, for everybody.</strong> There is no role that
+    generates for free. Admin, moderator and ordinary user all pay from the same balance.
+    This is a hard invariant — see Part V.</li>
+  <li><strong>The AI must never charge for nothing.</strong> A generation that fails,
+    returns unparseable output, or produces a deck below the quality floor is either
+    repaired or refunded. Never both charged and lost.</li>
+</ol>
+
+<h3>1.1 The master build prompt</h3>
+
+<p>
+  If you are driving this with an AI engineer, this is the framing prompt. Attach this
+  document alongside it.
+</p>
+
+<pre class="long">You are building Modular-Start from scratch. The attached specification is
+authoritative for behaviour; you own the implementation.
+
+PRODUCT
+  An AI learning-and-presentation platform. A subject becomes a repository of
+  units and lessons; each lesson is generated as a slide deck that teaches and
+  quizzes; finished plays are logged back so later lessons build on earlier
+  ones instead of repeating them. The same loop also runs restaurant menus,
+  service catalogues, shop collections, walkthroughs and news briefings —
+  only the labels change.
+
+STACK (non-negotiable)
+  React 19 + TypeScript + Vite . tRPC v11 (superjson) + TanStack Query v5
+  Hono on Node . Drizzle ORM on Postgres . Tailwind + Radix primitives
+  One deployable: the API is mounted inside the same server that serves the SPA.
+
+DESIGN (non-negotiable)
+  Implement Part VII exactly: minimal, modern, glass. Neutral near-monochrome
+  base, ONE accent, translucent layered surfaces, generous space, one
+  type family, 8px rhythm. Do NOT reproduce the old hand-drawn notebook
+  styling — no wobbly borders, no paper textures, no offset "sketch" shadows.
+
+RULES
+  1. Every AI action is charged to the acting user's credit balance,
+     regardless of role. No free path for admins.
+  2. A failed or unusable generation is refunded or never debited.
+  3. Boot migrations are additive-only and idempotent; the app must serve
+     requests correctly while a migration is still in flight.
+  4. All user-facing strings go through the translation function from day one.
+  5. Every list endpoint filters by visibility IN SQL, never after the fact,
+     so pagination limits count only rows the viewer may see.
+
+ORDER OF WORK
+  Follow Part IX. Do not start a later milestone before the previous one's
+  acceptance criteria pass.
+
+DELIVERABLE PER MILESTONE
+  Working code, typecheck clean, lint at or below baseline, and a short note
+  on what you verified in a real browser.</pre>
+
+<h3>1.2 Notation</h3>
+
+<table class="t-narrow">
+  <tr><th>Convention</th><th>Meaning</th></tr>
+  <tr><td><code>public</code></td><td>Callable by anyone, signed in or not. <code>ctx.user</code> may be undefined.</td></tr>
+  <tr><td><code>authed</code></td><td>Requires a valid session. Throws <code>UNAUTHORIZED</code> otherwise.</td></tr>
+  <tr><td><code>mod</code></td><td>Requires role <code>moderator</code> or <code>admin</code>.</td></tr>
+  <tr><td><code>admin</code></td><td>Requires role <code>admin</code>.</td></tr>
+  <tr><td>🪙</td><td>A credit (called a "coin" in the UI). The platform's internal currency.</td></tr>
+  <tr><td>🎟</td><td>A customization ticket. A prepaid entitlement for one bounded generation.</td></tr>
+</table>
+
+<!-- ============================== 2 ============================== -->
+<h2><span class="num">Part I · Chapter 2</span>What the product is</h2>
+
+<p class="lede">
+  One sentence: <strong>Modular-Start turns a subject into a repository of units and
+  lessons, then teaches each lesson as a slide deck that quizzes as it goes — and
+  remembers what it already taught.</strong>
+</p>
+
+<h3>2.1 The core loop</h3>
+
+<div class="flow">  ┌──────────────┐
+  │  A SUBJECT   │  "Intermediate Spanish"  ·  "Our dinner menu"  ·  "How our CRM works"
+  └──────┬───────┘
+         │  AI drafts the structure (lessonPath prompt)
+         ▼
+  ┌──────────────┐
+  │     REPO     │  title · description · template · language · banner
+  │   ├─ UNIT    │  a topic area / menu section / service group
+  │   │   ├─ LESSON      title + OBJECTIVE (the objective IS the generation prompt)
+  │   │   ├─ LESSON
+  │   │   └─ IMAGE ITEM  a picture that sits between lessons
+  │   └─ UNIT
+  └──────┬───────┘
+         │  each lesson feeds the deck engine, seeded with course memory
+         ▼
+  ┌──────────────┐
+  │  SLIDE DECK  │  N slides · each = components + optional evaluation
+  └──────┬───────┘
+         │  a person plays it; answers are graded (AI grades typed/solve)
+         ▼
+  ┌──────────────┐
+  │     RUN      │  score · elapsed · per-slide detail · annotations
+  └──────┬───────┘
+         │  writes a LESSON LOG back to the repo
+         ▼
+  ┌──────────────┐
+  │ COURSE MEMORY│  "previously taught" — injected into the NEXT lesson's prompt,
+  └──────────────┘  with hard anti-repetition rules</div>
+
+<p>
+  That last arrow is the product. Anyone can generate slides; almost nothing generates
+  lesson 7 knowing exactly what lessons 1–6 already covered and being forbidden from
+  re-teaching it. Preserve this.
+</p>
+
+<h3>2.2 The five things a repo can be</h3>
+
+<p>
+  A repo carries a <code>template</code>, which resolves to a <code>purpose</code>, which
+  changes the deck engine's entire mode. This is the mechanism that lets one platform run
+  a school and a restaurant.
+</p>
+
+<table>
+  <tr><th>Template</th><th>Purpose</th><th>Deck mode</th><th>Quizzes?</th><th>Ends on</th></tr>
+  <tr><td><code>course</code>, <code>other</code></td><td>education</td><td>Teaching: introduce → develop → apply</td><td>Yes</td><td>Score</td></tr>
+  <tr><td><code>restaurant</code>, <code>shop</code>, <code>service</code></td><td>commercial</td><td>Showcase: one item, persuasive, 3–4 slides</td><td>Never</td><td>Contact / order screen</td></tr>
+  <tr><td><code>walkthrough</code></td><td>walkthrough</td><td>Explain fully, same rigour as a lesson</td><td>Never</td><td>Author card</td></tr>
+  <tr><td><code>news</code></td><td>news</td><td>Newspaper briefing from a chosen moment in time</td><td>Never</td><td>Author card</td></tr>
+</table>
+
+<h3>2.3 Who is who</h3>
+
+<table class="t-narrow">
+  <tr><th>Role</th><th>Becomes one by</th><th>Can</th></tr>
+  <tr>
+    <td><code>user</code></td>
+    <td>Registering. Starts with 50 🪙.</td>
+    <td>Browse, play, generate (paying coins), build own repos, request tickets.</td>
+  </tr>
+  <tr>
+    <td><code>moderator</code></td>
+    <td><strong>Holding credits.</strong> The role follows the balance automatically, in both directions.</td>
+    <td>Everything above, plus: hold and gift tickets, credit/deduct other users' coins, approve payments, flag runs, recalibrate decks.</td>
+  </tr>
+  <tr>
+    <td><code>admin</code></td>
+    <td>Granted.</td>
+    <td>Everything. Sells tickets to moderators, sets prices, verifies users, owns the marketing surfaces, publishes to the feed.</td>
+  </tr>
+</table>
+
+<div class="note">
+  <span class="lbl">Design decision worth keeping</span>
+  <p>Role is not an independent field you edit — it is a <em>function of the credit balance</em>.
+  Every credit and debit flows through one function, and that function promotes a user to
+  moderator the moment their balance goes positive and demotes them when it hits zero.
+  Admins are exempt in both directions. Verification (the check mark) rides on the
+  moderator role and is cleared automatically on demotion. This removes an entire class of
+  "user has permissions they shouldn't" bug, because there is exactly one place the role
+  can change.</p>
+</div>
+
+<!-- ============================== 3 ============================== -->
+<h2><span class="num">Part II · Chapter 3</span>Stack and repository layout</h2>
+
+<h3>3.1 Stack</h3>
+
+<table class="t-narrow">
+  <tr><th>Layer</th><th>Choice</th><th>Why</th></tr>
+  <tr><td>UI</td><td>React 19, TypeScript, Vite</td><td>—</td></tr>
+  <tr><td>Routing</td><td><code>react-router</code> v7, single <code>&lt;Routes&gt;</code> table</td><td>Every route in one readable file.</td></tr>
+  <tr><td>Transport</td><td>tRPC v11 + superjson</td><td>End-to-end types with no codegen step; <code>Date</code> survives the wire.</td></tr>
+  <tr><td>Server cache</td><td>TanStack Query v5 via <code>@trpc/react-query</code></td><td>Optimistic updates, invalidation, retries.</td></tr>
+  <tr><td>HTTP server</td><td>Hono on Node (<code>@hono/node-server</code>)</td><td>Small; runs identically on a server and on a serverless function.</td></tr>
+  <tr><td>ORM</td><td>Drizzle</td><td>SQL-shaped, typed, no runtime magic.</td></tr>
+  <tr><td>Database</td><td>Postgres, one named schema</td><td>Neon in production; a local cluster in dev.</td></tr>
+  <tr><td>Styling</td><td>Tailwind + CSS custom properties</td><td>Tokens live in CSS vars so theming is not a rebuild.</td></tr>
+  <tr><td>Primitives</td><td>Radix UI</td><td>Accessible dialogs/menus/popovers without writing focus traps.</td></tr>
+  <tr><td>Validation</td><td>Zod, shared between client and server</td><td>One schema validates the form and the endpoint.</td></tr>
+  <tr><td>Auth</td><td>JWT bearer + bcrypt</td><td>Stateless; no session table.</td></tr>
+  <tr><td>Tests</td><td>Vitest; Playwright for browser checks</td><td>—</td></tr>
+</table>
+
+<h3>3.2 Layout</h3>
+
+<pre>app/
+├── index.html                 SPA entry — title, favicon, theme-color, meta
+├── contracts/                 SHARED. Imported by BOTH client and server.
+│   ├── types.ts                 every cross-boundary type + tuning constants
+│   ├── site.ts                  the site's identity (name, slug, tagline, bio)
+│   ├── slide-templates.ts       the layout catalogue + component vocabulary
+│   ├── languages.ts             content languages + the language directive
+│   ├── post.ts                  post categories, visibility, scopes
+│   ├── grade.ts                 grading thresholds
+│   └── stem.ts                  STEM-topic detection
+├── db/
+│   └── schema.ts              Drizzle table definitions (one named pg schema)
+├── api/
+│   ├── boot.ts                process entry
+│   ├── server.ts / app.ts     Hono app; mounts tRPC + the SPA
+│   ├── context.ts             attaches ctx.user from the Bearer token
+│   ├── middleware.ts          createRouter, publicQuery
+│   ├── procedures.ts          authed / moderator / admin tiers
+│   ├── router.ts              the root router — mounts all 21 sub-routers
+│   ├── routers/*.ts           one file per domain
+│   ├── ai/
+│   │   ├── prompts.ts           prompt builders + Zod output schemas + repair
+│   │   ├── provider.ts          key resolution, all provider adapters
+│   │   └── mock.ts              offline deck generator for dev/CI
+│   ├── cost.ts                estimateCost, ticketPrice
+│   ├── tokens.ts              applyTokenDelta — THE ONLY credit mutation
+│   ├── tickets.ts             ticket issue / spend / transfer
+│   ├── finance.ts             provider pricing, usage, budgets
+│   ├── settings.ts            key/value app settings
+│   └── lib/migrate-required.ts  additive boot migrations
+├── src/
+│   ├── App.tsx                the route table
+│   ├── components/            shell, design system, feature components
+│   ├── pages/                 one file per route
+│   ├── providers/             trpc, auth, i18n, cost-confirm
+│   ├── hooks/
+│   └── lib/                   i18n, pdf writer, qr, canvas layout, zip
+└── scripts/                   seeds, schema init, i18n coverage</pre>
+
+<div class="note">
+  <span class="lbl">The contracts rule</span>
+  <p><code>contracts/</code> is the only directory both sides import. The client must never
+  import from <code>api/</code> or <code>db/</code>; the server must never import from
+  <code>src/</code>. Enforce it with a lint rule. It is what keeps the type-sharing honest
+  instead of accidentally shipping the database driver to the browser.</p>
+</div>
+
+<!-- ============================== 4 ============================== -->
+<h2><span class="num">Part II · Chapter 4</span>Request lifecycle, auth and roles</h2>
+
+<h3>4.1 The lifecycle</h3>
+
+<div class="flow">  browser
+    │  fetch POST /api/trpc/repos.create   Authorization: Bearer &lt;jwt&gt;
+    ▼
+  Hono
+    │  routes /api/trpc/* to the tRPC handler; everything else to the SPA
+    ▼
+  createContext()
+    │  read Bearer → verify JWT → load the user row → ctx.user (or undefined)
+    ▼
+  procedure tier
+    │  public  → pass
+    │  authed  → ctx.user or UNAUTHORIZED
+    │  mod     → role in {moderator, admin} or FORBIDDEN
+    │  admin   → role === admin or FORBIDDEN
+    ▼
+  zod .input()  ─ rejects malformed payloads before any handler code runs
+    ▼
+  handler  →  Drizzle  →  Postgres
+    ▼
+  superjson serialises the result (Dates stay Dates)</div>
+
+<h3>4.2 Auth</h3>
+
+<ul>
+  <li>Password hashed with bcrypt. Never returned, never logged.</li>
+  <li>On register or login the server issues a JWT carrying <code>{ id, email, role }</code>
+    and the client stores it in <code>localStorage</code>.</li>
+  <li>The <em>token is a hint, the database is the truth.</em> Context re-reads the user row on
+    every request, so a role or balance change takes effect on the next call — not on the
+    next login. Do not read the role out of the JWT claims.</li>
+  <li><code>auth.me</code> returns the session user or null; the client bootstraps from it.</li>
+  <li>Guest mode is real: most read endpoints are <code>public</code>. A guest can browse
+    the feed, the gallery, repos and users, and can play public decks. A guest cannot
+    generate anything.</li>
+</ul>
+
+<h3>4.3 The one credit function</h3>
+
+<p>
+  Everything that moves credits calls <code>applyTokenDelta(userId, delta, reason)</code>.
+  It runs in a transaction and does four things atomically: check the balance can cover a
+  debit, write the new balance, write a ledger row, and reconcile the role. Nothing else in
+  the codebase may write <code>users.tokenBalance</code>.
+</p>
+
+<pre>async function applyTokenDelta(userId, delta, reason): Promise&lt;number&gt; {
+  return db.transaction(async (tx) =&gt; {
+    const user = await tx.query.users.findFirst({ where: eq(users.id, userId) });
+    if (!user) throw new TRPCError({ code: "NOT_FOUND" });
+
+    const next = user.tokenBalance + delta;
+    if (next &lt; 0) throw new InsufficientTokensError(user.tokenBalance, -delta);
+
+    // Role follows credits, in both directions. Admins are exempt.
+    const promote = user.role === "user"      &amp;&amp; next &gt;  0;
+    const demote  = user.role === "moderator" &amp;&amp; next &lt;= 0;
+    const role = promote ? "moderator" : demote ? "user" : null;
+
+    await tx.update(users)
+      .set({ tokenBalance: next,
+             ...(role   ? { role }             : {}),
+             ...(demote ? { verified: false }  : {}) })   // verification rides on the role
+      .where(eq(users.id, userId));
+
+    await tx.insert(tokenLedger).values({ userId, delta, reason, balanceAfter: next });
+    return next;
+  });
+}</pre>
+
+<div class="warn">
+  <span class="lbl">Invariant</span>
+  <p>The ledger must be able to reconstruct any balance by summing deltas. If a code path
+  changes a balance without writing a ledger row, the Finance page silently lies. Free
+  ticket grants are deliberately a <em>separate</em> function that does <strong>not</strong>
+  write a coin-ledger row, precisely because no money moved.</p>
+</div>
+
+<!-- ============================== 5 ============================== -->
+<h2><span class="num">Part II · Chapter 5</span>Data model</h2>
+
+<p>
+  All tables live in one named Postgres schema. There are deliberately
+  <strong>no foreign-key constraints</strong> — deletion order is handled explicitly in
+  application transactions. This was a pragmatic choice for a schema that changed weekly;
+  if you rebuild with a settled model, adding FKs is an improvement, but then you must
+  order every cascade correctly.
+</p>
+
+<h3>5.1 Identity and money</h3>
+
+<table class="long t-narrow">
+  <tr><th>Table</th><th>Columns</th><th>Notes</th></tr>
+  <tr>
+    <td><code>users</code></td>
+    <td><code>id</code>, <code>email</code> uniq, <code>passwordHash</code>, <code>name</code> (≤20 chars, one word),
+      <code>role</code>, <code>tokenBalance</code> default 50, <code>ticketBalance</code> default 0,
+      <code>verified</code>, <code>avatarImageId</code>, <code>avatarVariant</code>, <code>language</code>,
+      <code>whatsapp</code>, <code>socials</code> json, <code>contactNote</code>, <code>createdAt</code></td>
+    <td>Username is one word, spaces closed up as you type. <code>language</code> is the UI language preference.</td>
+  </tr>
+  <tr>
+    <td><code>tokenLedger</code></td>
+    <td><code>id</code>, <code>userId</code>, <code>delta</code>, <code>reason</code>, <code>balanceAfter</code>, <code>createdAt</code></td>
+    <td>Append-only. The audit trail for every coin.</td>
+  </tr>
+  <tr>
+    <td><code>payments</code></td>
+    <td><code>id</code>, <code>userId</code>, <code>packId</code>, <code>packTokens</code>, <code>amountCents</code>,
+      <code>note</code>, <code>status</code> (pending/credited/rejected), <code>resolvedBy</code>, <code>resolvedAt</code></td>
+    <td>Manual payment flow: the buyer pays off-platform and files a note; a moderator approves.</td>
+  </tr>
+  <tr>
+    <td><code>tickets</code></td>
+    <td><code>id</code>, <code>repoId</code> (nullable), <code>holderId</code>, <code>issuedById</code>,
+      <code>consumed</code>, <code>consumedAt</code>, <code>createdAt</code></td>
+    <td>One row = one entitlement. <code>repoId</code> null = general (spendable on a standalone deck).</td>
+  </tr>
+  <tr>
+    <td><code>ticketRequests</code></td>
+    <td><code>id</code>, <code>requesterId</code>, <code>ownerId</code>, <code>repoId</code>, <code>count</code>,
+      <code>note</code>, <code>status</code>, <code>resolvedAt</code></td>
+    <td>A user asking a repo owner for tickets.</td>
+  </tr>
+  <tr>
+    <td><code>apiKeys</code></td>
+    <td><code>id</code>, <code>userId</code>, <code>provider</code>, <code>capability</code>, <code>apiKey</code>, <code>createdAt</code></td>
+    <td>Bring-your-own-key. A user's own text key zeroes the text portion of their cost.</td>
+  </tr>
+  <tr>
+    <td><code>settings</code></td>
+    <td><code>key</code> PK, <code>valueJson</code></td>
+    <td>Key/value. Holds <code>app</code> (prices, packs, flags, platform keys), <code>finance.pricing</code>, <code>finance.usage</code>, <code>finance.budgets</code>.</td>
+  </tr>
+</table>
+
+<h3>5.2 Content</h3>
+
+<table class="long t-narrow">
+  <tr><th>Table</th><th>Columns</th><th>Notes</th></tr>
+  <tr>
+    <td><code>repos</code></td>
+    <td><code>id</code>, <code>slug</code> uniq, <code>ref</code> (5-char code), <code>title</code>, <code>description</code>,
+      <code>template</code>, <code>ownerId</code>, <code>studyToolSlug</code>, <code>source</code> (ai/human),
+      <code>contentLanguage</code>, <code>isPublic</code>, <code>bannerImageId</code>, <code>bannerPrompt</code>, <code>createdAt</code></td>
+    <td><code>ref</code> is a stable 5-char hash of the slug, shown as a sticker so people can refer to a repo out loud.</td>
+  </tr>
+  <tr><td><code>units</code></td><td><code>id</code>, <code>repoId</code>, <code>title</code>, <code>orderIndex</code></td><td>—</td></tr>
+  <tr>
+    <td><code>lessons</code></td>
+    <td><code>id</code>, <code>unitId</code>, <code>title</code>, <code>objective</code>, <code>orderIndex</code>,
+      <code>globalSeq</code>, <code>presetJson</code>, <code>presetAt</code>, <code>answerKeyGenerations</code></td>
+    <td><strong><code>objective</code> is the generation prompt.</strong> <code>globalSeq</code> is the lesson's position across the whole repo — course memory is "everything with a lower globalSeq".</td>
+  </tr>
+  <tr><td><code>unitImages</code></td><td><code>id</code>, <code>unitId</code>, <code>imageId</code>, <code>caption</code>, <code>orderIndex</code></td><td>A picture as a unit item, interleaved with lessons.</td></tr>
+  <tr>
+    <td><code>slideTools</code></td>
+    <td><code>id</code>, <code>slug</code> uniq, <code>name</code>, <code>description</code>, <code>topic</code>,
+      <code>instructions</code>, <code>defaultSlideCount</code>, <code>defaultLevel</code>, <code>defaultImageStyle</code>,
+      <code>defaultTone</code>, <code>template</code>, <code>contentLanguage</code>, <code>ownerId</code>,
+      <code>source</code>, <code>isPublic</code>, <code>bannerImageId</code>, <code>repoSlug</code>, <code>repoLessonSeq</code></td>
+    <td>A reusable generator. Standalone, or mirrored out of a repo lesson.</td>
+  </tr>
+  <tr><td><code>slideTemplates</code></td><td><code>id</code>, <code>name</code>, <code>components</code> json, <code>tags</code> json, <code>levels</code> json</td><td>The layout catalogue. Admin-editable; ships with built-ins.</td></tr>
+  <tr><td><code>slideImages</code></td><td><code>id</code>, <code>ownerId</code>, <code>mime</code>, <code>data</code> (base64), <code>createdAt</code></td><td>Blob store in the DB. Fine at this scale; move to object storage past it.</td></tr>
+  <tr><td><code>assignments</code></td><td><code>id</code>, <code>targetType</code>, <code>targetSlug</code>, <code>userId</code>, <code>assignedById</code></td><td>Hand a repo / tool / post to a named person.</td></tr>
+  <tr><td><code>favorites</code></td><td><code>id</code>, <code>userId</code>, <code>targetType</code>, <code>targetSlug</code></td><td>Saves and follows.</td></tr>
+</table>
+
+<h3>5.3 Play and outcomes</h3>
+
+<table class="long t-narrow">
+  <tr><th>Table</th><th>Columns</th><th>Notes</th></tr>
+  <tr>
+    <td><code>runs</code></td>
+    <td><code>id</code>, <code>toolSlug</code>, <code>userId</code>, <code>playerName</code>, <code>deckJson</code>,
+      <code>answersJson</code>, <code>annotationsJson</code>, <code>slideCount</code>, <code>scoreCorrect</code>,
+      <code>scoreTotal</code>, <code>elapsedSec</code>, <code>flagged</code>, <code>isAnswerKey</code>, <code>completedAt</code></td>
+    <td>The deck is stored <em>with</em> the run, so a replay is byte-identical years later even if the tool changed.</td>
+  </tr>
+  <tr><td><code>lessonLogs</code></td><td><code>id</code>, <code>lessonId</code>, <code>userId</code>, <code>runId</code>, <code>slidesJson</code>, <code>scoreCorrect</code>, <code>scoreTotal</code>, <code>elapsedSec</code></td><td>The record course memory is built from.</td></tr>
+  <tr><td><code>customizations</code></td><td><code>id</code>, <code>userId</code>, <code>repoId</code>, <code>lessonSeq</code>, <code>toolSlug</code>, <code>deckJson</code></td><td>"My version" of someone else's lesson.</td></tr>
+  <tr><td><code>orders</code></td><td><code>id</code>, <code>ownerId</code>, <code>buyerId</code>, <code>buyerName</code>, <code>itemTitle</code>, <code>note</code>, <code>seen</code>, <code>createdAt</code></td><td>A lead from a commercial deck's contact screen.</td></tr>
+</table>
+
+<h3>5.4 Marketing</h3>
+
+<table class="long t-narrow">
+  <tr><th>Table</th><th>Columns</th><th>Notes</th></tr>
+  <tr>
+    <td><code>posts</code></td>
+    <td><code>id</code>, <code>slug</code> uniq, <code>ownerId</code>, <code>caption</code>, <code>category</code>,
+      <code>imageIds</code> json, <code>audioId</code>, <code>width</code>, <code>height</code>,
+      <code>visibility</code>, <code>contentLanguage</code>, <code>createdAt</code></td>
+    <td>An Instagram-style carousel. Slides are pre-rendered PNGs.</td>
+  </tr>
+  <tr><td><code>castModels</code></td><td><code>id</code>, <code>ownerId</code>, <code>name</code>, <code>headline</code>, <code>sheet</code></td><td>A recurring character used across carousels. <code>sheet</code> is the description the image prompt embeds.</td></tr>
+  <tr><td><code>castPortraits</code></td><td><code>id</code>, <code>modelId</code>, <code>imageId</code></td><td>—</td></tr>
+  <tr><td><code>marketingProfiles</code></td><td><code>id</code>, <code>ownerId</code>, brand json</td><td>Saved brand: colours, logo, defaults.</td></tr>
+  <tr><td><code>cardVersions</code></td><td><code>id</code>, <code>ownerId</code>, <code>name</code>, <code>kind</code> (business/payment), card json, <code>createdAt</code></td><td>Named snapshots of a business card, restorable.</td></tr>
+</table>
+
+<!-- ============================== 6 ============================== -->
+<h2><span class="num">Part II · Chapter 6</span>Migration strategy</h2>
+
+<p>
+  The system runs on serverless functions with cold starts. The boot migration is
+  <em>fire-and-forget</em>: the server starts serving requests before it finishes. That
+  produces one hazard and one rule.
+</p>
+
+<div class="warn">
+  <span class="lbl">The hazard</span>
+  <p>On a cold start, a request can arrive while a <code>CREATE TABLE IF NOT EXISTS</code> is
+  still in flight. The query fails with "relation does not exist", and the UI shows an empty
+  list rather than an error — indistinguishable from "you have nothing saved". This actually
+  happened, and cost a day of debugging a feature that was working.</p>
+</div>
+
+<p><strong>The rules that fix it:</strong></p>
+
+<ol>
+  <li>Migrations are <strong>additive and idempotent only</strong>: <code>ADD COLUMN IF NOT
+    EXISTS</code>, <code>CREATE TABLE IF NOT EXISTS</code>, <code>CREATE INDEX IF NOT
+    EXISTS</code>, widening a type, dropping a <code>NOT NULL</code>. Never a destructive
+    change at boot.</li>
+  <li>Any router touching a <strong>late-added</strong> table calls a memoised
+    <code>ensureTable()</code> before its first query, and un-memoises on failure so the next
+    request retries. Self-healing beats correct ordering.</li>
+  <li>The UI must <strong>distinguish empty from failed</strong>. A list that got an error
+    shows the error, in the accent-danger colour, with the server's message. "None yet" is
+    reserved for a query that succeeded and returned nothing. This is a design requirement,
+    not a nicety.</li>
+</ol>
+
+<pre>let ensured: Promise&lt;void&gt; | null = null;
+
+function ensureCardVersions(): Promise&lt;void&gt; {
+  if (!ensured) {
+    ensured = db.execute(sql`CREATE TABLE IF NOT EXISTS ...`)
+      .then(() =&gt; db.execute(sql`CREATE INDEX IF NOT EXISTS ...`))
+      .then(() =&gt; undefined)
+      .catch((e) =&gt; { ensured = null; throw e; });   // un-memoise so we retry
+  }
+  return ensured;
+}</pre>
+
+<!-- ============================== 7 ============================== -->
+<h2><span class="num">Part III · Chapter 7</span>Procedure conventions</h2>
+
+<h3>7.1 Rules every endpoint follows</h3>
+
+<ul>
+  <li><strong>Validate at the edge.</strong> Every procedure declares a Zod
+    <code>.input()</code>. No handler inspects raw input.</li>
+  <li><strong>Filter visibility in SQL.</strong> Never fetch-then-filter: the
+    <code>limit</code> must count only rows the viewer can see, or pagination silently
+    drops content.</li>
+  <li><strong>"Not here" beats "not allowed".</strong> A private object returns
+    <code>NOT_FOUND</code> to someone who may not see it, so the API does not confirm the
+    existence of things by URL-guessing.</li>
+  <li><strong>Charge late, refund eagerly.</strong> Debit as close as possible to the
+    irreversible work; if a later step fails, refund in the catch.</li>
+  <li><strong>Machine-readable error prefixes.</strong> Messages start with a stable token
+    the client can branch on — <code>INSUFFICIENT_TOKENS:</code>,
+    <code>NOT_ENOUGH_TICKETS:</code>, <code>AI_UNAVAILABLE:</code> — followed by prose a
+    human can read. Both audiences, one string.</li>
+</ul>
+
+<h3>7.2 Shared tuning constants</h3>
+
+<table class="t-narrow">
+  <tr><th>Constant</th><th>Value</th><th>Meaning</th></tr>
+  <tr><td><code>MAX_DECK_SLIDES</code></td><td>15</td><td>Hard cap on a single generation.</td></tr>
+  <tr><td><code>TICKET_DECK_LIMITS</code></td><td><code>{ maxSlides, maxLevel }</code></td><td>What one ticket covers. The ticket price is derived from this so price and entitlement cannot disagree.</td></tr>
+  <tr><td><code>USERNAME_MAX_LENGTH</code></td><td>20</td><td>One word.</td></tr>
+  <tr><td><code>LEVELS</code></td><td>A0 A1 A2 B1 B2 C1 C2</td><td>CEFR reading bands.</td></tr>
+  <tr><td><code>TEXT_GRADE_COST</code></td><td>1 🪙</td><td>AI grading of one typed/solve answer.</td></tr>
+</table>
+
+<!-- ============================== 8 ============================== -->
+<h2><span class="num">Part III · Chapter 8</span>Full endpoint catalogue</h2>
+
+<p>21 routers. Tier notation from §1.2.</p>
+
+<h3>auth</h3>
+<table class="long t-narrow">
+  <tr><th>Procedure</th><th>Tier</th><th>Does</th></tr>
+  <tr><td><code>register</code></td><td>public</td><td>Create account, hash password, issue JWT, seed 50 🪙.</td></tr>
+  <tr><td><code>login</code></td><td>public</td><td>Verify, issue JWT. Accepts email <em>or</em> username.</td></tr>
+  <tr><td><code>me</code></td><td>public</td><td>Session user or null.</td></tr>
+  <tr><td><code>logout</code></td><td>authed</td><td>Client-side token discard.</td></tr>
+  <tr><td><code>updateProfile</code></td><td>authed</td><td>Username, contact fields, optional password change.</td></tr>
+  <tr><td><code>setLanguage</code></td><td>authed</td><td>Persist UI language.</td></tr>
+</table>
+
+<h3>generate — the AI surface</h3>
+<table class="long t-narrow">
+  <tr><th>Procedure</th><th>Tier</th><th>Does</th></tr>
+  <tr><td><code>estimate</code></td><td>public</td><td>Cost of a hypothetical deck, with a human-readable breakdown. Never charges.</td></tr>
+  <tr><td><code>lessonPath</code></td><td>authed</td><td>Draft a whole repo (units + lessons + a linked tool) from a description, optionally from an uploaded reference file.</td></tr>
+  <tr><td><code>slides</code></td><td>public*</td><td><strong>The main event.</strong> Generate a deck. *Public in tier but throws UNAUTHORIZED — there is no anonymous AI. See §10.</td></tr>
+  <tr><td><code>slideImage</code></td><td>public</td><td>Generate one slide's image, separately, so a deck streams in.</td></tr>
+  <tr><td><code>gradeTyped</code></td><td>public</td><td>AI-grade a typed or solve answer against the reference. 1 🪙.</td></tr>
+  <tr><td><code>gradeVisual</code></td><td>public</td><td>Grade a drawn/worked answer via the vision path.</td></tr>
+  <tr><td><code>mathSteps</code></td><td>public</td><td>Expand a worked solution step by step on demand.</td></tr>
+  <tr><td><code>tuneSettings</code></td><td>public</td><td>Suggest level / slide count / style from a topic.</td></tr>
+  <tr><td><code>recalibrateProse</code></td><td>mod</td><td>Rewrite an existing deck's prose to a different density or level.</td></tr>
+  <tr><td><code>retimeNewsSlide</code></td><td>mod</td><td>Re-report one news slide from a different moment in time.</td></tr>
+</table>
+
+<h3>repos</h3>
+<table class="long t-narrow">
+  <tr><th>Procedure</th><th>Tier</th><th>Does</th></tr>
+  <tr><td><code>list</code></td><td>public</td><td>The shelf. Filters: mine/all, category, language, favourites, following.</td></tr>
+  <tr><td><code>getBySlug</code></td><td>public</td><td>Full detail: units, lessons, images, progress, presets.</td></tr>
+  <tr><td><code>create</code></td><td>authed</td><td>From an AI draft or by hand.</td></tr>
+  <tr><td><code>update</code> / <code>delete</code></td><td>authed</td><td>Owner or admin. Delete cascades in one transaction.</td></tr>
+  <tr><td><code>generateBanner</code></td><td>authed</td><td>Charged AI banner image.</td></tr>
+  <tr><td><code>toggleFavorite</code></td><td>authed</td><td>—</td></tr>
+  <tr><td><code>ensureStudyTool</code></td><td>authed</td><td>Create the mirrored slide tool if missing.</td></tr>
+  <tr><td><code>lessonRuns</code></td><td>public</td><td>Every run against one lesson.</td></tr>
+  <tr><td><code>courseMemory</code></td><td>public</td><td>What has been taught so far — the memory injected into the next prompt.</td></tr>
+  <tr><td><code>setLessonPreset</code> / <code>updateLessonPreset</code> / <code>deleteLessonPreset</code> / <code>lessonPreset</code></td><td>authed / public</td><td>A saved generation configuration pinned to a lesson, so replays are reproducible.</td></tr>
+  <tr><td><code>saveMyCustomization</code> / <code>myCustomization</code></td><td>authed</td><td>The viewer's own version of someone else's lesson.</td></tr>
+</table>
+
+<h3>slideTools · units · lessons · unitImages</h3>
+<table class="long t-narrow">
+  <tr><th>Procedure</th><th>Tier</th><th>Does</th></tr>
+  <tr><td><code>slideTools.list</code> / <code>getBySlug</code></td><td>public</td><td>Same filter vocabulary as repos.</td></tr>
+  <tr><td><code>slideTools.create</code> / <code>createManual</code> / <code>update</code> / <code>delete</code></td><td>authed</td><td>—</td></tr>
+  <tr><td><code>slideTools.saveDeck</code> / <code>deck</code></td><td>authed / public</td><td>Persist and read a hand-built deck.</td></tr>
+  <tr><td><code>units.create|update|delete</code></td><td>authed</td><td>—</td></tr>
+  <tr><td><code>lessons.create|update|delete|reorder</code></td><td>authed</td><td>Reorder maintains <code>globalSeq</code> — course memory depends on it.</td></tr>
+  <tr><td><code>unitImages.create|replace|remove|setCaption|move|generateBanners</code></td><td>authed</td><td><code>generateBanners</code> is charged.</td></tr>
+</table>
+
+<h3>runs</h3>
+<table class="long t-narrow">
+  <tr><th>Procedure</th><th>Tier</th><th>Does</th></tr>
+  <tr><td><code>complete</code></td><td>public</td><td>Write a finished run + its lesson log. Guests may finish a public deck.</td></tr>
+  <tr><td><code>get</code> / <code>replay</code></td><td>public</td><td>Read a run; replay returns the stored deck.</td></tr>
+  <tr><td><code>listGlobal</code> / <code>listMine</code></td><td>public / authed</td><td>—</td></tr>
+  <tr><td><code>createAnswerKey</code> / <code>answerKeyFor</code></td><td>authed / public</td><td>A perfect run generated from the saved preset, so anyone can study the answers.</td></tr>
+  <tr><td><code>setFlagged</code></td><td>mod</td><td>Flag a suspicious run.</td></tr>
+</table>
+
+<h3>posts — the feed</h3>
+<table class="long t-narrow">
+  <tr><th>Procedure</th><th>Tier</th><th>Does</th></tr>
+  <tr><td><code>list</code></td><td>public</td><td>Scope <code>feed</code> (admin posts + yours + assigned) or <code>all</code> (gallery). Category, language, saved, owner filters. See §17.</td></tr>
+  <tr><td><code>bySlug</code></td><td>public</td><td>One post; NOT_FOUND if not visible.</td></tr>
+  <tr><td><code>uploadSlide</code></td><td>admin</td><td>Park one rendered PNG. Called once per slide — six 1080px PNGs in one body exceeds the request cap.</td></tr>
+  <tr><td><code>create</code></td><td>admin</td><td>Publish the carousel.</td></tr>
+  <tr><td><code>setVisibility</code> / <code>setLanguage</code> / <code>remove</code></td><td>authed</td><td>Owner or admin.</td></tr>
+  <tr><td><code>recipients</code> / <code>setRecipients</code></td><td>authed</td><td>Send a post to named people.</td></tr>
+  <tr><td><code>toggleSaved</code></td><td>authed</td><td>—</td></tr>
+</table>
+
+<h3>users</h3>
+<table class="long t-narrow">
+  <tr><th>Procedure</th><th>Tier</th><th>Does</th></tr>
+  <tr><td><code>directory</code></td><td>public</td><td>The creator directory with search.</td></tr>
+  <tr><td><code>profile</code></td><td>public</td><td>One creator: their repos, tools, posts, badges.</td></tr>
+  <tr><td><code>paymentCard</code></td><td>public</td><td>Their public payment card, if published.</td></tr>
+  <tr><td><code>toggleFollow</code> / <code>followingIds</code></td><td>authed / public</td><td>—</td></tr>
+  <tr><td><code>avatarQuote</code> / <code>setAvatar</code></td><td>authed</td><td>Upload, or a charged AI portrait.</td></tr>
+  <tr><td><code>list</code> / <code>detail</code></td><td>mod</td><td>Admin user table.</td></tr>
+  <tr><td><code>creditTokens</code></td><td>mod</td><td><strong>Give or take credits</strong>, with a reason, written to the ledger. See §15.</td></tr>
+  <tr><td><code>createUser</code> / <code>updateIdentity</code> / <code>setRole</code> / <code>setVerified</code> / <code>deleteUser</code></td><td>admin</td><td>Delete cleans every referencing table explicitly.</td></tr>
+</table>
+
+<h3>tokens · payments · tickets · orders</h3>
+<table class="long t-narrow">
+  <tr><th>Procedure</th><th>Tier</th><th>Does</th></tr>
+  <tr><td><code>tokens.balance</code></td><td>authed</td><td>Balance + recent ledger.</td></tr>
+  <tr><td><code>tokens.packs</code></td><td>public</td><td>The purchasable packs.</td></tr>
+  <tr><td><code>payments.submitPaidNote</code></td><td>authed</td><td>"I paid" → pending row.</td></tr>
+  <tr><td><code>payments.mine</code> / <code>pending</code></td><td>authed / mod</td><td>—</td></tr>
+  <tr><td><code>payments.approve</code> / <code>reject</code></td><td>mod</td><td>Approve credits the pack and may promote the buyer.</td></tr>
+  <tr><td><code>tickets.price</code> / <code>spendable</code> / <code>availableFor</code> / <code>mine</code></td><td>authed</td><td>—</td></tr>
+  <tr><td><code>tickets.sellToModerator</code></td><td>admin</td><td>Debits coins at the live price, grows the pool.</td></tr>
+  <tr><td><code>tickets.grantFree</code></td><td>admin</td><td>Adds tickets without a coin-ledger row.</td></tr>
+  <tr><td><code>tickets.grantToUser</code> / <code>send</code></td><td>mod</td><td>Gift from the pool / transfer to another moderator.</td></tr>
+  <tr><td><code>tickets.request</code> / <code>myRequests</code> / <code>incoming</code> / <code>resolveRequest</code></td><td>authed</td><td>Ask an owner for tickets.</td></tr>
+  <tr><td><code>orders.create</code> / <code>listMine</code> / <code>unseenCount</code> / <code>markAllSeen</code></td><td>public / authed</td><td>Leads from commercial decks.</td></tr>
+</table>
+
+<h3>marketing · cast · keys · templates · tts · admin · finance · assignments</h3>
+<table class="long t-narrow">
+  <tr><th>Procedure</th><th>Tier</th><th>Does</th></tr>
+  <tr><td><code>marketing.storyboard</code></td><td>admin</td><td>Write a carousel: per-slide title, subtitle, image brief, keywords, cast. Charged.</td></tr>
+  <tr><td><code>marketing.mathboard</code></td><td>admin</td><td>Work a problem across a carousel, one slide per phase, maths in Unicode not LaTeX.</td></tr>
+  <tr><td><code>marketing.generate</code> / <code>highlight</code> / <code>music</code> / <code>logo</code></td><td>admin</td><td>Images, keyword highlighting, an ElevenLabs music bed, a logo.</td></tr>
+  <tr><td><code>marketing.card</code> / <code>saveCard</code> / <code>draftCard</code></td><td>admin</td><td>The business card. See §22.</td></tr>
+  <tr><td><code>marketing.cardVersions</code> / <code>saveCardVersion</code> / <code>renameCardVersion</code> / <code>deleteCardVersion</code></td><td>admin</td><td>Named restorable snapshots.</td></tr>
+  <tr><td><code>marketing.brand</code> / <code>saveBrand</code> / <code>quote</code></td><td>admin</td><td>—</td></tr>
+  <tr><td><code>cast.list</code> / <code>portrait</code> / <code>fromPhoto</code> / <code>update</code> / <code>remove</code></td><td>admin</td><td>Recurring characters; <code>fromPhoto</code> uses the vision path.</td></tr>
+  <tr><td><code>keys.list</code> / <code>upsert</code> / <code>remove</code> / <code>test</code></td><td>authed</td><td>BYOK management. <code>test</code> does a live round-trip.</td></tr>
+  <tr><td><code>templates.list</code></td><td>public</td><td>The layout catalogue.</td></tr>
+  <tr><td><code>templates.create</code> / <code>update</code> / <code>delete</code></td><td>authed*</td><td>Surface is admin-gated in the route table.</td></tr>
+  <tr><td><code>tts.status</code> / <code>voices</code> / <code>speak</code></td><td>public</td><td>Read-aloud.</td></tr>
+  <tr><td><code>admin.dashboard</code></td><td>mod</td><td>Counts and totals.</td></tr>
+  <tr><td><code>admin.aiStatus</code> / <code>getSettings</code> / <code>updateSettings</code></td><td>admin</td><td>Provider diagnostics; prices, packs, flags, platform keys.</td></tr>
+  <tr><td><code>finance.overview</code></td><td>admin</td><td>Real USD spend per provider vs budget, from live model pricing.</td></tr>
+  <tr><td><code>finance.setPricing</code> / <code>refreshPricing</code></td><td>admin</td><td>Re-fetch the public model price feed.</td></tr>
+  <tr><td><code>finance.grantTokens</code> / <code>userLedger</code> / <code>receipt</code></td><td>admin</td><td>—</td></tr>
+  <tr><td><code>assignments.assign</code> / <code>listFor</code> / <code>unassign</code></td><td>authed</td><td>Hand work to a named person.</td></tr>
+</table>
+
+<!-- ============================== 9 ============================== -->
+<h2><span class="num">Part IV · Chapter 9</span>Providers and key resolution</h2>
+
+<p>
+  The AI layer is multi-provider by design, because no single key is reliable and because
+  users bring their own.
+</p>
+
+<table class="t-narrow">
+  <tr><th>Capability</th><th>Providers</th></tr>
+  <tr><td><code>text</code></td><td>OpenAI-compatible, Anthropic, Gemini, Grok, DeepSeek, Moonshot/Kimi, OpenRouter</td></tr>
+  <tr><td><code>image</code></td><td>Gemini, OpenAI, Leonardo, Unsplash (stock fallback), mock</td></tr>
+  <tr><td><code>tts</code> / music</td><td>ElevenLabs</td></tr>
+  <tr><td><code>vision</code></td><td>Gemini, OpenAI, Anthropic</td></tr>
+</table>
+
+<h3>9.1 Resolution order</h3>
+
+<ol>
+  <li><strong>The user's own key</strong> for that capability, if they have one. This is the
+    only thing that changes the price: a user with their own text key pays 0 🪙 for the text
+    portion.</li>
+  <li><strong>Platform keys</strong> from settings.</li>
+  <li><strong>Environment keys.</strong></li>
+  <li><strong>Mock</strong>, only when explicitly enabled by env var — for dev and CI.</li>
+</ol>
+
+<h3>9.2 Rotation and diversity</h3>
+
+<p>
+  When several keys are available, candidates are ordered for <em>diversity</em>: one key
+  per provider first, then the rest. A deck whose first provider is rate-limited then falls
+  through to a genuinely different provider rather than to a second key on the same
+  exhausted account. Failures are retried down the list; the last error is surfaced only if
+  every candidate fails.
+</p>
+
+<div class="note">
+  <span class="lbl">Rebuild note</span>
+  <p>Keep the <code>AI_UNAVAILABLE:</code> error distinct from a content failure. "No provider
+  answered" and "the model wrote something unusable" need different messages and different
+  billing treatment: the first must never charge, the second may charge after repair
+  succeeds.</p>
+</div>
+
+<h3>9.3 Cost telemetry</h3>
+
+<p>
+  Every provider call records <code>{ providerId, model, inputTokens, outputTokens, calls }</code>
+  into <code>finance.usage</code>. The Finance page multiplies that by a live model price
+  table (seeded from a public feed, refreshable) to show real USD spend against a per-provider
+  budget. Budgets store a <em>baseline</em> snapshot of usage at the moment they were set, so
+  spend counts from then rather than from the beginning of time.
+</p>
+
+<!-- ============================== 10 ============================== -->
+<h2><span class="num">Part IV · Chapter 10</span>The deck engine prompt</h2>
+
+<p class="lede">
+  This is the most valuable thing in the system. It is not one prompt — it is a prompt
+  <em>assembled</em> from nine independent dials, and the assembly order matters.
+</p>
+
+<h3>10.1 The inputs</h3>
+
+<table class="long t-narrow">
+  <tr><th>Input</th><th>Values</th><th>Effect on the prompt</th></tr>
+  <tr><td><code>purpose</code></td><td>education / commercial / walkthrough / news</td><td>Swaps in an entire mode block and changes whether quizzes exist at all.</td></tr>
+  <tr><td><code>level</code></td><td>A0…C2</td><td>Vocabulary and sentence complexity, <em>exercise difficulty</em>, and the paragraph floor.</td></tr>
+  <tr><td><code>tone</code></td><td>neutral, casual, conversational, friendly, professional, formal, scholarly</td><td>Register and jargon load, layered <em>on top of</em> level. Explicitly does not change how much is taught.</td></tr>
+  <tr><td><code>textDensity</code></td><td>minimal / brief / standard / explained / dense</td><td>Hard word-count floors per slide. Shifts the paragraph floor by −99/−1/0/+2/+3.</td></tr>
+  <tr><td><code>imageStyle</code></td><td>sketch / watercolor / flat / photo / none</td><td><code>none</code> forbids image components entirely.</td></tr>
+  <tr><td><code>subject</code></td><td>auto / stem / humanities</td><td>Which layout catalogue is offered. Author's choice beats topic detection.</td></tr>
+  <tr><td><code>previouslyTaught</code></td><td>text or null</td><td>Injects the anti-repetition block.</td></tr>
+  <tr><td><code>layoutTemplates</code></td><td>filtered catalogue</td><td>The <em>only</em> slide shapes the model may emit.</td></tr>
+  <tr><td><code>language</code></td><td>ISO code</td><td>Prepends the language directive. Image prompts stay English.</td></tr>
+</table>
+
+<h3>10.2 Assembly order</h3>
+
+<div class="flow">  [language directive]                 ← first, because it governs every string
+  "You are the {SITE} {mode} engine…"
+  [MODE BLOCK]                         ← commercial | walkthrough | news, or nothing
+  [TEXT AMOUNT directive]              ← hard word floors, stated as rejection rules
+  [SPECIFICITY rule]                   ← "a paragraph that survives swapping the topic is a failed paragraph"
+  [numbered RULES 1–9]                 ← structure, palette, subject gating, evaluation kinds,
+                                          image style, CEFR calibration, paragraph floor, tone
+  [PREVIOUSLY TAUGHT block]            ← only when course memory exists
+  [SLIDE LAYOUT TEMPLATES]             ← the closed catalogue + per-flavour guidance
+  [OUTPUT: strict JSON shape]          ← last, so it is the freshest instruction</div>
+
+<h3>10.3 The techniques that actually made output better</h3>
+
+<p>These are hard-won. Reproduce them.</p>
+
+<h4>Floors stated as rejection rules, not targets</h4>
+<p>
+  Models systematically under-write against a soft target. "Aim for 240 words" produces 90.
+  The fix is to state the floor as a failure condition:
+</p>
+<pre>"HARD RULE: every teaching slide carries AT LEAST 240 words of written prose —
+ aim for 240-320 words across three meaty paragraphs. A slide below 240 words
+ is a FAILED slide and will be rejected."</pre>
+<p>Word floors by density: minimal = a two-sentence <em>cap</em>; brief ≥ 90; standard ≥ 240; explained ≥ 400; dense ≥ 650.</p>
+
+<h4>A closed layout catalogue</h4>
+<p>
+  The model is not free to invent slide shapes. It is handed a filtered list of named
+  layouts — <em>"Text · Image · Text · Multiple choice"</em> — and told to build every slide
+  as one of them, in order, dropping no step. Three consequences:
+</p>
+<ul>
+  <li>Every layout pairs a visual with a text step, so <strong>a slide is never just a
+    picture and a question</strong>. That single structural rule fixed the most common
+    quality complaint.</li>
+  <li>Output can be <em>validated</em> against the same catalogue — a slide that does not
+    conform to an approved configuration is caught mechanically.</li>
+  <li>Repeated steps mean genuinely different content: three "Image" steps means three
+    <em>different</em> illustrations, three "Graph" steps three <em>different</em> charts.
+    The model is told so explicitly, because its default is to restate.</li>
+</ul>
+
+<h4>The specificity rule</h4>
+<pre>"A paragraph that would still make sense with the topic swapped out is a
+ failed paragraph — rewrite it with real substance about THIS topic."</pre>
+<p>This one line eliminates most filler prose ("look closely at the diagram…").</p>
+
+<h4>Anti-repetition that says <em>use it</em>, not just <em>don't repeat it</em></h4>
+<pre>PREVIOUSLY TAUGHT in this course — treat every item below as slides that
+already exist earlier in this same course. HARD anti-repetition rules:
+(a) NEVER re-define, re-introduce, or re-explain anything listed below — not
+    even "as a reminder". Reference it by name in at most ONE short clause.
+(b) When a prior concept is needed, USE it — apply it, extend it, contrast it
+    with the new material — exactly like a university course refers back to
+    week 1 instead of re-teaching it.
+(c) Every paragraph you write must teach material NOT covered below.</pre>
+<p>Clause (b) is the one that matters. A pure prohibition makes the model avoid the topic; telling it what to do <em>instead</em> makes it build on it.</p>
+
+<h4>Level controls difficulty, not just vocabulary</h4>
+<p>
+  Stating "A1 = simple words" produced simple words wrapped around identical problems. The
+  prompt now maps the CEFR band onto <em>exercise difficulty</em> explicitly: A0/A1 = a
+  one-step problem with small whole numbers; A2/B1 = two-to-three steps; B2 = multi-step
+  with abstraction; C1/C2 = genuinely challenging, multi-concept, with edge cases.
+</p>
+
+<h4>Answer-position shuffling</h4>
+<p>
+  Models overwhelmingly place the correct option at index 0. Without a shuffle, every
+  answer in every deck is "A". Post-process with a Fisher–Yates over the option
+  <em>indices</em> (duplicate-text safe), then re-point <code>correctIndex</code>. Make the
+  RNG injectable so tests are deterministic.
+</p>
+
+<h3>10.4 Evaluation kinds</h3>
+
+<table class="t-narrow">
+  <tr><th>Kind</th><th>Shape</th><th>Graded by</th></tr>
+  <tr><td><code>mcq</code></td><td>Exactly 4 options, one correct</td><td>Client</td></tr>
+  <tr><td><code>mcq2</code></td><td>Exactly 2 options</td><td>Client</td></tr>
+  <tr><td><code>fillblank</code></td><td><code>___</code> in the question, <code>answer</code> + <code>acceptableAnswers</code></td><td>Client, tolerant match</td></tr>
+  <tr><td><code>typed</code></td><td>Open short answer + a reference <code>answer</code></td><td><strong>AI</strong>, 1 🪙</td></tr>
+  <tr><td><code>solve</code></td><td>A definite problem; <code>answer</code> is the final result, <code>explanation</code> the worked method</td><td><strong>AI</strong>, 1 🪙</td></tr>
+</table>
+
+<h3>10.5 The payment gate</h3>
+
+<p>Before any model call, in this exact order:</p>
+
+<ol>
+  <li>Signed in? No → <code>UNAUTHORIZED</code>. There is no anonymous generation.</li>
+  <li>Is a <strong>ticket</strong> valid for this job <em>and</em> is the deck within
+    <code>TICKET_DECK_LIMITS</code>? Then reserve one — but do not consume it yet.</li>
+  <li>Otherwise <code>estimateCost()</code>. If the balance cannot cover it, throw
+    <code>INSUFFICIENT_TOKENS:</code> with a message that <em>names the other door</em> —
+    "a customization ticket would cover this deck too", or "a ticket covers up to N slides
+    at level L — shorten the deck to use one instead". A refusal that does not say what
+    would have worked reads as arbitrary.</li>
+  <li>Debit coins now; consume the ticket only on success, so a failed generation costs
+    nothing.</li>
+</ol>
+
+<table class="t-narrow">
+  <tr><th>Situation</th><th>Pays with</th></tr>
+  <tr><td>Customizing someone else's repo lesson</td><td>Ticket first, else coins</td></tr>
+  <tr><td>A standalone deck from a slide tool</td><td>Ticket first, else coins</td></tr>
+  <tr><td>The owner building their own repo</td><td><strong>Always coins.</strong> A gifted ticket must not fund repo authorship, or the ticket economy leaks.</td></tr>
+</table>
+
+<!-- ============================== 11 ============================== -->
+<h2><span class="num">Part IV · Chapter 11</span>The other five prompts</h2>
+
+<h3>11.1 Lesson path — drafting a whole repo</h3>
+
+<p>
+  Takes a description, a template, unit and lesson counts, and optionally text extracted
+  from an uploaded file (a menu, a syllabus, a catalogue). Returns the whole structure.
+</p>
+
+<pre>You are the {SITE} lesson-path architect. Draft a complete repository structure.
+
+SUBJECT: {description}
+TEMPLATE: {template} — {template guidance}
+[ATTACHED REFERENCE MATERIAL — the user uploaded this; build the units, lessons
+ and objectives FROM IT, staying faithful to its actual items, sections, names
+ and details (do not invent items it doesn't contain): """{text, ≤12000 chars}"""]
+
+RULES:
+- Exactly {N} units, each with exactly {M} lessons.
+- Lesson order must build logically (lesson N assumes lessons 1..N-1).
+- Objectives are 1-3 sentence prompts that will be fed DIRECTLY to a
+  slide-generation engine. Make them concrete and self-contained.
+- toolName / toolTopic / toolInstructions: the linked slide tool's identity
+  and 2-4 sentences of standing guidance.
+
+OUTPUT: STRICT JSON ONLY …</pre>
+
+<p><strong>Template guidance</strong> is what makes one architect serve five businesses:</p>
+
+<table class="t-narrow">
+  <tr><th>Template</th><th>Units are…</th><th>Lessons are…</th><th>The objective is…</th></tr>
+  <tr><td>course</td><td>topic areas</td><td>teachable concepts</td><td>an imperative teaching prompt naming what the learner must be able to do</td></tr>
+  <tr><td>restaurant</td><td>menu categories</td><td>individual dishes</td><td>a story/exploration prompt: origins, ingredients, preparation, how it is served</td></tr>
+  <tr><td>service</td><td>service areas</td><td>individual jobs</td><td>what the service is, when it is needed, how it is done</td></tr>
+  <tr><td>shop</td><td>categories</td><td>products</td><td>the product's story, materials, use, care</td></tr>
+</table>
+
+<h3>11.2 Coach — the conversational front door</h3>
+
+<p>
+  A short-reply assistant that helps someone decide what to build and returns
+  <em>actions</em> the UI renders as buttons. Constrained hard: 2–5 sentences, plain text,
+  no markdown, exactly one clarifying question when intent is unclear, and keyword routing
+  ("menu/cafe/dish" → restaurant template, "repair/onboarding" → service, and so on).
+  Output is strict JSON: <code>{ reply, actions[] }</code> where each action is
+  <code>{ kind: lesson-path|slides|repos, label, payload }</code>.
+</p>
+
+<h3>11.3 Carousel storyboard — the marketing writer</h3>
+
+<pre>You write Instagram carousels for a marketing team. The subject is {category brief}.
+Given it, plan a carousel of {exactly N | as many slides as the subject genuinely
+needs — at least 3, at most 10, no padding} that tells one small, complete story:
+slide 1 hooks the reader, the middle slides walk through the steps or ideas one at
+a time in order, and the last slide closes with a takeaway or invitation.
+
+For EVERY slide give:
+  title       — 2 to 6 punchy words, the big line on the card
+  subtitle    — one or two short sentences that explain it
+  imagePrompt — a concrete description of a photograph for that slide's backdrop
+                (setting, subject, action, light), showing adults, no text in the picture
+
+{cast rule} {language rule} {keyword rule}
+
+The carousel closes with a follow card for the account posting it. Write its two
+lines from the account description below, bent towards this carousel's subject.
+The account: {siteBrief()}
+
+Reply STRICT JSON ONLY: {"slides":[…],"endCard":{"headline":"…","bio":"…"}}</pre>
+
+<div class="note">
+  <span class="lbl">Two rules worth copying verbatim</span>
+  <p><strong>The language rule.</strong> Everything is written in the target language <em>except
+  <code>imagePrompt</code></em>, which stays English because it is read by an image
+  generator trained overwhelmingly on English captions. Translating it costs picture quality
+  and buys nothing. Also: "any keywords you pick must be copied exactly from the text you
+  wrote" — otherwise highlighting fails to match.</p>
+  <p><strong>The end card is a bonus, not the deliverable.</strong> If the model skips it, the
+  user still gets — and pays for — the carousel. Parse it with a separate
+  <code>safeParse</code> and tolerate its absence.</p>
+</div>
+
+<h3>11.4 Mathboard</h3>
+
+<p>
+  Works a problem across a carousel, one slide per phase, with the working on the slide and
+  the plain-language explanation in the band underneath. The model decides how many slides
+  it takes, because the person asking does not know yet — that is why they are asking.
+</p>
+<p>
+  <strong>Maths is written in Unicode, not LaTeX.</strong> A post is a picture, exported as
+  a PNG and read on a phone, so the notation has to be something the same canvas that draws
+  every other slide can draw. LaTeX would mean a second renderer and a second font stack,
+  and the preview and the export would stop agreeing — which is the one rule this tool keeps.
+</p>
+
+<h3>11.5 Grading</h3>
+
+<p>
+  <code>typed</code> and <code>solve</code> answers go to the model with the question, the
+  reference answer and the student's text, and come back as a verdict plus a short
+  explanation. Costs 1 🪙, charged to the player. <code>gradeVisual</code> does the same
+  through the vision path for a worked-out photo or scratchpad drawing.
+</p>
+
+<!-- ============================== 12 ============================== -->
+<h2><span class="num">Part IV · Chapter 12</span>Output repair and validation</h2>
+
+<p class="lede">
+  Real model output is imperfect in small ways. Rejecting a whole deck because one quiz had
+  three options wastes a generation the user already paid for. The pipeline is built to
+  salvage.
+</p>
+
+<h3>12.1 The pipeline</h3>
+
+<div class="flow">  raw text
+    │  extractJson()          strip fences / surrounding prose, take the outermost { … }
+    ▼
+  repairDeckDraft()
+    │  · snap an invented imageStyle to the deck's own
+    │  · strip blank entries from a prose paragraphs array
+    │  · DROP invalid components individually (log the type)
+    │  · DROP an invalid quiz, keep the slide
+    │  · a slide left with NO components is rebuilt from its own quiz,
+    │    not dropped — dropping shrinks the deck below what was paid for
+    ▼
+  zod strict parse       ← now it should pass
+    ▼
+  ensureExplanatoryProse()
+    │  any slide with no prose gets a paragraph built from its own quiz
+    │  (correct answer + explanation IS real teaching content)
+    │  written in the deck's own register — a menu slide gets menu copy,
+    │  a news slide gets reporting, never "study what it shows"
+    │  EXCEPT a Wolfram-only slide: the computation IS the explanation
+    ▼
+  shuffleQuizAnswers()
+    ▼
+  persist</div>
+
+<h3>12.2 Persist server-side</h3>
+
+<div class="warn">
+  <span class="lbl">Learn from this one</span>
+  <p>Generation used to be two calls — <em>generate</em>, then <em>save</em> — which meant a
+  tab that navigated away mid-generation lost a deck the user had already been charged for.
+  The endpoint now takes a <code>persist</code> flag and saves the finished deck itself, so
+  the work is one request and completes whether or not anyone is still watching. Do this
+  from the start.</p>
+</div>
+
+<!-- ============================== 13 ============================== -->
+<h2><span class="num">Part V · Chapter 13</span>Coins, tickets and the ledger</h2>
+
+<p class="lede">
+  Two currencies, deliberately. <strong>Coins</strong> are fungible and priced per unit of
+  work. <strong>Tickets</strong> are prepaid entitlements for one bounded generation, and
+  exist so somebody can be <em>given</em> the ability to generate without being given money.
+</p>
+
+<h3>13.1 Coins 🪙</h3>
+
+<ul>
+  <li>Integer. Never negative. Balance lives on <code>users.tokenBalance</code>.</li>
+  <li>Every movement goes through <code>applyTokenDelta</code> and writes a ledger row.</li>
+  <li>New accounts start with <strong>50</strong>.</li>
+  <li>Holding any coins makes you a moderator; hitting zero demotes you. Admins exempt.</li>
+</ul>
+
+<h3>13.2 Tickets 🎟</h3>
+
+<ul>
+  <li>One row per ticket, not a counter — so each one has an issuer, a holder, an optional
+    repo scope, and a consumed timestamp.</li>
+  <li><code>repoId</code> set = scoped to that repo. <code>repoId</code> null = general,
+    spendable on a standalone deck.</li>
+  <li><strong>Spend preference.</strong> Customizing repo X spends a ticket issued
+    <em>for X</em> first, so the general one stays available for anything. A standalone deck
+    spends a <em>general</em> one first, so a ticket someone was given for a specific repo is
+    the last thing taken for an unrelated deck. Both fall through — a ticket is a ticket to
+    the person holding it, and refusing one they own would be a technicality.</li>
+  <li><strong>Consumption is atomic.</strong> The row is claimed inside a transaction with a
+    <code>consumed = false</code> guard, so two concurrent generations cannot double-spend
+    the same ticket.</li>
+  <li>Only moderators and admins <em>hold a pool</em>. An ordinary user can hold issued
+    tickets but cannot gift them.</li>
+</ul>
+
+<!-- ============================== 14 ============================== -->
+<h2><span class="num">Part V · Chapter 14</span>The pricing formula</h2>
+
+<h3>14.1 A deck</h3>
+
+<pre>base   = usingOwnTextKey ? 0 : perSlideBase × slideCount
+images = imageStyle !== "none" ? perImageSlide × slideCount : 0
+tts    = withTts ? perTts × slideCount : 0
+
+total  = ceil( (base + images + tts) × levelMultiplier[level] )</pre>
+
+<table class="t-narrow">
+  <tr><th>Setting</th><th>Default</th><th>Meaning</th></tr>
+  <tr><td><code>perSlideBase</code></td><td>2 🪙</td><td>Text generation, per slide. Zeroed by a user's own text key.</td></tr>
+  <tr><td><code>perImageSlide</code></td><td>2 🪙</td><td>Per slide, when any image style is active.</td></tr>
+  <tr><td><code>perTts</code></td><td>1 🪙</td><td>Per slide, when read-aloud is requested.</td></tr>
+  <tr><td><code>perMusic</code></td><td>20 🪙</td><td>One generated music bed.</td></tr>
+  <tr><td><code>levelMultiplier</code></td><td>A0/A1 1.0 · A2 1.1 · B1 1.2 · B2 1.3 · C1 1.4 · C2 1.5</td><td>Higher levels produce more text, so they cost more.</td></tr>
+</table>
+
+<p>
+  The estimate returns a <strong>human-readable breakdown</strong> alongside the number —
+  "Text: 2 🪙 × 8 slides = 16 🪙", "Images: …", "Level (C1) × 1.4". Show it. A price with no
+  arithmetic behind it reads as arbitrary, and this is the single most common source of
+  support questions.
+</p>
+
+<h3>14.2 A ticket</h3>
+
+<p>
+  A ticket must always fully cover any in-bounds generation, so its price is the cost of the
+  <em>most expensive</em> customization possible:
+</p>
+
+<pre>autoTicketPrice = max(1, ceil( (perSlideBase + perImageSlide)
+                               × TICKET_DECK_LIMITS.maxSlides
+                               × max(levelMultiplier) ))</pre>
+
+<p>
+  Derived from the same cap the entitlement checks, so price and entitlement can never
+  disagree. An admin may pin an exact override; otherwise it tracks every price change
+  automatically.
+</p>
+
+<h3>14.3 Everything else that costs</h3>
+
+<table class="t-narrow">
+  <tr><th>Action</th><th>Cost</th></tr>
+  <tr><td>AI grading of one typed/solve answer</td><td>1 🪙</td></tr>
+  <tr><td>AI profile portrait</td><td>quoted by <code>users.avatarQuote</code></td></tr>
+  <tr><td>Repo / tool / unit banner image</td><td>quoted at the call site</td></tr>
+  <tr><td>Carousel storyboard</td><td>fixed, quoted before the call</td></tr>
+  <tr><td>Carousel images, logo, music</td><td>per-item, quoted</td></tr>
+  <tr><td>Business-card AI draft</td><td>quoted by <code>marketing.quote</code></td></tr>
+</table>
+
+<div class="warn">
+  <span class="lbl">The standing rule</span>
+  <p><em>"Anything that is made on the website must come out of the credits the user has —
+  no matter if it's admin, moderator, or a normal user."</em> There is no free path. If you
+  add a new AI feature, it quotes first and debits through <code>applyTokenDelta</code>.
+  Reviewers should reject any AI call that does not.</p>
+</div>
+
+<!-- ============================== 15 ============================== -->
+<h2><span class="num">Part V · Chapter 15</span>Earn, spend, transfer</h2>
+
+<h3>15.1 The full matrix</h3>
+
+<table class="long">
+  <tr><th>Movement</th><th>From → To</th><th>Endpoint</th><th>Who may</th><th>Ledger?</th></tr>
+  <tr><td>Signup grant</td><td>— → user</td><td><code>auth.register</code></td><td>automatic</td><td>Yes</td></tr>
+  <tr><td>Buy a pack</td><td>— → user</td><td><code>payments.submitPaidNote</code> → <code>approve</code></td><td>buyer files, mod approves</td><td>Yes, on approval</td></tr>
+  <tr><td>Manual credit</td><td>— → user</td><td><code>users.creditTokens</code> <code>direction:"credit"</code></td><td>mod, admin</td><td>Yes, with reason + actor's email</td></tr>
+  <tr><td>Manual deduct</td><td>user → —</td><td><code>users.creditTokens</code> <code>direction:"deduct"</code></td><td>mod, admin</td><td>Yes. Cannot go below zero.</td></tr>
+  <tr><td>Admin grant</td><td>— → user</td><td><code>finance.grantTokens</code></td><td>admin</td><td>Yes</td></tr>
+  <tr><td>Spend on a deck</td><td>user → —</td><td><code>generate.slides</code></td><td>anyone signed in</td><td>Yes</td></tr>
+  <tr><td>Spend on grading / images / music</td><td>user → —</td><td>various</td><td>anyone signed in</td><td>Yes</td></tr>
+  <tr><td>Refund</td><td>— → user</td><td><code>refundTokens</code></td><td>system, on failure</td><td>Yes</td></tr>
+  <tr><td>Buy tickets</td><td>mod's coins → mod's ticket pool</td><td><code>tickets.sellToModerator</code></td><td>admin sells</td><td>Yes (coin debit)</td></tr>
+  <tr><td>Free ticket grant</td><td>— → ticket pool</td><td><code>tickets.grantFree</code></td><td>admin</td><td><strong>No</strong> — no money moved</td></tr>
+  <tr><td>Gift tickets</td><td>pool → a named holder</td><td><code>tickets.grantToUser</code></td><td>mod, admin</td><td>No</td></tr>
+  <tr><td>Transfer tickets</td><td>pool → pool</td><td><code>tickets.send</code></td><td>mod → mod</td><td>No</td></tr>
+  <tr><td>Request tickets</td><td>—</td><td><code>tickets.request</code> → <code>resolveRequest</code></td><td>anyone → owner</td><td>No</td></tr>
+</table>
+
+<h3>15.2 Guardrails</h3>
+
+<ul>
+  <li>A deduct larger than the balance is refused with the actual number:
+    <em>"Sam only has 12 🪙 — can't remove 50."</em></li>
+  <li>Every manual adjustment records <em>who</em> did it, appended to the reason.</li>
+  <li>Only moderators and admins can <em>receive</em> a ticket pool. Trying to grant one to a
+    plain user returns a message that says what to do instead:
+    <em>"Only moderators hold customization tickets — credit Sam some coins first and they
+    become one."</em></li>
+  <li>You cannot send tickets to yourself.</li>
+  <li>Transfer checks the sender's balance <em>inside</em> the transaction, so two
+    simultaneous sends cannot both pass on the same last ticket.</li>
+</ul>
+
+<!-- ============================== 16 ============================== -->
+<h2><span class="num">Part VI · Chapter 16</span>Global shell and navigation</h2>
+
+<h3>16.1 Route table</h3>
+
+<table class="long t-narrow">
+  <tr><th>Path</th><th>Page</th><th>Access</th></tr>
+  <tr><td><code>/</code>, <code>/feed</code></td><td>Feed</td><td>public</td></tr>
+  <tr><td><code>/feed/:slug</code></td><td>Post</td><td>public if visible</td></tr>
+  <tr><td><code>/repos</code></td><td>Repos — your shelf</td><td>public</td></tr>
+  <tr><td><code>/repos/:slug</code></td><td>Repository detail</td><td>public if public</td></tr>
+  <tr><td><code>/repos/new/manual</code></td><td>Repo builder</td><td>authed</td></tr>
+  <tr><td><code>/repos/:slug/play/:seq</code></td><td>Play a lesson's preset</td><td>public</td></tr>
+  <tr><td><code>/repos/:slug/play/:seq/edit</code></td><td>Preset editor</td><td>owner</td></tr>
+  <tr><td><code>/repos/:slug/play/:seq/mine</code></td><td>Play your customization</td><td>authed</td></tr>
+  <tr><td><code>/slides</code></td><td>Slides — your tools</td><td>public</td></tr>
+  <tr><td><code>/slides/:slug</code></td><td>Slide tool — configure &amp; generate</td><td>public</td></tr>
+  <tr><td><code>/slides/build</code>, <code>/slides/build/:slug</code></td><td>Manual deck builder</td><td>authed</td></tr>
+  <tr><td><code>/slides/show/:slug</code></td><td>Play a manual deck</td><td>public</td></tr>
+  <tr><td><code>/gallery</code></td><td>Gallery — everyone's work</td><td>public</td></tr>
+  <tr><td><code>/users</code>, <code>/users/:id</code></td><td>Directory, profile</td><td>public</td></tr>
+  <tr><td><code>/runs</code>, <code>/runs/:runId/replay</code></td><td>Runs, replay</td><td>public / owner</td></tr>
+  <tr><td><code>/card</code></td><td>Business &amp; payment card</td><td>authed</td></tr>
+  <tr><td><code>/credits</code></td><td><strong>New.</strong> Credits &amp; tickets</td><td>authed</td></tr>
+  <tr><td><code>/settings</code></td><td>Profile, keys, preferences</td><td>authed</td></tr>
+  <tr><td><code>/auth</code></td><td>Sign in / register</td><td>public</td></tr>
+  <tr><td><code>/about</code></td><td>About</td><td>public</td></tr>
+  <tr><td><code>/admin/*</code></td><td>Dashboard, stats, controls, users, moderators, payments, flags, finance, marketing, settings</td><td>gated</td></tr>
+  <tr><td><code>/templates</code></td><td>Layout catalogue editor</td><td>admin</td></tr>
+  <tr><td><code>*</code></td><td>→ Feed</td><td>—</td></tr>
+</table>
+
+<h3>16.2 The shell</h3>
+
+<p>Five primary destinations. Not eleven. See §28 for why this is the single biggest intuitiveness fix.</p>
+
+<table class="t-narrow">
+  <tr><th>Slot</th><th>Contents</th></tr>
+  <tr><td>Primary nav</td><td><strong>Feed · Repos · Slides · Gallery · Users</strong></td></tr>
+  <tr><td>Right cluster</td><td>Credit pill (balance, links to <code>/credits</code>) · language switch · avatar menu</td></tr>
+  <tr><td>Avatar menu</td><td>Profile · Card · Credits · Settings · Admin (only if admin) · Sign out</td></tr>
+  <tr><td>Mobile</td><td>Bottom tab bar with the same five; the right cluster collapses into the avatar sheet.</td></tr>
+</table>
+
+<h3>16.3 Cross-cutting behaviours</h3>
+
+<table class="t-narrow">
+  <tr><th>Behaviour</th><th>Rule</th></tr>
+  <tr><td><strong>Cost confirmation</strong></td><td>Any charged action opens a sheet showing the itemised estimate and the balance after. A "don't ask again" preference is remembered per browser. The <em>first</em> time in a session it always shows.</td></tr>
+  <tr><td><strong>Language filter</strong></td><td>A two-state switch in the header: <strong>EN</strong> and <strong>ES</strong>. There is no "All" — English <em>is</em> the catch-all. Selecting ES sends <code>language: "es"</code> and shows only Spanish content. Selecting EN sends no filter and shows everything. A French lesson gets a <code>FR</code> sticker and appears in the English shelf.</td></tr>
+  <tr><td><strong>Content-language sticker</strong></td><td>Every feed post, repo, slide tool and card carries a two-letter language chip.</td></tr>
+  <tr><td><strong>Assignment beats filtering</strong></td><td>Something handed to you by name is never hidden by a language filter. Someone made a decision about you; a filter must not quietly overrule it.</td></tr>
+  <tr><td><strong>Admin annotation overlay</strong></td><td>A floating pencil on every page lets an admin draw on it. Marks are keyed to the pathname, survive closing the toolbar (going <code>pointer-events: none</code>), and are erased on reload or navigation. Excluded from player routes, which have their own tools.</td></tr>
+  <tr><td><strong>Empty vs failed</strong></td><td>Never render "None yet" for a failed query. Failures show the server's message in the danger colour with a retry.</td></tr>
+</table>
+
+<!-- ============================== 17 ============================== -->
+<h2><span class="num">Part VI · Chapter 17</span>Feed</h2>
+
+<p class="kv"><b>Routes</b> <code>/</code> and <code>/feed</code> · <b>Access</b> public · <b>Data</b> <code>posts.list</code></p>
+
+<h3>17.1 Purpose</h3>
+<p>
+  The front door. An Instagram-style vertical stream of carousel posts. Deliberately
+  <strong>narrow</strong>: it carries the site's own posts, your own, and anything sent to
+  you by name. Everyone else's public work lives in the Gallery. A feed that filled with
+  every account's advertising would stop being worth opening.
+</p>
+
+<h3>17.2 Who sees what</h3>
+
+<pre>scope = "feed"  (this page)
+  visible = (visibility = 'public' AND author.role = 'admin')
+         OR (ownerId = viewer)
+         OR (slug IN viewer's assignments)
+
+scope = "all"   (the Gallery's posts tab)
+  visible = (visibility = 'public')
+         OR (ownerId = viewer)
+         OR (slug IN viewer's assignments)</pre>
+
+<div class="note">
+  <span class="lbl">Implementation requirement</span>
+  <p>This must be one SQL <code>WHERE</code>, not a post-filter. The <code>limit</code> has to
+  count rows the viewer can actually see, or a page of 30 arrives with 4 posts on it.</p>
+</div>
+
+<h3>17.3 What a post carries</h3>
+
+<pre>PostSummary {
+  slug, caption, category
+  imageUrls: string[]          every slide, in carousel order
+  audioUrl:  string | null     the music bed, if one was made
+  width, height                the aspect the carousel was rendered at
+  ownerId, ownerName, ownerAvatarUrl, ownerVerified
+  createdAt
+  mine, saved                  viewer-relative
+  who: "public" | "private"
+  contentLanguage              drives the sticker and the filter
+  assignedCount                how many people it was sent to
+}</pre>
+
+<h3>17.4 Layout and interactions</h3>
+
+<table class="t-narrow">
+  <tr><th>Element</th><th>Behaviour</th></tr>
+  <tr><td>View toggle</td><td>Stream (one post, full width, ~600px) ↔ Grid (3-up thumbnails). Remembered.</td></tr>
+  <tr><td>Category chips</td><td>Course · Restaurant · Service · Shop · Walkthrough · News. Single-select, clearable.</td></tr>
+  <tr><td>Saved toggle</td><td>Only posts you saved. Returns empty for signed-out viewers rather than everything.</td></tr>
+  <tr><td>Carousel</td><td>Swipe / arrows / dots. Keyboard ← →. Counter "3 / 6".</td></tr>
+  <tr><td>Audio</td><td>Muted by default. One control; only one post plays at a time.</td></tr>
+  <tr><td>Author row</td><td>Avatar, username, verified check, language chip. Tap → profile.</td></tr>
+  <tr><td>Save</td><td>Optimistic. Reverts with a toast on failure.</td></tr>
+  <tr><td>Owner controls</td><td>Visibility, language, recipients, delete — inline, never in a separate admin screen.</td></tr>
+  <tr><td>Empty state</td><td>Explains the feed is narrow <em>and</em> links to the Gallery. Do not leave a first-time visitor on a blank page.</td></tr>
+</table>
+
+<h3>17.5 New design</h3>
+<ul>
+  <li>Post surface is a glass card floating on a soft neutral canvas: <code>--surface-glass</code>,
+    1px hairline, 20px radius, and a large soft shadow that lifts on hover.</li>
+  <li>The image is the hero, edge-to-edge inside the card radius. Caption and controls sit
+    <em>below</em> the image, never over it.</li>
+  <li>Category chips are quiet pills — filled only when active. No colour-coding by category;
+    one accent for "on".</li>
+  <li>Skeletons match the final aspect ratio exactly so nothing reflows on load.</li>
+</ul>
+
+<!-- ============================== 18 ============================== -->
+<h2><span class="num">Part VI · Chapter 18</span>Repos</h2>
+
+<p class="kv"><b>Routes</b> <code>/repos</code>, <code>/repos/:slug</code> · <b>Data</b> <code>repos.list</code>, <code>repos.getBySlug</code>, <code>repos.toggleFavorite</code>, <code>repos.delete</code></p>
+
+<h3>18.1 Purpose</h3>
+<p>
+  A repo is a <em>notebook</em>: a structured body of material — units containing lessons and
+  images. <code>/repos</code> is <strong>your own shelf</strong>; everyone else's are in the
+  Gallery. This split is load-bearing and should survive the redesign.
+</p>
+
+<h3>18.2 The shelf</h3>
+
+<table class="t-narrow">
+  <tr><th>Element</th><th>Behaviour</th></tr>
+  <tr><td>Filters</td><td>Category (the 7 templates) · language · favourites · following · search.</td></tr>
+  <tr><td>Card</td><td>Banner image (or a generated gradient), title, description, owner, unit/lesson counts, progress ring, <code>ref</code> sticker, language chip, source badge (AI / hand-built), privacy.</td></tr>
+  <tr><td>Actions</td><td>Open · favourite · delete (owner/admin, confirmed).</td></tr>
+  <tr><td>Create</td><td>Two doors, equally weighted: <strong>Describe it</strong> (AI drafts the whole structure — quoted first) and <strong>Build it myself</strong> (empty repo).</td></tr>
+</table>
+
+<h3>18.3 Repository detail</h3>
+
+<table class="t-narrow">
+  <tr><th>Region</th><th>Contents</th></tr>
+  <tr><td>Header</td><td>Banner, title, description, owner, ref, language, counts, favourite, edit/delete for the owner.</td></tr>
+  <tr><td>Units</td><td>Collapsible. Each holds an ordered mix of <strong>lessons</strong> and <strong>image items</strong>, reorderable by the owner.</td></tr>
+  <tr><td>Lesson row</td><td>Sequence number, title, objective (the generation prompt — shown, because it is the thing that produces the deck), best score, preset indicator, answer-key link.</td></tr>
+  <tr><td>Lesson actions</td><td>Play preset · Customize (charged) · Play my version · Edit preset (owner) · Create answer key · View runs.</td></tr>
+  <tr><td>Course memory panel</td><td>What has been taught so far — the exact text injected into the next lesson's prompt. Surfacing this is what makes the product's core mechanic legible.</td></tr>
+  <tr><td>Tickets</td><td>How many you can spend here; request more from the owner; owner grants from their pool.</td></tr>
+</table>
+
+<h3>18.4 New design</h3>
+<ul>
+  <li>Shelf is a responsive grid of glass cards with a 16:9 banner. Hover lifts 2px and
+    strengthens the border — no scale transform.</li>
+  <li>Progress as a thin determinate bar along the card's bottom edge, not a ring in a corner.</li>
+  <li>Units are a left rail on desktop (sticky, showing progress per unit) and an accordion on
+    mobile. The rail replaces scroll-hunting through a long page.</li>
+  <li>A lesson row's <em>primary</em> action is one button. Everything else lives behind a
+    quiet overflow menu. Today every row shows six controls and the page reads as a control
+    panel rather than a table of contents.</li>
+</ul>
+
+<!-- ============================== 19 ============================== -->
+<h2><span class="num">Part VI · Chapter 19</span>Slides</h2>
+
+<p class="kv"><b>Routes</b> <code>/slides</code>, <code>/slides/:slug</code>, <code>/slides/build</code>, <code>/slides/show/:slug</code> · <b>Data</b> <code>slideTools.*</code>, <code>generate.*</code>, <code>runs.complete</code></p>
+
+<h3>19.1 Purpose</h3>
+<p>
+  A <em>slide tool</em> is a saved generator: a topic, standing instructions, and defaults.
+  Point it at a subject and it produces a deck. Tools are either standalone or mirrored out
+  of a repo lesson.
+</p>
+
+<h3>19.2 The tool page — the configurator</h3>
+
+<table class="long t-narrow">
+  <tr><th>Control</th><th>Options</th><th>Notes</th></tr>
+  <tr><td>Topic</td><td>free text</td><td>Falls back to the tool's topic, then its name.</td></tr>
+  <tr><td>Instructions</td><td>free text</td><td>Standing guidance.</td></tr>
+  <tr><td>Slide count</td><td>1–15</td><td>Drives the price linearly.</td></tr>
+  <tr><td>Level</td><td>A0…C2</td><td>Vocabulary, exercise difficulty, paragraph floor, price multiplier.</td></tr>
+  <tr><td>Image style</td><td>sketch / watercolor / flat / photo / none</td><td><code>none</code> removes the image line from the price.</td></tr>
+  <tr><td>Category</td><td>the 7 templates</td><td>Sets the deck's <em>purpose</em> — this is the biggest single switch. Say so in the UI.</td></tr>
+  <tr><td colspan="3"><strong>Advanced</strong> — collapsed by default</td></tr>
+  <tr><td>Tone</td><td>7 registers</td><td>Voice and jargon load, not depth.</td></tr>
+  <tr><td>Text amount</td><td>minimal → dense</td><td>Show the actual word target per slide. It is the difference between a 2-sentence card and a 650-word page.</td></tr>
+  <tr><td>Subject</td><td>auto / STEM / humanities</td><td>Which layout catalogue is offered.</td></tr>
+  <tr><td>Language</td><td>15 languages</td><td>What the deck is written in.</td></tr>
+  <tr><td>Web search</td><td>on / off</td><td>Ground the deck in current facts first.</td></tr>
+  <tr><td>Include questions</td><td>on / off</td><td>Off strips every evaluation before storing.</td></tr>
+  <tr><td>News period</td><td>free text</td><td>News decks only — the moment the briefing reports from.</td></tr>
+  <tr><td>Template plan</td><td>per-slide layout pin</td><td>Index <em>i</em> → slide <em>i</em>+1; null = let the AI choose.</td></tr>
+</table>
+
+<p>
+  A <strong>live price</strong> sits beside the controls and updates on every change, with
+  the itemised breakdown one tap away. Generating opens the cost sheet unless suppressed.
+</p>
+
+<h3>19.3 The player</h3>
+
+<table class="t-narrow">
+  <tr><th>Aspect</th><th>Behaviour</th></tr>
+  <tr><td>Components</td><td>prose, latex, chart (bar/line/pie/area), svg diagram, table, sticky note, image, code, Wolfram|Alpha card.</td></tr>
+  <tr><td>Evaluation</td><td>Per §10.4. Typed and solve go to the AI for 1 🪙 with an explicit confirm.</td></tr>
+  <tr><td>Scratchpad</td><td>Solve questions get a drawing surface; the work can be graded by vision.</td></tr>
+  <tr><td>Read-aloud</td><td>Per-slide TTS with voice selection, when a key is configured.</td></tr>
+  <tr><td>Annotation</td><td>Draw over slides during presentation; strokes persist into the run record.</td></tr>
+  <tr><td>Finish</td><td><em>Education</em> → score + review. <em>Commercial</em> → contact/order screen writing an order lead. <em>Walkthrough/news</em> → author card.</td></tr>
+  <tr><td>Persistence</td><td><code>runs.complete</code> stores deck + answers + annotations + timing, and writes the lesson log that becomes course memory.</td></tr>
+</table>
+
+<h3>19.4 New design</h3>
+<ul>
+  <li>Configurator as a two-column layout: controls left, a <strong>live deck outline</strong>
+    right (N numbered cards showing the pinned or predicted layout). Today the settings are a
+    long scroll with no picture of the outcome.</li>
+  <li>Price is a persistent element in the sticky action bar, not a line buried in the form.</li>
+  <li>Player chrome disappears: full-bleed slide, controls fading in on pointer move, a thin
+    progress rail at the top. Glass only for the floating control cluster.</li>
+  <li>Every advanced control carries a one-line plain-language consequence, always visible —
+    not a tooltip. "Dense — about 650 words a slide, a serious reading assignment."</li>
+</ul>
+
+<!-- ============================== 20 ============================== -->
+<h2><span class="num">Part VI · Chapter 20</span>Gallery</h2>
+
+<p class="kv"><b>Route</b> <code>/gallery</code> · <b>Access</b> public · <b>Data</b> the same list endpoints with <code>mine: false</code> / <code>scope: "all"</code></p>
+
+<h3>20.1 Purpose</h3>
+<p>
+  Everything <em>everyone</em> has made. The counterweight to three deliberately narrow
+  personal surfaces: <code>/feed</code> shows the site's posts, <code>/repos</code> and
+  <code>/slides</code> show only your own. The Gallery is where the platform's body of work
+  actually lives.
+</p>
+
+<h3>20.2 Structure</h3>
+<p>
+  Three tabs — <strong>Slides · Repos · Feed</strong> — rendering the same components as the
+  personal shelves with the ownership filter inverted. Reuse, do not duplicate: the Slides
+  tab is literally the Slides shelf with <code>mine={false}</code>.
+</p>
+
+<table class="t-narrow">
+  <tr><th>Element</th><th>Behaviour</th></tr>
+  <tr><td>Filters</td><td>Per tab, the same vocabulary as the personal shelf, plus <strong>following only</strong>.</td></tr>
+  <tr><td>Favourites</td><td>Marked here are yours and show on your shelves' favourite filter — but your shelves still <em>list</em> only what you created.</td></tr>
+  <tr><td>Language</td><td>Obeys the global switch.</td></tr>
+</table>
+
+<h3>20.3 New design</h3>
+<ul>
+  <li>A segmented control, not three chip-buttons. It is one thing being switched, and a
+    segmented control says so.</li>
+  <li>A one-line explainer under the tabs, permanently: <em>"Everyone's work. Your own shelves
+    stay just yours."</em> The relationship between Gallery and the personal shelves is the
+    single most confusing thing in the current information architecture.</li>
+  <li>Masonry for the posts tab (variable aspect ratios), uniform grid for slides and repos.</li>
+</ul>
+
+<!-- ============================== 21 ============================== -->
+<h2><span class="num">Part VI · Chapter 21</span>Users</h2>
+
+<p class="kv"><b>Routes</b> <code>/users</code>, <code>/users/:id</code> · <b>Data</b> <code>users.directory</code>, <code>users.profile</code>, <code>users.toggleFollow</code>, <code>users.paymentCard</code></p>
+
+<h3>21.1 Directory</h3>
+
+<table class="t-narrow">
+  <tr><th>Element</th><th>Behaviour</th></tr>
+  <tr><td>Search</td><td>Debounced 250ms, server-side by name and email.</td></tr>
+  <tr><td>Filters</td><td>Following only · creators only (repoCount &gt; 0) · category (from the templates they publish).</td></tr>
+  <tr><td>Row</td><td>Avatar, username, role chip, verified check, repo count, the categories they work in.</td></tr>
+  <tr><td>Follow</td><td>Optimistic with rollback. Guests get "Sign in to favourite creators".</td></tr>
+</table>
+
+<h3>21.2 Profile</h3>
+
+<table class="t-narrow">
+  <tr><th>Region</th><th>Contents</th><th>Visible to</th></tr>
+  <tr><td>Header</td><td>Avatar, username, role, verified badge, follow button, contact (WhatsApp / socials / note) when published.</td><td>everyone</td></tr>
+  <tr><td>Work</td><td>Their repos, slide tools and posts — public ones only for a stranger.</td><td>everyone</td></tr>
+  <tr><td>Payment card</td><td>Their published payment card, if they made one.</td><td>everyone</td></tr>
+  <tr><td>Ticket actions</td><td>Send tickets · grant free tickets.</td><td>mod / admin</td></tr>
+  <tr><td>Credit actions</td><td>Credit or deduct coins with a reason.</td><td>mod / admin</td></tr>
+  <tr><td>Identity actions</td><td>Rename, change email, set role, verify.</td><td>admin</td></tr>
+  <tr><td>Buy credits</td><td>Pack list and the "I've paid" note.</td><td>self</td></tr>
+</table>
+
+<h3>21.3 New design</h3>
+<ul>
+  <li>Directory as a dense list, not cards. People are scanned, not browsed.</li>
+  <li><strong>Separate the moderation rail.</strong> Today credit, ticket and identity actions
+    are mixed into the public profile. Move every privileged action into one right-hand
+    "Manage" panel, clearly marked, collapsed by default. A moderator viewing a profile should
+    see the profile first.</li>
+  <li>Verified check is a small filled glyph next to the name with a tooltip that says what it
+    means — "vouched for by an admin" — because nobody guesses correctly.</li>
+</ul>
+
+<!-- ============================== 22 ============================== -->
+<h2><span class="num">Part VI · Chapter 22</span>Card</h2>
+
+<p class="kv"><b>Route</b> <code>/card</code> · <b>Data</b> <code>marketing.card</code>, <code>saveCard</code>, <code>draftCard</code>, <code>cardVersions</code>, <code>saveCardVersion</code>, <code>renameCardVersion</code>, <code>deleteCardVersion</code>, <code>quote</code></p>
+
+<h3>22.1 Purpose</h3>
+<p>
+  A print-quality business card and a separate payment card, designed in the browser and
+  exported as PNG, PDF, or a print sheet with front and back side by side.
+</p>
+
+<div class="note">
+  <span class="lbl">The rule that makes this work</span>
+  <p><strong>One layout function, two renderers.</strong> A single pure function takes the card
+  model and a canvas measuring context and returns absolute positions for every text run,
+  rule and image. The on-screen preview walks that output as positioned <code>div</code>s;
+  the PNG and PDF exporters walk the same output with <code>fillText</code>. Preview and
+  export cannot drift, because there is only one layout. Every attempt to lay out the preview
+  in CSS and the export in canvas produced two different cards.</p>
+</div>
+
+<h3>22.2 The model</h3>
+
+<pre>CARD_W = 1050, CARD_H = 600      // print pixels; the preview scales by container query
+
+CardPair { business: BusinessCard, payment: BusinessCard }   // fully independent
+
+BusinessCard {
+  company, name, title, tagline, details
+  bg, accent, ink, inkSoft         // the palette — SEPARATE per card
+  backLayout: "quote" | "contact" | "payments" | "badge"
+  frontMark:  "logo" | "qr"
+  logoUrl
+  methods: PaymentMethod[]         // payment card only
+}</pre>
+
+<div class="warn">
+  <span class="lbl">Learned the hard way</span>
+  <p>The business card and the payment card must be <strong>separate objects</strong>. They
+  shared one model at first, so changing the payment card's colour changed the business
+  card's. Split them at the type level, not by convention.</p>
+</div>
+
+<h3>22.3 Payment methods</h3>
+
+<p>
+  Nine kinds, each with its own fields and a brand colour used for a vertical rule beside its
+  block, so a card with four methods reads as four groups rather than eight lines.
+</p>
+
+<table>
+  <tr><th>Kind</th><th>Brand</th><th>Kind</th><th>Brand</th><th>Kind</th><th>Brand</th></tr>
+  <tr><td>Binance</td><td><code>#F0B90B</code></td><td>Bitcoin</td><td><code>#F7931A</code></td><td>Ethereum</td><td><code>#627EEA</code></td></tr>
+  <tr><td>USDT TRC-20</td><td><code>#26A17B</code></td><td>PayPal</td><td><code>#0070BA</code></td><td>Zinli</td><td><code>#0ABF9E</code></td></tr>
+  <tr><td>Pago Móvil</td><td><code>#2E9E4F</code></td><td>Bank (VE)</td><td><code>#1E5AA8</code></td><td>Cash App</td><td><code>#00D632</code></td></tr>
+</table>
+
+<p>
+  Crypto addresses are unbreakable strings, so the wrap is <strong>character-level</strong>,
+  not word-level. A truncated wallet address is worse than useless — it must print in full.
+</p>
+
+<h3>22.4 Features</h3>
+
+<table class="t-narrow">
+  <tr><th>Feature</th><th>Behaviour</th></tr>
+  <tr><td>Two cards</td><td>Business and Payment tabs; entirely independent content and palettes.</td></tr>
+  <tr><td>Back layouts</td><td>Quote · Contact · Payments · Badge.</td></tr>
+  <tr><td>Front mark</td><td>Logo (uploaded or AI) or a QR code.</td></tr>
+  <tr><td>Sides</td><td>Front / back toggle; the preview shows one at a time, the exports offer both.</td></tr>
+  <tr><td>Exports</td><td>PNG · PDF · print sheet (front and back side by side, several cards to a page). Filenames derive from the site slug: <code>modular-start-business-card.pdf</code>.</td></tr>
+  <tr><td>AI draft</td><td>Charged. Writes the role line and tagline from a short description.</td></tr>
+  <tr><td>Versions</td><td>Named snapshots, listed below the editor, restorable and renameable. The panel must distinguish "no versions yet" from "the query failed".</td></tr>
+</table>
+
+<h3>22.5 New design</h3>
+<ul>
+  <li>Three columns on desktop: controls · a large centred preview on a neutral backdrop ·
+    the versions rail. The card is the subject of the page, so it should dominate it.</li>
+  <li>Palette editing as swatch pickers with live contrast checking — warn when the ink fails
+    against the background, because a card that fails contrast is unreadable in print too.</li>
+  <li>Export as one primary button with a format segment beside it, not three separate buttons
+    plus a fourth.</li>
+</ul>
+
+<!-- ============================== 23 ============================== -->
+<h2><span class="num">Part VI · Chapter 23</span>Credits</h2>
+
+<p class="kv"><b>Route</b> <code>/credits</code> · <b>Access</b> authed · <b>New page.</b> Money moves out of Settings entirely.</p>
+
+<p class="lede">
+  Today, buying credits, reading the ledger, holding tickets and requesting more are
+  scattered across Settings, the user profile, and two admin screens. This page brings the
+  whole economy into one place: <strong>what you have, what things cost, and how to move
+  them.</strong>
+</p>
+
+<h3>23.1 Sections</h3>
+
+<h4>1 · Balance</h4>
+<ul>
+  <li>Large numeric balance in 🪙, and the ticket count beside it.</li>
+  <li>A 30-day sparkline of the balance, drawn from the ledger.</li>
+  <li>Role state, stated plainly: <em>"You hold credits, so you are a moderator. At zero
+    credits you go back to being a user."</em> This relationship is currently invisible and
+    surprises people.</li>
+</ul>
+
+<h4>2 · Calculator</h4>
+<p>
+  The estimator, exposed directly rather than only inside a generation flow. Sliders and
+  selects for slide count, level, image style, read-aloud; live total; the itemised
+  breakdown always visible; and the effect of your own API key shown as a struck-through
+  line rather than a silent zero.
+</p>
+
+<pre>Text        2 🪙 × 8 slides                    16 🪙
+Images      2 🪙 × 8 slides                    16 🪙
+Read-aloud  1 🪙 × 8 slides                     8 🪙
+Level (C1)  × 1.4
+                                        ─────────────
+                                        Total  56 🪙
+                                 Balance after  194 🪙   (you have 250 🪙)</pre>
+
+<p>Below it, a static table of every other charged action (§14.3), so nothing is a surprise.</p>
+
+<h4>3 · Get credits</h4>
+<ul>
+  <li>The purchasable packs with price and unit rate.</li>
+  <li>The manual flow, stated honestly: pay off-platform, file an "I've paid" note, a
+    moderator approves and the credits land. Show the pending state and the elapsed time.</li>
+  <li>Your submitted payments with status: pending · credited · rejected.</li>
+</ul>
+
+<h4>4 · Tickets</h4>
+<ul>
+  <li>What a ticket is, in one line: <em>"A prepaid pass for one generation of up to
+    {maxSlides} slides at level {maxLevel}. Spent instead of coins when it fits."</em></li>
+  <li>Your tickets grouped by scope — general, and per repo — with counts.</li>
+  <li><strong>Request</strong> tickets from a repo owner, with a note. Your outgoing requests
+    and their status.</li>
+  <li><strong>Incoming</strong> requests to you as an owner: approve or decline inline.</li>
+  <li>Moderators additionally see their <em>pool</em>, the live ticket price, buy-from-admin,
+    gift-to-a-user and send-to-a-moderator.</li>
+</ul>
+
+<h4>5 · Transfer</h4>
+<p>
+  One panel, permission-aware, with a single shape: <em>pick a person → pick what → pick how
+  many → say why → confirm.</em>
+</p>
+
+<table class="t-narrow">
+  <tr><th>You are</th><th>You may move</th></tr>
+  <tr><td>user</td><td>Nothing. The panel explains what would unlock it.</td></tr>
+  <tr><td>moderator</td><td>Credits to a user (credit or deduct, with a reason) · tickets from your pool to anyone · tickets to another moderator.</td></tr>
+  <tr><td>admin</td><td>All of the above · sell tickets to a moderator at the live price · grant free tickets.</td></tr>
+</table>
+
+<p>
+  Every transfer shows a confirmation naming the recipient, the amount and the resulting
+  balances <em>before</em> committing. Every one writes a reason. Failures surface the
+  server's exact message — those messages are written to be read by people.
+</p>
+
+<h4>6 · Ledger</h4>
+<ul>
+  <li>Every movement: date, reason, delta (signed, coloured), balance after.</li>
+  <li>Filter by direction and date range; export CSV as <code>modular-start-ledger.csv</code>.</li>
+  <li>The reason string is the whole value here — <em>"slides: intro-to-fungi (8 slides)"</em>,
+    <em>"manual credit (by admin@…)"</em>, <em>"bought 3 customization tickets @ 60 🪙"</em>.
+    Write reasons for the person reading the row six weeks later.</li>
+</ul>
+
+<h3>23.2 New design</h3>
+<ul>
+  <li>Balance as a single large glass panel at the top, full width, with the sparkline behind
+    the number at low opacity.</li>
+  <li>The other five sections as cards in a two-column masonry; Transfer and Tickets collapse
+    away entirely for a plain user rather than showing a disabled wall.</li>
+  <li>Positive deltas in the success colour, negative in the ink colour — <em>not</em> in the
+    danger colour. Spending is normal; only failures are red.</li>
+  <li>Tabular figures everywhere numbers are stacked.</li>
+</ul>
+
+<!-- ============================== 24 ============================== -->
+<h2><span class="num">Part VII · Chapter 24</span>Design principles</h2>
+
+<p class="lede">
+  The old skin was a hand-drawn notebook — wobbly borders, paper texture, offset shadows,
+  a warm cream palette. It was distinctive and it is going away. The replacement is quiet,
+  modern and glass: the interface recedes and the content is the only thing with colour.
+</p>
+
+<table class="t-narrow">
+  <tr><th>Principle</th><th>In practice</th></tr>
+  <tr><td><strong>One accent, everything else neutral</strong></td><td>A single indigo carries every interactive state. Colour beyond that is content — a post's photo, a card's palette, a chart's series. If a control is coloured, it is because it is <em>on</em>.</td></tr>
+  <tr><td><strong>Depth by light, not by line</strong></td><td>Layers separate through translucency, a hairline border and a soft shadow. No heavy 2px outlines, no offset drop shadows.</td></tr>
+  <tr><td><strong>Glass with restraint</strong></td><td>Translucency for things that <em>float over</em> content: the header, sheets, popovers, player controls, the cost dialog. Content surfaces are solid. Glass everywhere is glass nowhere.</td></tr>
+  <tr><td><strong>Space is the layout</strong></td><td>Grouping comes from whitespace on an 8px rhythm before it comes from a border or a background.</td></tr>
+  <tr><td><strong>One type family</strong></td><td>A single modern grotesque across the whole product, differentiated by weight and size. The old display/body split is gone.</td></tr>
+  <tr><td><strong>Say the consequence</strong></td><td>Every control that costs money, changes visibility, or changes what the AI produces states its effect in plain language, permanently — not in a tooltip.</td></tr>
+  <tr><td><strong>Motion confirms, never decorates</strong></td><td>120–200ms, ease-out, opacity and 2–8px translation only.</td></tr>
+</table>
+
+<!-- ============================== 25 ============================== -->
+<h2><span class="num">Part VII · Chapter 25</span>Tokens</h2>
+
+<p>
+  Everything is a CSS custom property on <code>:root</code>, overridden under
+  <code>[data-theme="dark"]</code>. Tailwind reads them, so a theme change is never a rebuild.
+</p>
+
+<h3>25.1 Colour — light</h3>
+
+<div class="swatch-row">
+  <div class="sw"><div class="chip" style="background:#FAFAFB"></div><div class="lab"><b>canvas</b><span>#FAFAFB</span></div></div>
+  <div class="sw"><div class="chip" style="background:#FFFFFF"></div><div class="lab"><b>surface</b><span>#FFFFFF</span></div></div>
+  <div class="sw"><div class="chip" style="background:#F3F4F6"></div><div class="lab"><b>surface-sunken</b><span>#F3F4F6</span></div></div>
+  <div class="sw"><div class="chip" style="background:#0B0C0F"></div><div class="lab"><b>text</b><span>#0B0C0F</span></div></div>
+  <div class="sw"><div class="chip" style="background:#52586B"></div><div class="lab"><b>text-muted</b><span>#52586B</span></div></div>
+  <div class="sw"><div class="chip" style="background:#8B90A0"></div><div class="lab"><b>text-faint</b><span>#8B90A0</span></div></div>
+  <div class="sw"><div class="chip" style="background:#E5E7EB"></div><div class="lab"><b>border</b><span>#E5E7EB</span></div></div>
+  <div class="sw"><div class="chip" style="background:#4F46E5"></div><div class="lab"><b>accent</b><span>#4F46E5</span></div></div>
+  <div class="sw"><div class="chip" style="background:#EEF0FF"></div><div class="lab"><b>accent-wash</b><span>#EEF0FF</span></div></div>
+  <div class="sw"><div class="chip" style="background:#059669"></div><div class="lab"><b>success</b><span>#059669</span></div></div>
+  <div class="sw"><div class="chip" style="background:#D97706"></div><div class="lab"><b>warning</b><span>#D97706</span></div></div>
+  <div class="sw"><div class="chip" style="background:#DC2626"></div><div class="lab"><b>danger</b><span>#DC2626</span></div></div>
+</div>
+
+<pre>:root {
+  /* surfaces */
+  --canvas:          #FAFAFB;
+  --surface:         #FFFFFF;
+  --surface-sunken:  #F3F4F6;
+  --surface-raised:  #FFFFFF;
+
+  /* glass — for things that float OVER content */
+  --glass-bg:        rgba(255,255,255,0.72);
+  --glass-border:    rgba(255,255,255,0.85);
+  --glass-blur:      20px;
+  --glass-sat:       180%;
+
+  /* text */
+  --text:            #0B0C0F;
+  --text-muted:      #52586B;
+  --text-faint:      #8B90A0;
+  --text-on-accent:  #FFFFFF;
+
+  /* lines */
+  --border:          #E5E7EB;
+  --border-strong:   #D1D5DB;
+  --ring:            rgba(79,70,229,0.38);
+
+  /* accent + semantics */
+  --accent:          #4F46E5;
+  --accent-hover:    #4338CA;
+  --accent-wash:     #EEF0FF;
+  --success:         #059669;  --success-wash: #ECFDF5;
+  --warning:         #D97706;  --warning-wash: #FFFBEB;
+  --danger:          #DC2626;  --danger-wash:  #FEF2F2;
+
+  /* elevation */
+  --shadow-sm: 0 1px 2px rgba(11,12,15,.05);
+  --shadow-md: 0 4px 12px rgba(11,12,15,.07), 0 1px 3px rgba(11,12,15,.05);
+  --shadow-lg: 0 12px 32px rgba(11,12,15,.10), 0 2px 8px rgba(11,12,15,.05);
+  --shadow-glass: 0 8px 32px rgba(11,12,15,.10), inset 0 1px 0 rgba(255,255,255,.55);
+
+  /* radius */
+  --r-xs: 6px; --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 28px; --r-full: 999px;
+
+  /* space — 8px rhythm, 4px only for icon gaps */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
+
+  /* type */
+  --font: "Inter var", Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}</pre>
+
+<h3>25.2 Colour — dark</h3>
+
+<pre>[data-theme="dark"] {
+  --canvas:         #0A0B0E;
+  --surface:        #131519;
+  --surface-sunken: #0F1114;
+  --surface-raised: #1A1D23;
+
+  --glass-bg:       rgba(22,25,31,0.68);
+  --glass-border:   rgba(255,255,255,0.09);
+
+  --text:           #F2F3F5;
+  --text-muted:     #A0A6B4;
+  --text-faint:     #6B7180;
+
+  --border:         #23262E;
+  --border-strong:  #313640;
+
+  --accent:         #7C74F0;    /* lifted for contrast on dark */
+  --accent-hover:   #928BF5;
+  --accent-wash:    rgba(124,116,240,0.14);
+
+  --success: #34D399; --success-wash: rgba(52,211,153,.13);
+  --warning: #FBBF24; --warning-wash: rgba(251,191,36,.13);
+  --danger:  #F87171; --danger-wash:  rgba(248,113,113,.13);
+
+  --shadow-lg: 0 12px 32px rgba(0,0,0,.55);
+  --shadow-glass: 0 8px 32px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
+}</pre>
+
+<h3>25.3 Type scale</h3>
+
+<table class="t-narrow">
+  <tr><th>Role</th><th>Size / line / weight / tracking</th><th>Used for</th></tr>
+  <tr><td>display</td><td>44 / 1.05 / 700 / −0.03em</td><td>Marketing headers only</td></tr>
+  <tr><td>h1</td><td>30 / 1.15 / 650 / −0.02em</td><td>Page titles</td></tr>
+  <tr><td>h2</td><td>22 / 1.25 / 650 / −0.015em</td><td>Section heads</td></tr>
+  <tr><td>h3</td><td>17 / 1.35 / 600 / −0.01em</td><td>Card titles</td></tr>
+  <tr><td>body</td><td>15 / 1.6 / 400</td><td>Default</td></tr>
+  <tr><td>body-sm</td><td>13.5 / 1.55 / 400</td><td>Secondary</td></tr>
+  <tr><td>caption</td><td>12 / 1.45 / 500</td><td>Metadata, chips</td></tr>
+  <tr><td>micro</td><td>11 / 1.4 / 600 / 0.06em uppercase</td><td>Labels, eyebrows</td></tr>
+  <tr><td>mono</td><td>13 / 1.5</td><td>Codes, refs, wallet addresses, figures</td></tr>
+</table>
+
+<p>Numbers that stack — balances, prices, ledger rows, scores — use <code>font-variant-numeric: tabular-nums</code>.</p>
+
+<h3>25.4 The glass recipe</h3>
+
+<pre>.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
+  border-radius: var(--r-lg);
+}
+
+/* Fallback: without backdrop-filter, glass becomes an opaque surface.
+   Never leave translucency without a blur — the text becomes unreadable. */
+@supports not (backdrop-filter: blur(1px)) {
+  .glass { background: var(--surface); }
+}</pre>
+
+<table class="t-narrow">
+  <tr><th>Use glass for</th><th>Do not use glass for</th></tr>
+  <tr><td>The header (sticky over scrolling content)</td><td>Content cards on the canvas — they get <code>--surface</code></td></tr>
+  <tr><td>Sheets, dialogs, popovers, menus</td><td>Form fields</td></tr>
+  <tr><td>Player control clusters over a slide</td><td>Tables</td></tr>
+  <tr><td>The cost-confirmation dialog</td><td>Anything with a long paragraph of text on it</td></tr>
+  <tr><td>Toasts, the mobile tab bar</td><td>Anything printed or exported</td></tr>
+</table>
+
+<!-- ============================== 26 ============================== -->
+<h2><span class="num">Part VII · Chapter 26</span>Components</h2>
+
+<h3>26.1 The set</h3>
+
+<table class="long t-narrow">
+  <tr><th>Component</th><th>Spec</th></tr>
+  <tr><td><strong>Button</strong></td><td>Height 36 (sm 30, lg 44). Radius <code>--r-sm</code>. <em>Primary</em>: accent fill, white text, <code>--shadow-sm</code>. <em>Secondary</em>: surface, 1px border. <em>Ghost</em>: transparent, wash on hover. <em>Danger</em>: danger fill, only for destructive confirmations. Focus is always a 2px <code>--ring</code> offset 2px.</td></tr>
+  <tr><td><strong>Input / Select / Textarea</strong></td><td>Surface-sunken fill, 1px border, radius <code>--r-sm</code>, 36px min height. Focus: border → accent + ring. Error: border → danger, message below in danger, 12px. Label above, 12px <code>--text-muted</code>. Helper text below, persistent.</td></tr>
+  <tr><td><strong>Card</strong></td><td><code>--surface</code>, 1px <code>--border</code>, radius <code>--r-md</code>, <code>--shadow-sm</code>. Interactive: hover → <code>--shadow-md</code> + <code>translateY(-2px)</code> + <code>--border-strong</code>. Never scale.</td></tr>
+  <tr><td><strong>Chip / Pill</strong></td><td>Height 26, radius <code>--r-full</code>, 12px caption. Off: surface-sunken + faint text. On: accent-wash + accent text + accent border. Language chips are mono uppercase.</td></tr>
+  <tr><td><strong>Segmented control</strong></td><td>Sunken track, radius <code>--r-full</code>, an accent-filled thumb that slides 180ms. For 2–4 mutually exclusive views (Gallery tabs, card front/back, export format).</td></tr>
+  <tr><td><strong>Sheet / Dialog</strong></td><td>Glass. Radius <code>--r-xl</code>. Enters 180ms: opacity 0→1, translateY 12px→0. Scrim <code>rgba(11,12,15,.45)</code> with a 2px blur. Mobile: bottom sheet with a drag handle.</td></tr>
+  <tr><td><strong>Cost sheet</strong></td><td>A dedicated dialog: the action named, the itemised breakdown, the total, the balance after, a "don't ask again" checkbox, and Cancel / Confirm. The confirm button carries the number: "Generate — 56 🪙".</td></tr>
+  <tr><td><strong>Empty state</strong></td><td>Icon, one-line title, one-line explanation, one primary action. Never a bare "Nothing here".</td></tr>
+  <tr><td><strong>Error state</strong></td><td>Danger wash panel, the server's message verbatim, a retry button. <strong>Structurally distinct from empty.</strong></td></tr>
+  <tr><td><strong>Skeleton</strong></td><td>Sunken blocks at the final dimensions, 1.4s shimmer. Must not reflow when real content lands.</td></tr>
+  <tr><td><strong>Toast</strong></td><td>Glass, bottom-right (bottom-centre on mobile), 4s, dismissible. Errors persist until dismissed.</td></tr>
+  <tr><td><strong>Stat tile</strong></td><td>Micro label, large tabular number, optional delta with an arrow. Used on Credits and admin dashboards.</td></tr>
+  <tr><td><strong>Price display</strong></td><td>A dedicated component: coin glyph + tabular number + an info affordance opening the breakdown. Use it everywhere a price appears so prices always look the same.</td></tr>
+</table>
+
+<h3>26.2 Density and grids</h3>
+
+<table class="t-narrow">
+  <tr><th>Context</th><th>Rule</th></tr>
+  <tr><td>Page gutter</td><td>16px mobile · 32px tablet · 48px desktop</td></tr>
+  <tr><td>Content max width</td><td>1200px; 680px for prose; 600px for the feed stream</td></tr>
+  <tr><td>Card grid</td><td><code>repeat(auto-fill, minmax(260px, 1fr))</code>, gap 24px</td></tr>
+  <tr><td>Section spacing</td><td>48px between major sections, 24px within</td></tr>
+  <tr><td>Form rows</td><td>16px between fields, 24px between groups</td></tr>
+</table>
+
+<!-- ============================== 27 ============================== -->
+<h2><span class="num">Part VII · Chapter 27</span>Motion and accessibility</h2>
+
+<h3>27.1 Motion</h3>
+
+<table class="t-narrow">
+  <tr><th>Interaction</th><th>Duration / easing</th><th>Properties</th></tr>
+  <tr><td>Hover</td><td>120ms ease-out</td><td>background, border, shadow, translateY(−2px)</td></tr>
+  <tr><td>Press</td><td>80ms</td><td>translateY(0), shadow-sm</td></tr>
+  <tr><td>Dialog / sheet in</td><td>180ms cubic-bezier(.16,1,.3,1)</td><td>opacity, translateY 12px</td></tr>
+  <tr><td>Dialog out</td><td>120ms ease-in</td><td>opacity</td></tr>
+  <tr><td>Segment thumb</td><td>180ms spring-ish</td><td>transform</td></tr>
+  <tr><td>Page transition</td><td>150ms</td><td>opacity only. Never slide whole pages.</td></tr>
+  <tr><td>Skeleton</td><td>1400ms linear infinite</td><td>background-position</td></tr>
+</table>
+
+<pre>@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}</pre>
+
+<h3>27.2 Accessibility</h3>
+
+<ul>
+  <li><strong>Contrast.</strong> Body text ≥ 7:1 against its surface; secondary ≥ 4.5:1;
+    interactive borders ≥ 3:1. Verify glass surfaces against the <em>worst-case</em>
+    background they can float over — a white caption over a blurred photograph is the failure
+    case, and it is why captions sit below images, not on them.</li>
+  <li><strong>Focus is always visible.</strong> 2px <code>--ring</code>, 2px offset, never
+    removed. Test the whole app with the keyboard only.</li>
+  <li><strong>Targets</strong> ≥ 44×44px on touch, including carousel dots and chips.</li>
+  <li><strong>Semantics.</strong> Radix primitives for anything with a focus trap or roving
+    tabindex. Tabs get <code>role="tablist"</code>; the language switch is a real radio group.</li>
+  <li><strong>Announce async results.</strong> Toasts and generation progress live in an
+    <code>aria-live="polite"</code> region.</li>
+  <li><strong>Never colour alone.</strong> A ledger delta shows its sign; a verified badge has
+    a glyph and a tooltip; an error has an icon and text.</li>
+  <li><strong>Theme.</strong> Respect <code>prefers-color-scheme</code>, and honour an explicit
+    <code>data-theme</code> override in both directions.</li>
+  <li><strong>Translate from day one.</strong> Every user-facing string goes through the
+    translation function on first write. Retrofitting ~1,600 strings afterwards is weeks of
+    work and a permanent source of misses — this is measured, not hypothetical.</li>
+</ul>
+
+<div class="note">
+  <span class="lbl">Name the translator carefully</span>
+  <p>Do not call it <code>t</code>. Codebases are full of locals named <code>t</code> — a
+  template, a totals object, a timer handle — and an import named <code>t</code> is silently
+  shadowed inside those scopes. A shadowed translator does not fail loudly; it calls a totals
+  object as a function in whichever branch nobody has clicked yet. Use <code>say()</code>.</p>
+  <p>Key the dictionary on the <strong>English source string</strong>, not an invented id.
+  <code>say("Save")</code>, not <code>say("card.actions.save")</code>. A missing translation
+  then falls back to perfectly good English instead of putting
+  <code>card.actions.save</code> on a button, and the code stays readable.</p>
+</div>
+
+<!-- ============================== 28 ============================== -->
+<h2><span class="num">Part VIII · Chapter 28</span>Diagnosis: what is confusing today</h2>
+
+<p class="lede">
+  These are real, observed problems with the current product — not style opinions. Each one
+  has a fix in Chapter 29.
+</p>
+
+<table class="long">
+  <tr><th>#</th><th>Problem</th><th>Why it happens</th></tr>
+  <tr>
+    <td>1</td>
+    <td><strong>Too many top-level destinations.</strong> Feed, Repos, Slides, Gallery, Users, Card, Runs, About, Settings, Admin — ten or more, flat.</td>
+    <td>Every feature added a nav entry. Nothing was ever demoted.</td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td><strong>"Repo" and "Slide tool" are unexplained jargon.</strong> A new user cannot tell which one they want, and the two shelves look identical.</td>
+    <td>The names are the developer's model, not the user's.</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td><strong>Gallery vs the personal shelves is invisible.</strong> People cannot find work they know exists, because <code>/repos</code> silently shows only their own.</td>
+    <td>The filter is implicit. Nothing on the page says "yours only".</td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td><strong>Cost is discovered late.</strong> The price appears at confirmation, after the settings are already chosen.</td>
+    <td>The estimator is wired into the dialog, not the form.</td>
+  </tr>
+  <tr>
+    <td>5</td>
+    <td><strong>Advanced generation settings have invisible consequences.</strong> "Dense" and "Standard" look like a preference; they are the difference between 240 and 650 words a slide.</td>
+    <td>Labels without stated effects.</td>
+  </tr>
+  <tr>
+    <td>6</td>
+    <td><strong>The role-follows-credits rule is a surprise.</strong> Users are promoted and demoted silently.</td>
+    <td>Never stated in the UI.</td>
+  </tr>
+  <tr>
+    <td>7</td>
+    <td><strong>Empty and failed look the same.</strong> A failed query renders "None yet", so a broken feature looks like an unused one.</td>
+    <td>Query error states were never given a distinct treatment. This cost real debugging time.</td>
+  </tr>
+  <tr>
+    <td>8</td>
+    <td><strong>Moderation controls sit inside public profiles.</strong> Credit, deduct, verify and role controls are interleaved with someone's public work.</td>
+    <td>Features were added where the data already was.</td>
+  </tr>
+  <tr>
+    <td>9</td>
+    <td><strong>Course memory — the best thing in the product — is nearly invisible.</strong></td>
+    <td>Buried in a panel. Most users never learn the system remembers.</td>
+  </tr>
+  <tr>
+    <td>10</td>
+    <td><strong>The money is scattered.</strong> Balance in the header, packs in Settings, tickets on profiles, ledger in admin, prices in a third place.</td>
+    <td>No page ever owned the economy.</td>
+  </tr>
+  <tr>
+    <td>11</td>
+    <td><strong>Rows carry six equal-weight buttons.</strong> A lesson row offers play, customize, my version, edit preset, answer key, runs — all the same size.</td>
+    <td>No action hierarchy.</td>
+  </tr>
+  <tr>
+    <td>12</td>
+    <td><strong>Sign-in forms fight the browser.</strong> A current-password field marked <code>autocomplete="current-password"</code> on a <em>profile</em> page gets autofilled, and the form read that as intent to change the password — blocking Save over a field nobody touched.</td>
+    <td>Reusing sign-in semantics on a settings form.</td>
+  </tr>
+</table>
+
+<!-- ============================== 29 ============================== -->
+<h2><span class="num">Part VIII · Chapter 29</span>The fixes</h2>
+
+<h3>29.1 Structural</h3>
+
+<table class="long">
+  <tr><th>Fixes</th><th>Change</th></tr>
+  <tr>
+    <td>1</td>
+    <td><strong>Five primary destinations: Feed · Repos · Slides · Gallery · Users.</strong>
+      Card, Credits, Settings and Admin move into the avatar menu. Runs becomes a tab on the
+      profile. About moves to the footer.</td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td><strong>Rename in the UI, keep the slugs.</strong> "Repo" → <strong>Course</strong>
+      (with the subtitle "units and lessons"). "Slide tool" → <strong>Deck maker</strong>.
+      The URLs, database columns and API stay <code>repos</code> / <code>slideTools</code> —
+      renaming those buys nothing and breaks every link.</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td><strong>Label the ownership filter.</strong> Every personal shelf carries a visible
+      segmented control — <strong>Mine · Everyone</strong> — where "Everyone" navigates to the
+      matching Gallery tab. The distinction stops being a secret.</td>
+  </tr>
+  <tr>
+    <td>10</td>
+    <td><strong>Ship <code>/credits</code></strong> (Chapter 23) and make the header balance
+      pill link to it. Remove money from Settings entirely; Settings becomes profile, keys,
+      and preferences.</td>
+  </tr>
+  <tr>
+    <td>8</td>
+    <td><strong>One "Manage" rail</strong> on the profile, collapsed by default, holding every
+      privileged action. The public profile reads as a profile.</td>
+  </tr>
+</table>
+
+<h3>29.2 Comprehension</h3>
+
+<table class="long">
+  <tr><th>Fixes</th><th>Change</th></tr>
+  <tr>
+    <td>4</td>
+    <td><strong>Live price in the form.</strong> A persistent price element in the sticky
+      action bar, updating on every change, with the itemised breakdown one tap away. The
+      confirm button carries the number: "Generate — 56 🪙". No number should ever be a
+      surprise.</td>
+  </tr>
+  <tr>
+    <td>5</td>
+    <td><strong>State the consequence under every advanced control</strong>, permanently, not
+      in a tooltip. "Dense — about 650 words a slide, a serious reading assignment."
+      "Scholarly — technically precise, assumes an engaged reader." "Commercial — a showcase
+      with no questions."</td>
+  </tr>
+  <tr>
+    <td>6</td>
+    <td><strong>State the role rule</strong> on Credits and in the avatar menu: "You hold
+      credits, so you are a moderator." And toast the transition when it happens, in both
+      directions.</td>
+  </tr>
+  <tr>
+    <td>9</td>
+    <td><strong>Promote course memory.</strong> On a repo, a permanent panel: "This course has
+      taught 14 concepts across 6 lessons. Lesson 7 will build on them, not repeat them." Open
+      it to read the exact text the AI will receive. On the configurator, a badge when memory
+      is active. This is the differentiator; it should be the thing people notice.</td>
+  </tr>
+</table>
+
+<h3>29.3 Craft</h3>
+
+<table class="long">
+  <tr><th>Fixes</th><th>Change</th></tr>
+  <tr>
+    <td>7</td>
+    <td><strong>Three distinct states for every async surface:</strong> loading (skeleton at
+      final dimensions), empty (icon + explanation + one action), failed (danger panel + the
+      server's message + retry). Make this a lint-able convention — a list component that
+      cannot render a failure is incomplete.</td>
+  </tr>
+  <tr>
+    <td>11</td>
+    <td><strong>One primary action per row.</strong> Everything else behind a quiet overflow
+      menu. On a lesson row the primary is Play; Customize is secondary because it costs
+      money; the rest are in the menu.</td>
+  </tr>
+  <tr>
+    <td>12</td>
+    <td><strong>Never use sign-in autocomplete semantics outside sign-in.</strong> A
+      profile-page password field is <code>autocomplete="new-password"</code> with a
+      non-standard <code>name</code>. And intent to change a password is a <em>new</em>
+      password — never a filled-in current one.</td>
+  </tr>
+  <tr>
+    <td>—</td>
+    <td><strong>Destructive actions name the thing.</strong> "Delete <em>Intro to Fungi</em>
+      and its 18 lessons?" — not "Are you sure?".</td>
+  </tr>
+  <tr>
+    <td>—</td>
+    <td><strong>Errors say what would have worked.</strong> Already true of the credit
+      messages; extend it everywhere. "A ticket covers up to 12 slides at B2 — shorten the
+      deck to use one instead" is the model.</td>
+  </tr>
+</table>
+
+<!-- ============================== 30 ============================== -->
+<h2><span class="num">Part IX · Chapter 30</span>Build order</h2>
+
+<table class="long">
+  <tr><th>#</th><th>Milestone</th><th>Contains</th><th>Done when</th></tr>
+  <tr>
+    <td>1</td><td><strong>Foundation</strong></td>
+    <td>Vite + React + TS; Hono + tRPC + superjson; Drizzle + Postgres; the design tokens and the base component set; <code>say()</code> wired from the first string.</td>
+    <td>A themed page renders, light and dark, and <code>ping</code> round-trips through tRPC.</td>
+  </tr>
+  <tr>
+    <td>2</td><td><strong>Identity &amp; money</strong></td>
+    <td><code>users</code>, <code>tokenLedger</code>, <code>payments</code>; register/login/me; <code>applyTokenDelta</code> with role reconciliation; the header balance pill; <code>/credits</code> §23.1 sections 1, 2, 6.</td>
+    <td>An account registers with 50 🪙, a manual credit promotes to moderator, and the ledger reconstructs the balance exactly.</td>
+  </tr>
+  <tr>
+    <td>3</td><td><strong>Content skeleton</strong></td>
+    <td><code>repos</code>, <code>units</code>, <code>lessons</code>, <code>slideTools</code>; CRUD; the Repos and Slides shelves; repository detail.</td>
+    <td>A repo can be built by hand, with units and lessons, and browsed.</td>
+  </tr>
+  <tr>
+    <td>4</td><td><strong>The AI layer</strong></td>
+    <td>Provider adapters + resolution + rotation; <code>estimateCost</code>; the deck prompt (Ch. 10); repair + validation (Ch. 12); <code>generate.slides</code> with the payment gate; the mock provider.</td>
+    <td>A deck generates against a real provider, charges correctly, and a forced failure refunds.</td>
+  </tr>
+  <tr>
+    <td>5</td><td><strong>The player</strong></td>
+    <td>All nine component renderers; all five evaluation kinds; AI grading; <code>runs.complete</code>; lesson logs; <strong>course memory</strong>.</td>
+    <td>Lesson 2 generated after playing lesson 1 provably does not re-teach lesson 1's material.</td>
+  </tr>
+  <tr>
+    <td>6</td><td><strong>Tickets</strong></td>
+    <td><code>tickets</code>, <code>ticketRequests</code>; issue / spend / transfer / request; the ticket branch of the payment gate; <code>/credits</code> sections 4 and 5.</td>
+    <td>Two concurrent generations cannot double-spend one ticket.</td>
+  </tr>
+  <tr>
+    <td>7</td><td><strong>Social</strong></td>
+    <td><code>posts</code>, favourites, follows, assignments; Feed; Gallery; Users; the language filter and stickers.</td>
+    <td>Visibility is enforced in SQL and a limit of 30 returns 30 visible rows.</td>
+  </tr>
+  <tr>
+    <td>8</td><td><strong>Marketing &amp; Card</strong></td>
+    <td>Storyboard, mathboard, image generation, cast, music; the card model, the shared layout function, PNG/PDF/print-sheet export, versions.</td>
+    <td>Preview and export are pixel-identical, and every download is named from the site slug.</td>
+  </tr>
+  <tr>
+    <td>9</td><td><strong>Admin</strong></td>
+    <td>Dashboard, users, moderators, payments, flags, settings, finance with live model pricing and budgets, the template catalogue editor.</td>
+    <td>An admin can set a price and see it change a quote immediately.</td>
+  </tr>
+  <tr>
+    <td>10</td><td><strong>Polish</strong></td>
+    <td>The Chapter 29 fixes; empty/error/loading everywhere; keyboard pass; contrast audit; translation coverage; the admin annotation overlay.</td>
+    <td>Chapter 31 passes.</td>
+  </tr>
+</table>
+
+<!-- ============================== 31 ============================== -->
+<h2><span class="num">Part IX · Chapter 31</span>Acceptance criteria</h2>
+
+<h5>Economy</h5>
+<ul>
+  <li>Summing <code>tokenLedger.delta</code> for any user equals their <code>tokenBalance</code>. No exceptions.</li>
+  <li>No AI code path reaches a provider without a prior quote and debit — verified by grep and by review.</li>
+  <li>A provider failure leaves the balance exactly as it was.</li>
+  <li>Crediting a plain user promotes them to moderator; draining them demotes and un-verifies. An admin is unaffected in both directions.</li>
+  <li>Two concurrent generations with one ticket on hand: one succeeds on the ticket, the other pays coins or is refused. Never both on the ticket.</li>
+</ul>
+
+<h5>Generation</h5>
+<ul>
+  <li>Every slide in every generated deck carries at least one real explanatory paragraph.</li>
+  <li>Every slide conforms to a layout from the offered catalogue.</li>
+  <li>Correct MCQ answers are distributed across positions, not clustered at index 0.</li>
+  <li>A deck generated after prior lessons does not re-define any concept in the course memory.</li>
+  <li>A commercial deck contains no evaluations; a walkthrough and a news deck likewise.</li>
+  <li>Navigating away mid-generation still results in a saved deck.</li>
+</ul>
+
+<h5>Visibility</h5>
+<ul>
+  <li>A private post returns <code>NOT_FOUND</code>, not <code>FORBIDDEN</code>, to a stranger.</li>
+  <li>A list with <code>limit: 30</code> returns up to 30 rows the viewer can see.</li>
+  <li>Content assigned to you is never hidden by the language filter.</li>
+  <li>The Spanish filter shows only Spanish; the English filter shows everything.</li>
+</ul>
+
+<h5>Interface</h5>
+<ul>
+  <li>Every async surface has three visually distinct states, and a failure never renders as empty.</li>
+  <li>Every charged control shows its price before it is pressed.</li>
+  <li>Full keyboard traversal with a visible focus ring throughout.</li>
+  <li>Body text meets 7:1 contrast in both themes, including over every glass surface.</li>
+  <li>No layout shift when skeletons resolve.</li>
+  <li>Zero untranslated user-facing strings at ship; zero dead dictionary keys.</li>
+</ul>
+
+<h5>Correctness</h5>
+<ul>
+  <li>The typecheck is the project's real build (<code>tsc -b</code> with project references), not a
+    <code>--noEmit</code> that silently checks nothing. <em>Confirm this on day one</em> — a root
+    <code>tsconfig.json</code> with <code>"files": []</code> makes <code>tsc --noEmit</code> a no-op
+    that will sail past syntax errors.</li>
+  <li>Boot migrations are idempotent; running them twice changes nothing.</li>
+  <li>A request arriving mid-migration either succeeds or returns a real error — never an empty list.</li>
+</ul>
+
+<!-- ============================== 32 ============================== -->
+<h2><span class="num">Part IX · Chapter 32</span>Environment and deployment</h2>
+
+<h3>32.1 Variables</h3>
+
+<table class="t-narrow">
+  <tr><th>Variable</th><th>Required</th><th>Notes</th></tr>
+  <tr><td><code>DATABASE_URL</code></td><td>Yes</td><td>Postgres connection string.</td></tr>
+  <tr><td><code>APP_SECRET</code></td><td>Yes in prod</td><td>JWT signing.</td></tr>
+  <tr><td><code>NODE_ENV</code></td><td>—</td><td>—</td></tr>
+  <tr><td><code>PORT</code></td><td>—</td><td>Defaults to 3000.</td></tr>
+  <tr><td>Provider keys</td><td>No</td><td>Optional per capability; users may bring their own, and platform keys can live in settings instead.</td></tr>
+  <tr><td><code>*_ALLOW_MOCK_AI</code></td><td>No</td><td><code>1</code> enables the offline generator. Dev and CI only.</td></tr>
+</table>
+
+<div class="warn">
+  <span class="lbl">Never throw at import time</span>
+  <p>Reading env vars must warn, not throw. A throw at module scope crashes the whole
+  serverless function and every request returns an opaque 500 with no clue which variable is
+  missing. Warn loudly, and let a genuinely missing <code>DATABASE_URL</code> surface as a
+  normal JSON database error the client can display.</p>
+</div>
+
+<h3>32.2 Build and health</h3>
+
+<pre>npm run dev       vite dev server + API
+npm run check     tsc -b            ← the real typecheck
+npm run lint      eslint .
+npm test          vitest run
+npm run build     vite build && esbuild api/boot.ts --bundle --platform=node --format=esm
+npm start         node dist/boot.js</pre>
+
+<p>
+  Ship a <code>health</code> endpoint that reports, without leaking the connection string:
+  whether <code>DATABASE_URL</code> is visible to the running function, whether the database
+  answers, the host, the database name, the SSL mode, and the Node version. Every deployment
+  problem this system had was diagnosable from those six facts.
+</p>
+
+<h3>32.3 Seeds</h3>
+
+<p>
+  Seed one admin, one moderator and one plain user with known passwords, a handful of repos
+  across at least three templates, one generated deck, one completed run (so course memory
+  has something in it), and one published post. A fresh clone should be explorable
+  immediately — a blank database makes every surface look broken.
+</p>
+
+<div class="ok">
+  <span class="lbl">End of specification</span>
+  <p>Parts II–VI are the contract: build them and the product works. Parts VII–VIII are the
+  brief: build them and it is worth using. If the two ever conflict, the behaviour spec wins
+  and the design adapts — except on the two invariants, which never bend: <strong>everything
+  the AI makes is paid for out of the acting user's credits</strong>, and <strong>a failed
+  generation is never charged</strong>.</p>
+</div>
+
+</body>
+</html>
