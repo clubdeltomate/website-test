@@ -16,6 +16,20 @@ export type LessonKey = string;
 export const lessonKey = (repoSlug: string, lessonSeq: number): LessonKey =>
   `${repoSlug}:${lessonSeq}`;
 
+/**
+ * A failed attempt, in two halves.
+ *
+ * `summary` is the sentence anyone should read. `detail` names each provider
+ * that was tried and what it said, which only an admin can act on — and which
+ * is the difference between "no key configured" and "the key is fine but the
+ * model refused a 16k-token deck request", two problems with the same summary
+ * and completely different fixes.
+ */
+export interface LessonFailure {
+  summary: string;
+  detail: string | null;
+}
+
 export interface LessonGenerationApi {
   /** Run `job` for this lesson, marking it busy until it settles. */
   start: (repoSlug: string, lessonSeq: number, job: () => Promise<void>) => void;
@@ -30,9 +44,9 @@ export interface LessonGenerationApi {
    * lesson, and the honest answer to "why won't my presentation load" was
    * sitting in a notification nobody saw.
    */
-  failureOf: (repoSlug: string, lessonSeq: number) => string | null;
+  failureOf: (repoSlug: string, lessonSeq: number) => LessonFailure | null;
   /** Record why an attempt failed, so the row can keep saying so. */
-  fail: (repoSlug: string, lessonSeq: number, message: string) => void;
+  fail: (repoSlug: string, lessonSeq: number, failure: LessonFailure) => void;
 }
 
 export const LessonGenerationCtx = createContext<LessonGenerationApi | null>(null);

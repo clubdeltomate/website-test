@@ -85,12 +85,26 @@ type Step = 'topic' | 'kind' | 'look' | 'type' | 'subject' | 'focus' | 'plan' | 
 /**
  * Turn a generation failure into something worth reading. The server prefixes
  * these with a machine code so callers can branch on them, and the codes are
- * useful — but INSUFFICIENT_TOKENS is not a sentence, and the provider
- * diagnostics that follow a blank line belong nowhere near a toast.
+ * useful — but INSUFFICIENT_TOKENS is not a sentence.
+ *
+ * Two halves, because they have different readers. The `summary` is the
+ * sentence anyone should see. The `detail` is the paragraph after the blank
+ * line, which names each provider that was tried and what it said — wrong for
+ * a toast, and exactly what an admin needs, because "no AI provider produced
+ * content" is equally true of a missing key, an expired key, a rate limit and
+ * a model that cannot fit the prompt. Four very different fixes. It used to be
+ * dropped on the floor, which is how a site whose Coach answers fine could
+ * still fail every deck with no way to tell which of the four it was.
  */
-function readableGenError(err: unknown): string {
+export interface GenError {
+  summary: string;
+  detail: string | null;
+}
+
+function readableGenError(err: unknown): GenError {
   const raw = err instanceof Error ? err.message : '';
-  const [first] = raw.split('\n\n');
+  const [first, ...rest] = raw.split('\n\n');
+  const detail = rest.join('\n\n').trim() || null;
   const msg = (first || 'That generation did not finish').trim();
   /* AI_UNAVAILABLE deliberately has no special case any more. It used to be
      rewritten as "every AI provider refused the request. Try again in a
@@ -101,12 +115,16 @@ function readableGenError(err: unknown): string {
      presentation never appeared retried forever and never learned why. The
      generic path below strips the code and capitalises, which is all it needed. */
   if (msg.startsWith('NEED_TICKET')) {
-    return "You need a customization ticket for this repo — ask its owner. The free version is still watchable.";
+    return {
+      summary:
+        "You need a customization ticket for this repo — ask its owner. The free version is still watchable.",
+      detail,
+    };
   }
   // Strip the leading CODE: and capitalise, since what follows it was written
   // as a continuation ("this deck needs 16 🪙") rather than a sentence.
   const bare = msg.replace(/^[A-Z_]{4,}:\s*/, '');
-  return bare.charAt(0).toUpperCase() + bare.slice(1);
+  return { summary: bare.charAt(0).toUpperCase() + bare.slice(1), detail };
 }
 
 /**
@@ -393,9 +411,10 @@ export default function CreateToolModal({
         }
       } catch (err) {
         const why = readableGenError(err);
-        // The toast says it now; the row keeps saying it after the toast goes.
+        // The toast says it now; the row keeps saying it after the toast goes,
+        // and carries the provider detail the toast has no room for.
         lessonGen.fail(lesson.repoSlug, lesson.lessonSeq, why);
-        toast.error(why, { duration: 9000 });
+        toast.error(why.summary, { duration: 9000 });
       } finally {
         // Refresh either way: a failure needs the button to come back.
         await utils.repos.getBySlug.invalidate({ slug: lesson.repoSlug });
