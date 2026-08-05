@@ -34,6 +34,7 @@ import { DoodleCheck } from '@/components/sketch/DoodleIcons';
 import { trpc } from '@/providers/trpc';
 import CreateToolModal from '@/components/slides/CreateToolModal';
 import { useLessonGeneration } from '@/providers/lesson-generation';
+import { useAuth } from '@/hooks/useAuth';
 import type {
   LessonSeed,
   RepoLesson,
@@ -845,6 +846,10 @@ function LessonCard({
      touched — so "the presentation won't load" and "I never made one" looked
      identical, and the reason had already vanished with the toast. */
   const genFailure = lessonGen.failureOf(seed.repoSlug, seed.lessonSeq);
+  /* Only an admin can do anything about a provider that isn't answering, so
+     only an admin is offered the door to the health check. */
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
 
   /**
    * The lesson's answer key: a model run over the preset with every question
@@ -1350,6 +1355,17 @@ function LessonCard({
             {say("Last attempt failed")}
           </span>
           {genFailure}
+          {/* The health check pings every text key the server would use, in
+              order, and names the one that refused. It already existed; the
+              failure that sends you looking for it just never pointed at it. */}
+          {isAdmin && (
+            <Link
+              to="/admin/settings?tab=providers"
+              className="ml-1 whitespace-nowrap font-semibold text-red underline"
+            >
+              {say("Check provider health →")}
+            </Link>
+          )}
         </p>
       )}
 
