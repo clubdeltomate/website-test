@@ -20,6 +20,19 @@ export interface LessonGenerationApi {
   /** Run `job` for this lesson, marking it busy until it settles. */
   start: (repoSlug: string, lessonSeq: number, job: () => Promise<void>) => void;
   isRunning: (repoSlug: string, lessonSeq: number) => boolean;
+  /**
+   * Why the last attempt for this lesson failed, or null.
+   *
+   * A generation runs for the best part of a minute and its only report was a
+   * toast, which is gone by the time anyone looks back at the row. The button
+   * then reverted to "Set" — the same thing it says for a lesson nobody has
+   * ever tried — so a permanent failure was indistinguishable from an untouched
+   * lesson, and the honest answer to "why won't my presentation load" was
+   * sitting in a notification nobody saw.
+   */
+  failureOf: (repoSlug: string, lessonSeq: number) => string | null;
+  /** Record why an attempt failed, so the row can keep saying so. */
+  fail: (repoSlug: string, lessonSeq: number, message: string) => void;
 }
 
 export const LessonGenerationCtx = createContext<LessonGenerationApi | null>(null);
@@ -32,5 +45,14 @@ export function useLessonGeneration(): LessonGenerationApi {
     [],
   );
   const fallbackRunning = useCallback(() => false, []);
-  return ctx ?? { start: fallbackStart, isRunning: fallbackRunning };
+  const fallbackFailure = useCallback(() => null, []);
+  const fallbackFail = useCallback(() => undefined, []);
+  return (
+    ctx ?? {
+      start: fallbackStart,
+      isRunning: fallbackRunning,
+      failureOf: fallbackFailure,
+      fail: fallbackFail,
+    }
+  );
 }
