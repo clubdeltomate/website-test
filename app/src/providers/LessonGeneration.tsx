@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import {
   LessonGenerationCtx,
   lessonKey,
+  type LessonFailure,
   type LessonKey,
 } from './lesson-generation';
 
@@ -22,7 +23,7 @@ export function LessonGenerationProvider({ children }: { children: ReactNode }) 
      because it is the same question asked at a different moment — "what is this
      lesson doing" and "what did it just do" — and the row needs both to say
      anything truthful about its button. */
-  const [failures, setFailures] = useState<ReadonlyMap<LessonKey, string>>(() => new Map());
+  const [failures, setFailures] = useState<ReadonlyMap<LessonKey, LessonFailure>>(() => new Map());
 
   const start = useCallback((repoSlug: string, lessonSeq: number, job: () => Promise<void>) => {
     const key = lessonKey(repoSlug, lessonSeq);
@@ -50,8 +51,8 @@ export function LessonGenerationProvider({ children }: { children: ReactNode }) 
     [running],
   );
 
-  const fail = useCallback((repoSlug: string, lessonSeq: number, message: string) => {
-    setFailures((prev) => new Map(prev).set(lessonKey(repoSlug, lessonSeq), message));
+  const fail = useCallback((repoSlug: string, lessonSeq: number, failure: LessonFailure) => {
+    setFailures((prev) => new Map(prev).set(lessonKey(repoSlug, lessonSeq), failure));
   }, []);
 
   const failureOf = useCallback(

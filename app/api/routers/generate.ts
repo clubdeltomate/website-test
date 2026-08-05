@@ -74,14 +74,35 @@ const AI_UNAVAILABLE_MSG =
   "AI_UNAVAILABLE: no AI provider produced content — nothing was saved and any tokens were refunded. Check the server .env AI keys (e.g. GEMINI_API_KEY) or add your own key in Settings → API Keys, then try again.";
 
 /**
- * Name the providers that were actually tried and why each one refused. Without
- * this the banner says only "no AI provider produced content", which is true of
- * a missing key, an expired key, a rate limit and a model that cannot fit the
- * prompt alike — four very different fixes.
+ * A generation can fail in two completely different places, and saying so is
+ * the difference between a fix and a wild goose chase.
+ *
+ * `providerErrors` is nobody answering: a missing key, an expired key, a rate
+ * limit, a model that cannot fit the prompt.
+ *
+ * `contentErrors` is somebody answering with something unusable — JSON that
+ * will not parse, a deck the schema rejects, a reply truncated mid-object.
+ * These used to go to the server console and nowhere else, so a site whose
+ * every other AI feature worked would fail every deck and be told to check its
+ * API keys. The keys were fine. Nothing about the message admitted that a
+ * provider had replied at all.
  */
-function aiUnavailableMessage(providerErrors: string[]): string {
-  if (providerErrors.length === 0) return AI_UNAVAILABLE_MSG;
-  return `${AI_UNAVAILABLE_MSG}\n\nProviders tried — ${providerErrors.join(" | ")}`;
+export function aiUnavailableMessage(providerErrors: string[], contentErrors: string[] = []): string {
+  const parts: string[] = [];
+  if (providerErrors.length > 0) parts.push(`Providers tried — ${providerErrors.join(" | ")}`);
+  if (contentErrors.length > 0) {
+    parts.push(
+      `A provider DID reply, but its deck could not be used — ${contentErrors.join(" | ")}`,
+    );
+  }
+  if (parts.length === 0) return AI_UNAVAILABLE_MSG;
+  /* When a provider answered, the headline advice ("check your AI keys") is
+     actively wrong, so it is replaced rather than merely appended to. */
+  const headline =
+    contentErrors.length > 0 && providerErrors.length === 0
+      ? "AI_UNAVAILABLE: the AI replied but its deck could not be read — nothing was saved and any tokens were refunded. Your API keys are working; the model's output was unusable. Try again, or lower the slide count / text amount."
+      : AI_UNAVAILABLE_MSG;
+  return `${headline}\n\n${parts.join("\n")}`;
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -743,6 +764,9 @@ export const generateRouter = createRouter({
       // Why each provider refused — so a total failure names the cause
       // instead of the useless "no provider produced content".
       const providerErrors: string[] = [];
+      // Why a reply that DID arrive could not be used. A different question
+      // with a different fix, and the one that was previously invisible.
+      const contentErrors: string[] = [];
       let deck: SlideDeck | null = null;
       let lastAttempt: SlideDeck | null = null; // best non-conforming try, as a fallback
       let usedMock = false;
@@ -892,10 +916,16 @@ export const generateRouter = createRouter({
                   ? err.message
                   : String(err);
             console.warn(`[generate.slides] LLM parse attempt ${attempt + 1} failed:`, detail);
+            // Also tell the person waiting. This used to stop at the console,
+            // which is exactly where the author cannot see it.
+            contentErrors.push(
+              `attempt ${attempt + 1}${textProvider ? ` via ${textProvider}` : ""}: ${detail.slice(0, 300)}`,
+            );
           }
         }
       } catch (err) {
         console.error("[generate.slides] provider error:", err);
+        contentErrors.push(err instanceof Error ? err.message.slice(0, 300) : String(err));
       }
 
       // Both attempts under-delivered but the model did return usable slides —
@@ -912,7 +942,7 @@ export const generateRouter = createRouter({
           if (ctx.user && cost > 0) await refundTokens(ctx.user.id, cost, `refund: ${reason}`);
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
-            message: aiUnavailableMessage(providerErrors),
+            message: aiUnavailableMessage(providerErrors, contentErrors),
           });
         }
         usedMock = true;

@@ -1347,26 +1347,37 @@ function LessonCard({
           that is gone in nine seconds. Only while there is still nothing to
           play — once a presentation exists, an older failure is history. */}
       {genFailure && !lesson.hasPreset && !generating && (
-        <p
+        <div
           role="status"
           className="mt-2 rounded-wobble-sm border border-dashed border-red bg-red-soft px-3 py-2 text-sm text-ink"
         >
-          <span className="micro mr-1 text-[0.58rem] font-bold text-red">
-            {say("Last attempt failed")}
-          </span>
-          {genFailure}
-          {/* The health check pings every text key the server would use, in
-              order, and names the one that refused. It already existed; the
-              failure that sends you looking for it just never pointed at it. */}
-          {isAdmin && (
-            <Link
-              to="/admin/settings?tab=providers"
-              className="ml-1 whitespace-nowrap font-semibold text-red underline"
-            >
-              {say("Check provider health →")}
-            </Link>
+          <p>
+            <span className="micro mr-1 text-[0.58rem] font-bold text-red">
+              {say("Last attempt failed")}
+            </span>
+            {genFailure.summary}
+            {/* The health check pings every text key the server would use, in
+                order, and names the one that refused. It already existed; the
+                failure that sends you looking for it just never pointed at it. */}
+            {isAdmin && (
+              <Link
+                to="/admin/settings?tab=providers"
+                className="ml-1 whitespace-nowrap font-semibold text-red underline"
+              >
+                {say("Check provider health →")}
+              </Link>
+            )}
+          </p>
+          {/* What each provider actually said. Admin-only — it is the line that
+              separates a missing key from a key that works everywhere else and
+              only refuses this one large request, and nobody but an admin can
+              act on either. */}
+          {isAdmin && genFailure.detail && (
+            <p className="mt-1.5 whitespace-pre-wrap break-words border-t border-dashed border-red/40 pt-1.5 font-mono text-[0.68rem] leading-relaxed text-ink-soft">
+              {genFailure.detail}
+            </p>
           )}
-        </p>
+        </div>
       )}
 
       {/* prompt card — exactly the string seeded into the slide tool */}
