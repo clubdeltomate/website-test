@@ -840,6 +840,11 @@ function LessonCard({
   // author wanders off to another page and comes back.
   const lessonGen = useLessonGeneration();
   const generating = lessonGen.isRunning(seed.repoSlug, seed.lessonSeq);
+  /* Why the last attempt failed, if it did. A failed generation used to leave
+     the row reading "Set" — exactly what it says for a lesson nobody has
+     touched — so "the presentation won't load" and "I never made one" looked
+     identical, and the reason had already vanished with the toast. */
+  const genFailure = lessonGen.failureOf(seed.repoSlug, seed.lessonSeq);
 
   /**
    * The lesson's answer key: a model run over the preset with every question
@@ -1332,6 +1337,21 @@ function LessonCard({
         </div>
         {renderAction()}
       </div>
+
+      {/* The last attempt's failure, kept on the row rather than in a toast
+          that is gone in nine seconds. Only while there is still nothing to
+          play — once a presentation exists, an older failure is history. */}
+      {genFailure && !lesson.hasPreset && !generating && (
+        <p
+          role="status"
+          className="mt-2 rounded-wobble-sm border border-dashed border-red bg-red-soft px-3 py-2 text-sm text-ink"
+        >
+          <span className="micro mr-1 text-[0.58rem] font-bold text-red">
+            {say("Last attempt failed")}
+          </span>
+          {genFailure}
+        </p>
+      )}
 
       {/* prompt card — exactly the string seeded into the slide tool */}
       {editingObjective && controls ? (

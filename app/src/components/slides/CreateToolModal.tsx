@@ -92,9 +92,14 @@ function readableGenError(err: unknown): string {
   const raw = err instanceof Error ? err.message : '';
   const [first] = raw.split('\n\n');
   const msg = (first || 'That generation did not finish').trim();
-  if (msg.startsWith('AI_UNAVAILABLE')) {
-    return 'No deck was generated and your credits were refunded — every AI provider refused the request. Try again in a moment.';
-  }
+  /* AI_UNAVAILABLE deliberately has no special case any more. It used to be
+     rewritten as "every AI provider refused the request. Try again in a
+     moment", which threw away the half that mattered — the server's own
+     sentence names the fix, a missing key in the environment or one the author
+     can add under Settings → API Keys. "Try again in a moment" is advice for a
+     blip, and no amount of waiting configures an AI provider, so someone whose
+     presentation never appeared retried forever and never learned why. The
+     generic path below strips the code and capitalises, which is all it needed. */
   if (msg.startsWith('NEED_TICKET')) {
     return "You need a customization ticket for this repo — ask its owner. The free version is still watchable.";
   }
@@ -387,7 +392,10 @@ export default function CreateToolModal({
             .catch(() => undefined);
         }
       } catch (err) {
-        toast.error(readableGenError(err), { duration: 9000 });
+        const why = readableGenError(err);
+        // The toast says it now; the row keeps saying it after the toast goes.
+        lessonGen.fail(lesson.repoSlug, lesson.lessonSeq, why);
+        toast.error(why, { duration: 9000 });
       } finally {
         // Refresh either way: a failure needs the button to come back.
         await utils.repos.getBySlug.invalidate({ slug: lesson.repoSlug });
